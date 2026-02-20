@@ -1,4 +1,5 @@
 domain: zech.sh
+theme: fusion
 
 controllers:
   - skrift.controllers.auth:AuthController
