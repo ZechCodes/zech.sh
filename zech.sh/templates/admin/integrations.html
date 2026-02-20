@@ -1,0 +1,19 @@
+{% extends "admin/base.html" %}
+{% block title %}Integrations - Admin - {{ site_name() }}{% endblock %}
+
+{% block admin_content %}
+<hgroup>
+    <h1>Integrations</h1>
+    <p>Configure external service links and integrations</p>
+</hgroup>
+
+<form method="post" action="/admin/integrations">
+    <label for="discord_invite_url">Discord Invite URL</label>
+    <input type="url" id="discord_invite_url" name="discord_invite_url" value="{{ settings.discord_invite_url or '' }}" placeholder="https://discord.gg/...">
+    <small class="sk-text-muted">Visitors to <code>/discord</code> will be redirected to this URL</small>
+
+    <div class="sk-form-actions">
+        <button type="submit">Save Settings</button>
+    </div>
+</form>
+{% endblock %}
