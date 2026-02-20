@@ -4,6 +4,7 @@ theme: fusion
 controllers:
   - skrift.controllers.auth:AuthController
   - skrift.admin.controller:AdminController
+  - controllers.redirects:RedirectsController
   - skrift.controllers.web:WebController
   - controllers.health:HealthController
 
