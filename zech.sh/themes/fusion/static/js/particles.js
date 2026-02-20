@@ -44,21 +44,11 @@
       const dy = mouse.y - p.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      // Magnetic polarity force
+      // Magnetic polarity force (attract/repel from cursor)
       if (dist < 250 && dist > 1) {
         const strength = p.force * p.polarity;
         p.vx += dx * strength;
         p.vy += dy * strength;
-
-        // Particles near cursor grow
-        if (dist < 150) {
-          const proximity = 1 - dist / 150;
-          p.radius = p.baseRadius + proximity * 2;
-        } else {
-          p.radius += (p.baseRadius - p.radius) * 0.05;
-        }
-      } else {
-        p.radius += (p.baseRadius - p.radius) * 0.05;
       }
 
       p.x += p.vx;
@@ -84,6 +74,15 @@
         const dx2 = p.x - p2.x;
         const dy2 = p.y - p2.y;
         const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+
+        // Short-range repulsion between particles
+        if (dist2 < 30 && dist2 > 0.1) {
+          const repel = 0.5 / (dist2 * dist2);
+          p.vx += (dx2 / dist2) * repel;
+          p.vy += (dy2 / dist2) * repel;
+          p2.vx -= (dx2 / dist2) * repel;
+          p2.vy -= (dy2 / dist2) * repel;
+        }
 
         if (dist2 < 200) {
           // Cross-polarity connections glow brighter
