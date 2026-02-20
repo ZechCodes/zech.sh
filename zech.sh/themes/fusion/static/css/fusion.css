@@ -1,0 +1,930 @@
+/* ==========================================================================
+   FUSION — Arctic Cyberpunk CSS Framework
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Design Tokens
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* Skrift overrides */
+  --sk-bg: #040810;
+  --sk-text: #e0eaf8;
+  --sk-accent: #00e5ff;
+  --sk-font-body: 'Rajdhani', sans-serif;
+  --sk-font-heading: 'Orbitron', sans-serif;
+
+  /* Fusion tokens */
+  --zech-bg: #040810;
+  --zech-surface: #0a1020;
+  --zech-primary: #00e5ff;
+  --zech-secondary: #b4c7ff;
+  --zech-accent: #e0eaff;
+  --zech-dim: #103050;
+  --zech-text: #e0eaf8;
+  --zech-text-dim: #7a92b0;
+  --zech-glow: 0 0 30px rgba(0,229,255,0.3);
+  --zech-glow-lg: 0 0 60px rgba(0,229,255,0.15);
+  --zech-glow-sec: 0 0 30px rgba(180,199,255,0.3);
+}
+
+/* --------------------------------------------------------------------------
+   2. Reset & Base
+   -------------------------------------------------------------------------- */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--zech-bg);
+  color: var(--zech-text);
+  font-family: 'Rajdhani', sans-serif;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* --------------------------------------------------------------------------
+   3. Semantic Typography
+   -------------------------------------------------------------------------- */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1.2;
+}
+
+h1 { font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 900; }
+h2 { font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 800; letter-spacing: 2px; }
+h3 { font-size: 1rem; letter-spacing: 1px; }
+
+p {
+  color: var(--zech-text-dim);
+  line-height: 1.7;
+}
+
+strong {
+  color: var(--zech-text);
+  font-weight: 600;
+}
+
+a {
+  color: var(--zech-primary);
+  text-decoration: none;
+  transition: all 0.3s;
+}
+
+a:hover {
+  text-shadow: 0 0 10px rgba(0,229,255,0.5);
+}
+
+code {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85em;
+  color: var(--zech-secondary);
+  background: rgba(0,229,255,0.05);
+  padding: 0.1em 0.4em;
+  border: 1px solid rgba(0,229,255,0.1);
+}
+
+/* --------------------------------------------------------------------------
+   4. Semantic Forms
+   -------------------------------------------------------------------------- */
+
+input, textarea, select {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+  color: var(--zech-text);
+  background: rgba(0,229,255,0.03);
+  border: 1px solid rgba(0,229,255,0.12);
+  padding: 0.75rem 1rem;
+  transition: all 0.3s;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--zech-primary);
+  box-shadow: 0 0 15px rgba(0,229,255,0.15);
+}
+
+label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   5. Buttons
+   -------------------------------------------------------------------------- */
+
+button, a[role="button"], .zech-btn-primary, .zech-btn-ghost {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 1rem 2.5rem;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.3s;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  display: inline-block;
+}
+
+.zech-btn-primary {
+  background: var(--zech-primary);
+  color: var(--zech-bg);
+}
+
+.zech-btn-primary:hover {
+  box-shadow: var(--zech-glow), var(--zech-glow-lg);
+  transform: translateY(-2px);
+}
+
+.zech-btn-ghost {
+  background: transparent;
+  color: var(--zech-secondary);
+  border: 1px solid var(--zech-secondary);
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+
+.zech-btn-ghost:hover {
+  background: rgba(180,199,255,0.06);
+  box-shadow: var(--zech-glow-sec);
+  transform: translateY(-2px);
+}
+
+/* --------------------------------------------------------------------------
+   6. Navigation — .zech-topnav
+   -------------------------------------------------------------------------- */
+
+.zech-topnav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 1rem 3rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(4,8,16,0.8);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0,229,255,0.08);
+}
+
+.zech-topnav .logo {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--zech-primary);
+  letter-spacing: 4px;
+  text-shadow: 0 0 10px rgba(0,229,255,0.4);
+  position: relative;
+  text-decoration: none;
+}
+
+.zech-topnav .logo::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 2px;
+  color: var(--zech-secondary);
+  opacity: 0.2;
+  clip-path: inset(0 0 50% 0);
+}
+
+.zech-topnav-links {
+  display: flex;
+  gap: 2rem;
+}
+
+.zech-topnav-links a {
+  font-family: 'Orbitron', sans-serif;
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  transition: all 0.3s;
+}
+
+.zech-topnav-links a:hover {
+  color: var(--zech-primary);
+  text-shadow: 0 0 10px rgba(0,229,255,0.5);
+}
+
+/* --------------------------------------------------------------------------
+   7. Hero — .zech-hero
+   -------------------------------------------------------------------------- */
+
+.zech-hero {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 2rem;
+  overflow: hidden;
+}
+
+.zech-hero::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -10%;
+  width: 120%;
+  height: 50%;
+  background:
+    linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px),
+    linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  transform: perspective(500px) rotateX(60deg);
+  transform-origin: bottom;
+  animation: gridScroll 1.5s linear infinite;
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.2), transparent);
+}
+
+.zech-hero-tag {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 8px;
+  text-transform: uppercase;
+  color: var(--zech-secondary);
+  margin-bottom: 2rem;
+  text-shadow: 0 0 15px rgba(180,199,255,0.4);
+  opacity: 0;
+  animation: fadeIn 0.6s 0.3s forwards;
+}
+
+.zech-glitch-wrapper {
+  position: relative;
+  margin-bottom: 2rem;
+}
+
+.zech-glitch {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(4rem, 12vw, 10rem);
+  font-weight: 900;
+  line-height: 0.9;
+  letter-spacing: 6px;
+  color: var(--zech-text);
+  position: relative;
+  text-shadow: 0 0 10px rgba(0,229,255,0.2), 0 0 40px rgba(0,229,255,0.08);
+  animation: glitchReveal 0.8s 0.5s forwards;
+  opacity: 0;
+}
+
+.zech-glitch::before,
+.zech-glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+}
+
+.zech-glitch::before {
+  color: #ff1a1a;
+  z-index: -1;
+  animation: glitchA 2s infinite linear alternate-reverse;
+}
+
+.zech-glitch::after {
+  color: var(--zech-secondary);
+  z-index: -1;
+  animation: glitchB 1.8s infinite linear alternate-reverse;
+}
+
+.zech-hero-subtitle {
+  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  font-weight: 400;
+  color: var(--zech-text-dim);
+  max-width: 550px;
+  margin-bottom: 3rem;
+  opacity: 0;
+  animation: fadeIn 0.8s 1.3s forwards;
+}
+
+.zech-hero-subtitle .neon {
+  color: var(--zech-primary);
+  text-shadow: 0 0 10px rgba(0,229,255,0.5);
+  font-weight: 600;
+}
+
+.zech-hero-subtitle .neon-alt {
+  color: var(--zech-secondary);
+  text-shadow: 0 0 10px rgba(180,199,255,0.5);
+  font-weight: 600;
+}
+
+.zech-hero-cta {
+  display: flex;
+  gap: 1.5rem;
+  opacity: 0;
+  animation: fadeIn 0.6s 1.7s forwards;
+}
+
+.zech-data-stream {
+  position: absolute;
+  bottom: 4rem;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--zech-primary), var(--zech-secondary), transparent);
+  opacity: 0.25;
+  z-index: 1;
+}
+
+.zech-data-stream::before {
+  content: '';
+  position: absolute;
+  width: 60px;
+  height: 3px;
+  background: var(--zech-primary);
+  box-shadow: 0 0 10px var(--zech-primary);
+  animation: dataFlow 1.5s linear infinite;
+  top: -1px;
+}
+
+/* --------------------------------------------------------------------------
+   8. Sections
+   -------------------------------------------------------------------------- */
+
+.zech-section {
+  position: relative;
+  z-index: 1;
+  padding: 8rem 3rem;
+}
+
+.zech-section-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.zech-section-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+  margin-bottom: 1rem;
+  text-shadow: 0 0 10px rgba(0,229,255,0.3);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.zech-section-label::before {
+  content: '//';
+  color: var(--zech-secondary);
+}
+
+.zech-section-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: 2px;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.zech-section-title .a {
+  color: var(--zech-primary);
+  text-shadow: 0 0 20px rgba(0,229,255,0.3);
+}
+
+.zech-section-title .b {
+  color: var(--zech-secondary);
+  text-shadow: 0 0 20px rgba(180,199,255,0.3);
+}
+
+/* --------------------------------------------------------------------------
+   9. About Split
+   -------------------------------------------------------------------------- */
+
+.zech-about-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  margin-top: 3rem;
+}
+
+.zech-about-text {
+  font-size: 1.05rem;
+  color: var(--zech-text-dim);
+  line-height: 1.9;
+}
+
+.zech-about-text strong {
+  color: var(--zech-text);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   10. Stats Grid — .zech-stats
+   -------------------------------------------------------------------------- */
+
+.zech-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: rgba(0,229,255,0.06);
+}
+
+.zech-stat {
+  background: var(--zech-bg);
+  padding: 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.zech-stat.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.zech-stat:hover {
+  background: rgba(0,229,255,0.02);
+}
+
+.zech-stat::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-top: 2px solid var(--zech-primary);
+  border-left: 2px solid var(--zech-primary);
+  opacity: 0.4;
+}
+
+.zech-stat::after {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-bottom: 2px solid var(--zech-secondary);
+  border-right: 2px solid var(--zech-secondary);
+  opacity: 0.4;
+}
+
+.zech-stat .value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: var(--zech-primary);
+  text-shadow: 0 0 20px rgba(0,229,255,0.3);
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.zech-stat .label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--zech-text-dim);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   11. Cards Grid — .zech-cards
+   -------------------------------------------------------------------------- */
+
+.zech-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: rgba(0,229,255,0.05);
+  margin-top: 3rem;
+}
+
+.zech-card {
+  background: var(--zech-bg);
+  padding: 3rem 2rem;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.zech-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.zech-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--zech-primary), var(--zech-secondary));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s;
+}
+
+.zech-card:hover::before {
+  transform: scaleX(1);
+}
+
+.zech-card:hover {
+  background: rgba(0,229,255,0.015);
+}
+
+.zech-card .card-id {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--zech-secondary);
+  letter-spacing: 3px;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 0 8px rgba(180,199,255,0.3);
+}
+
+.zech-card h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 1rem;
+}
+
+.zech-card p {
+  color: var(--zech-text-dim);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+/* --------------------------------------------------------------------------
+   12. Community Block — .zech-community-block
+   -------------------------------------------------------------------------- */
+
+.zech-community-block {
+  margin-top: 3rem;
+  padding: 4rem;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0,229,255,0.08);
+  background: linear-gradient(135deg, rgba(0,229,255,0.02), rgba(180,199,255,0.01));
+}
+
+.zech-corner {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+}
+
+.zech-corner.tl {
+  top: 0;
+  left: 0;
+  border-top: 2px solid var(--zech-primary);
+  border-left: 2px solid var(--zech-primary);
+}
+
+.zech-corner.br {
+  bottom: 0;
+  right: 0;
+  border-bottom: 2px solid var(--zech-primary);
+  border-right: 2px solid var(--zech-primary);
+}
+
+.zech-community-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3rem;
+  position: relative;
+  z-index: 1;
+}
+
+.zech-community-content h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  margin-bottom: 1rem;
+}
+
+.zech-community-content p {
+  color: var(--zech-text-dim);
+  max-width: 500px;
+  font-size: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   13. Footer — .zech-footer
+   -------------------------------------------------------------------------- */
+
+.zech-footer {
+  position: relative;
+  z-index: 1;
+  padding: 3rem;
+  border-top: 1px solid rgba(0,229,255,0.06);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.zech-footer p {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  color: var(--zech-text-dim);
+  letter-spacing: 3px;
+}
+
+.zech-footer .zech-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  color: var(--zech-text-dim);
+  letter-spacing: 2px;
+}
+
+.zech-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--zech-primary);
+  box-shadow: 0 0 8px var(--zech-primary);
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+/* --------------------------------------------------------------------------
+   14. Effects — Scanlines & Noise
+   -------------------------------------------------------------------------- */
+
+.zech-scanlines {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 900;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+}
+
+.zech-noise-layer {
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  z-index: 800;
+  pointer-events: none;
+  opacity: 0.012;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: noiseMove 0.3s steps(3) infinite;
+}
+
+/* --------------------------------------------------------------------------
+   15. Animations — @keyframes
+   -------------------------------------------------------------------------- */
+
+@keyframes glitchReveal {
+  0% { opacity: 0; transform: translateY(30px); }
+  50% { opacity: 1; transform: translateY(-5px); }
+  60% { transform: translateX(5px) skewX(2deg); }
+  70% { transform: translateX(-3px) skewX(-1deg); }
+  80% { transform: translateX(2px); }
+  100% { opacity: 1; transform: translateY(0) translateX(0) skewX(0); }
+}
+
+@keyframes glitchA {
+  0%,70%,100% { clip-path: inset(0); transform: translate(0); }
+  72% { clip-path: inset(10% 0 70% 0); transform: translate(-6px, 2px); }
+  75% { clip-path: inset(40% 0 20% 0); transform: translate(5px, -3px); }
+  78% { clip-path: inset(60% 0 5% 0); transform: translate(-4px, 1px); }
+  81% { clip-path: inset(5% 0 85% 0); transform: translate(7px, -2px); }
+  84% { clip-path: inset(25% 0 50% 0); transform: translate(-3px, 3px); }
+  87% { clip-path: inset(0); transform: translate(0); }
+  90% { clip-path: inset(15% 0 65% 0); transform: translate(4px, -1px); }
+  93% { clip-path: inset(0); transform: translate(0); }
+}
+
+@keyframes glitchB {
+  0%,72%,100% { clip-path: inset(0); transform: translate(0); }
+  74% { clip-path: inset(30% 0 40% 0); transform: translate(5px, -2px); }
+  77% { clip-path: inset(70% 0 5% 0); transform: translate(-6px, 3px); }
+  80% { clip-path: inset(5% 0 80% 0); transform: translate(4px, 1px); }
+  83% { clip-path: inset(50% 0 20% 0); transform: translate(-5px, -2px); }
+  86% { clip-path: inset(0); transform: translate(0); }
+  89% { clip-path: inset(20% 0 60% 0); transform: translate(6px, 2px); }
+  92% { clip-path: inset(0); transform: translate(0); }
+}
+
+@keyframes gridScroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 60px; }
+}
+
+@keyframes dataFlow {
+  0% { left: -60px; }
+  100% { left: 100%; }
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+@keyframes noiseMove {
+  0% { transform: translate(0,0); }
+  33% { transform: translate(-5px,3px); }
+  66% { transform: translate(3px,-2px); }
+  100% { transform: translate(-1px,5px); }
+}
+
+/* --------------------------------------------------------------------------
+   16. Flash Messages — Re-themed for dark bg
+   -------------------------------------------------------------------------- */
+
+.sk-flash-messages {
+  position: fixed;
+  top: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  width: 90%;
+  max-width: 600px;
+}
+
+.sk-flash {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.95rem;
+  padding: 1rem 1.5rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(0,229,255,0.15);
+}
+
+.sk-flash-success {
+  background: rgba(0,229,255,0.08);
+  color: var(--zech-primary);
+  border-color: rgba(0,229,255,0.2);
+}
+
+.sk-flash-error {
+  background: rgba(255,26,26,0.08);
+  color: #ff6b6b;
+  border-color: rgba(255,26,26,0.2);
+}
+
+.sk-flash-warning {
+  background: rgba(255,200,0,0.08);
+  color: #ffd666;
+  border-color: rgba(255,200,0,0.2);
+}
+
+.sk-flash-info {
+  background: rgba(180,199,255,0.08);
+  color: var(--zech-secondary);
+  border-color: rgba(180,199,255,0.2);
+}
+
+.sk-flash-dismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 0 0 1rem;
+  opacity: 0.6;
+  font-family: inherit;
+  clip-path: none;
+}
+
+.sk-flash-dismiss:hover {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   17. Skrift Bottombar — Preserved for CMS
+   -------------------------------------------------------------------------- */
+
+.sk-bottombar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(4,8,16,0.95);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(0,229,255,0.08);
+  padding: 0.5rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  letter-spacing: 2px;
+}
+
+.sk-bottombar-brand {
+  color: var(--zech-primary);
+  font-weight: 700;
+}
+
+.sk-bottombar-sep {
+  flex: 0 0 1px;
+  height: 12px;
+  background: rgba(0,229,255,0.15);
+}
+
+.sk-bottombar-link {
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  transition: color 0.3s;
+  text-transform: uppercase;
+}
+
+.sk-bottombar-link:hover {
+  color: var(--zech-primary);
+  text-shadow: 0 0 10px rgba(0,229,255,0.5);
+}
+
+/* --------------------------------------------------------------------------
+   18. Responsive — 768px breakpoint
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+  .zech-about-split {
+    grid-template-columns: 1fr;
+  }
+
+  .zech-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .zech-community-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .zech-topnav-links {
+    display: none;
+  }
+
+  .zech-section {
+    padding: 4rem 1.5rem;
+  }
+
+  .zech-topnav {
+    padding: 1rem 1.5rem;
+  }
+
+  .zech-footer {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .zech-community-block {
+    padding: 2rem;
+  }
+}

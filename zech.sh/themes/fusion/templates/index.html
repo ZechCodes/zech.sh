@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ site_name() }} — Arctic Fusion{% endblock %}
+
+{% block content %}
+<section class="zech-hero">
+    <div class="zech-hero-tag">SYS.ONLINE // DEV.ACTIVE // SLEEP.NULL</div>
+    <div class="zech-glitch-wrapper">
+        <h1 class="zech-glitch" data-text="ZECH.SH">ZECH.SH</h1>
+    </div>
+    <p class="zech-hero-subtitle">
+        The one who <span class="neon">dreams</span> while others sleep.
+        Building the <span class="neon-alt">future</span> with tomorrow's technology.
+    </p>
+    <div class="zech-hero-cta">
+        <a href="#work" class="zech-btn-primary">INIT_WORK</a>
+        <a href="#community" class="zech-btn-ghost">JOIN_NET</a>
+    </div>
+    <div class="zech-data-stream"></div>
+</section>
+
+<section id="about" class="zech-section">
+    <div class="zech-section-inner">
+        <div class="zech-section-label">SYS.PROFILE</div>
+        <h2 class="zech-section-title">TWO DECADES OF <span class="a">DIGITAL</span> <span class="b">CRAFT</span></h2>
+        <div class="zech-about-split">
+            <div class="zech-about-text">
+                <p>I'm Zech &mdash; a <strong>developer, architect, and relentless builder</strong> who's been writing code for over two decades. I run the <strong>Smarter Dev</strong> Discord community where developers come to level up.</p>
+                <br>
+                <p>My work sits at the intersection of <strong>wild ambition and precise execution</strong>. I take ideas that feel impossible and turn them into production systems.</p>
+            </div>
+            <div class="zech-stats">
+                <div class="zech-stat"><div class="value">20+</div><div class="label">Years</div></div>
+                <div class="zech-stat"><div class="value">&infin;</div><div class="label">Shipped</div></div>
+                <div class="zech-stat"><div class="value">01</div><div class="label">Community</div></div>
+                <div class="zech-stat"><div class="value">00</div><div class="label">Sleep.hrs</div></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="work" class="zech-section">
+    <div class="zech-section-inner">
+        <div class="zech-section-label">CAPABILITIES</div>
+        <h2 class="zech-section-title">BUILDING AT THE <span class="a">BLEEDING</span> <span class="b">EDGE</span></h2>
+        <div class="zech-cards">
+            <div class="zech-card">
+                <div class="card-id">MOD_001</div>
+                <h3>FULL-STACK SYS</h3>
+                <p>From bare metal infrastructure to pixel-perfect frontends. Architecture designed to scale, code built to last.</p>
+            </div>
+            <div class="zech-card">
+                <div class="card-id">MOD_002</div>
+                <h3>COMMUNITY.NET</h3>
+                <p>Running Smarter Dev — a Discord collective for developers who think bigger and build smarter together.</p>
+            </div>
+            <div class="zech-card">
+                <div class="card-id">MOD_003</div>
+                <h3>NEXT_GEN.AI</h3>
+                <p>AI-augmented development, experimental interfaces, and tooling that doesn't exist yet. The future is being built.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="community" class="zech-section">
+    <div class="zech-section-inner">
+        <div class="zech-section-label">NETWORK</div>
+        <h2 class="zech-section-title"><span class="a">SMARTER</span> <span class="b">DEV</span></h2>
+        <div class="zech-community-block">
+            <div class="zech-corner tl"></div>
+            <div class="zech-corner br"></div>
+            <div class="zech-community-content">
+                <div>
+                    <h3>JACK IN.</h3>
+                    <p>A collective of developers who refuse to build ordinary things. We push limits, share breakthroughs, and ship code that matters.</p>
+                </div>
+                <a href="#" class="zech-btn-primary">CONNECT</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

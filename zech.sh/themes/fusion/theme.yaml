@@ -1,0 +1,10 @@
+name: "Fusion"
+description: "Arctic cyberpunk theme with magnetic particle fields, glitch effects, and angular cyber aesthetics"
+version: "1.0.0"
+author: "Zech"
+colors:
+  - "#040810"
+  - "#00e5ff"
+  - "#b4c7ff"
+  - "#e0eaff"
+  - "#e0eaf8"
