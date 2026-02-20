@@ -1,0 +1,46 @@
+domain: zech.sh
+
+controllers:
+  - skrift.controllers.auth:AuthController
+  - skrift.admin.controller:AdminController
+  - skrift.controllers.web:WebController
+
+page_types:
+  - name: page
+    plural: pages
+    icon: file-text
+  - name: post
+    plural: posts
+    icon: pen-tool
+    nav_order: 10
+
+sites:
+  dump:
+    subdomain: dump
+    controllers:
+      - controllers.dump:DumpController
+    theme: dump
+
+db:
+  url: sqlite+aiosqlite:///./app.db
+  pool_size: 5
+  pool_overflow: 10
+  pool_timeout: 30
+  pool_pre_ping: true
+  echo: false
+
+session:
+  cookie_domain: .zech.sh
+
+auth:
+  redirect_base_url: http://localhost:8888
+  allowed_redirect_domains:
+    - "*.zech.sh"
+  providers:
+    google:
+      client_id: $GOOGLE_CLIENT_ID
+      client_secret: $GOOGLE_CLIENT_SECRET
+      scopes:
+        - openid
+        - email
+        - profile

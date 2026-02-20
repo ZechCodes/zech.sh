@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}DUMP — Posts{% endblock %}
+
+{% block content %}
+<section class="zech-section">
+    <div class="zech-section-inner">
+        <div class="zech-section-label">TRANSMISSIONS</div>
+        <h1 class="zech-section-title"><span class="a">DATA</span> <span class="b">DUMP</span></h1>
+
+        {% if posts %}
+        <div class="dump-posts">
+            {% for post in posts %}
+            <a href="/{{ post.slug }}" class="dump-post-card">
+                <div class="dump-post-card-inner">
+                    {% if not post.is_published %}
+                    <span class="dump-draft-badge">DRAFT</span>
+                    {% endif %}
+                    <h2 class="dump-post-title">{{ post.title }}</h2>
+                    {% if post.published_at %}
+                    <time class="dump-post-date" datetime="{{ post.published_at.isoformat() }}">
+                        {{ post.published_at.strftime('%Y.%m.%d') }}
+                    </time>
+                    {% endif %}
+                    <p class="dump-post-excerpt">{{ post.content | striptags | truncate(200) }}</p>
+                    <span class="dump-post-read">READ &raquo;</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="dump-empty">
+            <p>NO TRANSMISSIONS FOUND</p>
+            <span class="dump-empty-sub">Check back later for new data dumps.</span>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

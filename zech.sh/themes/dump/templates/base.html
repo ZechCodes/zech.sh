@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}DUMP{% endblock %}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ static_url('fusion/css/fusion.css') }}">
+    <link rel="stylesheet" href="{{ theme_url('css/dump.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+<div class="zech-scanlines"></div>
+<div class="zech-noise-layer"></div>
+
+<nav class="zech-topnav">
+    <a href="/" class="logo" data-text="DUMP">DUMP</a>
+    <div class="zech-topnav-right">
+        <div class="zech-topnav-links">
+            <a href="https://zech.sh">// ZECH.SH</a>
+        </div>
+        {% if user %}
+        <div class="zech-user-menu">
+            <button class="zech-user-toggle" type="button" aria-label="User menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+            </button>
+            <div class="zech-user-dropdown">
+                <div class="zech-user-dropdown-header">
+                    <span class="zech-user-dropdown-label">USR.SESSION</span>
+                    <span class="zech-user-dropdown-status"><span class="zech-status-dot zech-status-connecting"></span>CONNECTING</span>
+                </div>
+                <a href="https://zech.sh/admin" class="zech-user-dropdown-item">// DASHBOARD</a>
+                <a href="https://zech.sh/auth/logout" class="zech-user-dropdown-item zech-user-dropdown-logout">// DISCONNECT</a>
+            </div>
+        </div>
+        {% else %}
+        <a href="{{ login_url() }}" class="zech-user-login-link">// LOGIN</a>
+        {% endif %}
+    </div>
+</nav>
+
+{# Flash messages #}
+{% if flash_messages %}
+<div class="sk-flash-messages" role="status" aria-live="polite">
+    {% for msg in flash_messages %}
+    <article role="alert" class="sk-flash sk-flash-{{ msg.type.value }}" {% if msg.dismissible %}data-dismissible{% endif %}>
+        <span class="sk-flash-message">{{ msg.message }}</span>
+        {% if msg.dismissible %}
+        <button type="button" class="sk-flash-dismiss" aria-label="Dismiss">&times;</button>
+        {% endif %}
+    </article>
+    {% endfor %}
+</div>
+{% elif flash %}
+<div class="sk-flash-messages" role="status" aria-live="polite">
+    <article role="alert" class="sk-flash sk-flash-info" data-dismissible>
+        <span class="sk-flash-message">{{ flash }}</span>
+        <button type="button" class="sk-flash-dismiss" aria-label="Dismiss">&times;</button>
+    </article>
+</div>
+{% endif %}
+
+<main class="dump-main">
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="zech-footer">
+    <p>&copy; {{ now().year }} DUMP.ZECH.SH</p>
+    <div class="zech-status"><div class="zech-status-dot"></div>SYSTEM ONLINE</div>
+</footer>
+
+<script src="{{ static_url('skrift/js/notifications.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggle = document.querySelector('.zech-user-toggle');
+    const menu = document.querySelector('.zech-user-menu');
+    if (toggle && menu) {
+        toggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            menu.classList.toggle('open');
+        });
+        document.addEventListener('click', function() {
+            menu.classList.remove('open');
+        });
+    }
+    document.querySelectorAll('.sk-flash-dismiss').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            this.closest('.sk-flash').remove();
+        });
+    });
+});
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

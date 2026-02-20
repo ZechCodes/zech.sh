@@ -1,0 +1,375 @@
+/* ==========================================================================
+   DUMP — Blog-specific styles using Fusion design tokens
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Layout
+   -------------------------------------------------------------------------- */
+
+.dump-main {
+  padding-top: 5rem;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* --------------------------------------------------------------------------
+   2. Post Listing
+   -------------------------------------------------------------------------- */
+
+.dump-posts {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: rgba(0,229,255,0.05);
+  margin-top: 3rem;
+}
+
+.dump-post-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--zech-bg);
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.dump-post-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--zech-primary);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 0.3s;
+}
+
+.dump-post-card:hover::before {
+  transform: scaleY(1);
+}
+
+.dump-post-card:hover {
+  background: rgba(0,229,255,0.015);
+  text-shadow: none;
+}
+
+.dump-post-card-inner {
+  padding: 2.5rem 2rem;
+  position: relative;
+}
+
+.dump-post-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--zech-text);
+  margin-bottom: 0.5rem;
+  transition: color 0.3s;
+}
+
+.dump-post-card:hover .dump-post-title {
+  color: var(--zech-primary);
+}
+
+.dump-post-date {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 3px;
+  color: var(--zech-text-dim);
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.dump-post-excerpt {
+  color: var(--zech-text-dim);
+  font-size: 0.95rem;
+  line-height: 1.7;
+  max-width: 700px;
+}
+
+.dump-post-read {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 3px;
+  color: var(--zech-primary);
+  margin-top: 1rem;
+  display: inline-block;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: all 0.3s;
+}
+
+.dump-post-card:hover .dump-post-read {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* --------------------------------------------------------------------------
+   3. Empty State
+   -------------------------------------------------------------------------- */
+
+.dump-empty {
+  margin-top: 4rem;
+  padding: 4rem 2rem;
+  text-align: center;
+  border: 1px solid rgba(0,229,255,0.08);
+  background: rgba(0,229,255,0.02);
+}
+
+.dump-empty p {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--zech-text-dim);
+}
+
+.dump-empty-sub {
+  font-size: 0.9rem;
+  color: var(--zech-text-dim);
+  opacity: 0.6;
+  margin-top: 0.5rem;
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   4. Draft Badge & Notice
+   -------------------------------------------------------------------------- */
+
+.dump-draft-badge {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--zech-bg);
+  background: var(--zech-secondary);
+  padding: 0.25rem 0.75rem;
+  display: inline-block;
+  margin-bottom: 0.75rem;
+}
+
+.dump-draft-notice {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  margin-bottom: 2rem;
+  border: 1px solid rgba(180,199,255,0.2);
+  background: rgba(180,199,255,0.04);
+  color: var(--zech-secondary);
+  font-size: 0.9rem;
+}
+
+/* --------------------------------------------------------------------------
+   5. Single Post — Article
+   -------------------------------------------------------------------------- */
+
+.dump-back-link {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 3px;
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  display: inline-block;
+  margin-bottom: 2rem;
+  transition: color 0.3s;
+}
+
+.dump-back-link:hover {
+  color: var(--zech-primary);
+}
+
+.dump-article-header {
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid rgba(0,229,255,0.08);
+}
+
+.dump-article-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-weight: 900;
+  letter-spacing: 2px;
+  line-height: 1.2;
+  color: var(--zech-text);
+  margin-bottom: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   6. Article Content — Prose Styling
+   -------------------------------------------------------------------------- */
+
+.dump-article-content {
+  max-width: 720px;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: var(--zech-text-dim);
+}
+
+.dump-article-content h1,
+.dump-article-content h2,
+.dump-article-content h3,
+.dump-article-content h4,
+.dump-article-content h5,
+.dump-article-content h6 {
+  color: var(--zech-text);
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.dump-article-content h1 { font-size: 2rem; }
+.dump-article-content h2 { font-size: 1.6rem; }
+.dump-article-content h3 { font-size: 1.3rem; }
+
+.dump-article-content p {
+  margin-bottom: 1.5rem;
+  color: var(--zech-text-dim);
+}
+
+.dump-article-content a {
+  color: var(--zech-primary);
+  text-decoration: underline;
+  text-decoration-color: rgba(0,229,255,0.3);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.3s;
+}
+
+.dump-article-content a:hover {
+  text-decoration-color: var(--zech-primary);
+}
+
+.dump-article-content strong {
+  color: var(--zech-text);
+  font-weight: 600;
+}
+
+.dump-article-content em {
+  color: var(--zech-secondary);
+  font-style: italic;
+}
+
+.dump-article-content ul,
+.dump-article-content ol {
+  margin-bottom: 1.5rem;
+  padding-left: 1.5rem;
+}
+
+.dump-article-content li {
+  margin-bottom: 0.5rem;
+  color: var(--zech-text-dim);
+}
+
+.dump-article-content li::marker {
+  color: var(--zech-primary);
+}
+
+.dump-article-content blockquote {
+  margin: 2rem 0;
+  padding: 1.5rem 2rem;
+  border-left: 3px solid var(--zech-primary);
+  background: rgba(0,229,255,0.03);
+  font-style: italic;
+  color: var(--zech-text);
+}
+
+.dump-article-content blockquote p {
+  color: var(--zech-text);
+  margin-bottom: 0;
+}
+
+.dump-article-content pre {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: rgba(0,229,255,0.03);
+  border: 1px solid rgba(0,229,255,0.1);
+  overflow-x: auto;
+}
+
+.dump-article-content pre code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.85rem;
+  color: var(--zech-text);
+  background: none;
+  border: none;
+  padding: 0;
+  line-height: 1.6;
+}
+
+.dump-article-content code {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85em;
+  color: var(--zech-secondary);
+  background: rgba(0,229,255,0.05);
+  padding: 0.1em 0.4em;
+  border: 1px solid rgba(0,229,255,0.1);
+}
+
+.dump-article-content hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--zech-primary), var(--zech-secondary), transparent);
+  margin: 3rem 0;
+  opacity: 0.3;
+}
+
+.dump-article-content img {
+  max-width: 100%;
+  height: auto;
+  margin: 2rem 0;
+  border: 1px solid rgba(0,229,255,0.1);
+}
+
+.dump-article-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2rem 0;
+}
+
+.dump-article-content th,
+.dump-article-content td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(0,229,255,0.08);
+}
+
+.dump-article-content th {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+}
+
+/* --------------------------------------------------------------------------
+   7. Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+  .dump-post-card-inner {
+    padding: 1.5rem;
+  }
+
+  .dump-post-read {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .dump-article-content {
+    font-size: 1rem;
+  }
+
+  .dump-draft-notice {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+}
