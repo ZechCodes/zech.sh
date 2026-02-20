@@ -23,19 +23,15 @@ sites:
     theme: dump
 
 db:
-  url: $DATABASE_URL
-  schema: zech_sh
+  url: sqlite+aiosqlite:///./app.db
   pool_size: 5
   pool_overflow: 10
   pool_timeout: 30
   pool_pre_ping: true
   echo: false
 
-session:
-  cookie_domain: .zech.sh
-
 auth:
-  redirect_base_url: https://zech.sh
+  redirect_base_url: http://localhost:8888
   allowed_redirect_domains:
     - "*.zech.sh"
   providers:

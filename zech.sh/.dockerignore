@@ -1,0 +1,8 @@
+.venv
+.env
+app.db
+app.dev.yaml
+.claude/
+*.backup.*
+__pycache__
+.git

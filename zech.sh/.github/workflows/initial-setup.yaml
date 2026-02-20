@@ -1,0 +1,108 @@
+name: Initial Kubernetes Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_db_init:
+        description: 'Run database initialization'
+        required: true
+        default: 'true'
+        type: boolean
+
+env:
+  IMAGE: zzmmrmn/zech-sh
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract version tag
+        id: version
+        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.version.outputs.TAG }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Configure kubectl
+        run: |
+          doctl kubernetes cluster kubeconfig save production-hosting
+          kubectl config set-context --current --namespace=zechcodes
+
+      - name: Create namespace
+        run: kubectl create namespace zechcodes --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply ConfigMap
+        run: kubectl apply -f k8s/configmap.yaml
+
+      - name: Apply Secrets
+        run: |
+          kubectl create secret generic zech-sh-secrets \
+            --namespace=zechcodes \
+            --from-literal=secret-key="${{ secrets.ZECH_SH_SECRET_KEY }}" \
+            --from-literal=google-oauth-client-id="${{ secrets.ZECH_SH_GOOGLE_OAUTH_CLIENT_ID }}" \
+            --from-literal=google-oauth-client-secret="${{ secrets.ZECH_SH_GOOGLE_OAUTH_CLIENT_SECRET }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Run database initialization
+        if: ${{ inputs.run_db_init }}
+        run: |
+          kubectl delete job zech-sh-init-db --ignore-not-found=true
+
+          sed -i "s|zzmmrmn/zech-sh:latest|${{ env.IMAGE }}:${{ steps.version.outputs.TAG }}|g" k8s/init-db-job.yaml
+
+          kubectl apply -f k8s/init-db-job.yaml
+
+          kubectl wait --for=condition=complete job/zech-sh-init-db --timeout=300s
+
+      - name: Deploy application
+        run: |
+          sed -i "s|zzmmrmn/zech-sh:latest|${{ env.IMAGE }}:${{ steps.version.outputs.TAG }}|g" k8s/deploy.yaml
+          kubectl apply -f k8s/deploy.yaml
+
+      - name: Apply services
+        run: kubectl apply -f k8s/services.yaml
+
+      - name: Apply ingress
+        run: kubectl apply -f k8s/ingress.yaml
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/zech-sh --timeout=300s
+
+      - name: Show deployment status
+        run: |
+          echo "=== Deployment Status ==="
+          kubectl get deployments -l app=zech-sh
+          echo ""
+          echo "=== Pod Status ==="
+          kubectl get pods -l app=zech-sh
+          echo ""
+          echo "=== Services ==="
+          kubectl get services -l app=zech-sh
+          echo ""
+          echo "=== Ingress ==="
+          kubectl get ingress zech-sh-ingress
