@@ -24,8 +24,6 @@
         font-size: clamp(4rem, 12vw, 8rem);
         font-weight: 900;
         letter-spacing: 0.08em;
-        color: var(--zech-primary);
-        text-shadow: 0 0 40px rgba(0, 229, 255, 0.3), 0 0 80px rgba(0, 229, 255, 0.1);
         line-height: 1;
         margin-bottom: 0.5rem;
     }
@@ -74,7 +72,9 @@
 {% block content %}
 <div class="error-wrapper">
     <div class="error-panel">
-        <div class="error-code">500</div>
+        <div class="zech-glitch-wrapper">
+            <div class="error-code zech-glitch" data-text="500">500</div>
+        </div>
         <div class="error-label">SYS.FAULT</div>
         <p class="error-message">Something went wrong on our end. Please try again later.</p>
         <a href="/" class="error-home">// Return Home</a>
