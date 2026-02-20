@@ -34,6 +34,12 @@ db:
 session:
   cookie_domain: .zech.sh
 
+logfire:
+  enabled: true
+  console: true
+  service_name: zech-sh
+  environment: production
+
 auth:
   redirect_base_url: https://zech.sh
   allowed_redirect_domains:
