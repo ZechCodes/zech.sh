@@ -33,7 +33,7 @@ session:
   cookie_domain: .zech.sh
 
 auth:
-  redirect_base_url: http://localhost:8888
+  redirect_base_url: https://zech.sh
   allowed_redirect_domains:
     - "*.zech.sh"
   providers:
