@@ -6,5 +6,5 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "asyncpg>=0.30.0",
-    "skrift[logfire]>=0.1.0a42",
+    "skrift[logfire]>=0.1.0a43",
 ]
