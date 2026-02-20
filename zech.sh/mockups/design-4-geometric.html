@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZECH — Geometric</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #050505;
+    --surface: #0c0c0c;
+    --border: #1a1a1a;
+    --orange: #ff6b00;
+    --orange-dim: #cc5500;
+    --amber: #ffaa00;
+    --text: #e5e5e5;
+    --text-dim: #555555;
+    --glow-orange: 0 0 30px rgba(255,107,0,0.2);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Archivo', sans-serif;
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* ===== DOT GRID BG ===== */
+  .dot-grid {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    background-image: radial-gradient(circle, rgba(255,107,0,0.08) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* ===== NAV ===== */
+  .topnav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 1.5rem 3rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(5,5,5,0.8);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .topnav .logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--orange);
+    letter-spacing: 3px;
+  }
+
+  .topnav .logo .dim { color: var(--text-dim); }
+
+  .topnav-links { display: flex; gap: 2rem; }
+
+  .topnav-links a {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: color 0.3s;
+    position: relative;
+  }
+
+  .topnav-links a:hover { color: var(--orange); }
+
+  /* ===== HERO ===== */
+  .hero {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    padding: 0 3rem;
+    gap: 4rem;
+  }
+
+  .hero-content { padding: 2rem 0; }
+
+  .hero-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    opacity: 0;
+    animation: fadeIn 0.6s 0.3s forwards;
+  }
+
+  .hero-tag::before {
+    content: '';
+    width: 40px;
+    height: 1px;
+    background: var(--orange);
+  }
+
+  .hero-title {
+    font-size: clamp(3.5rem, 8vw, 7rem);
+    font-weight: 900;
+    line-height: 0.9;
+    letter-spacing: -3px;
+    margin-bottom: 2rem;
+    opacity: 0;
+    animation: slideRight 0.8s 0.5s forwards;
+  }
+
+  .hero-title .outline {
+    -webkit-text-stroke: 1.5px var(--text);
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero-title .accent {
+    color: var(--orange);
+    -webkit-text-fill-color: var(--orange);
+    -webkit-text-stroke: 0;
+    position: relative;
+  }
+
+  .hero-title .accent::after {
+    content: '';
+    position: absolute;
+    bottom: 5px; left: 0;
+    width: 100%; height: 4px;
+    background: var(--orange);
+    opacity: 0.3;
+  }
+
+  .hero-desc {
+    font-size: 1.1rem;
+    color: var(--text-dim);
+    max-width: 450px;
+    line-height: 1.8;
+    margin-bottom: 3rem;
+    opacity: 0;
+    animation: fadeIn 0.8s 0.9s forwards;
+  }
+
+  .hero-desc strong { color: var(--text); font-weight: 600; }
+
+  .hero-actions {
+    display: flex;
+    gap: 1.5rem;
+    opacity: 0;
+    animation: fadeIn 0.6s 1.2s forwards;
+  }
+
+  .btn-geo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 1rem 2.5rem;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s;
+    position: relative;
+  }
+
+  .btn-geo.primary {
+    background: var(--orange);
+    color: var(--bg);
+    font-weight: 600;
+  }
+
+  .btn-geo.primary:hover {
+    box-shadow: var(--glow-orange);
+    transform: translateY(-2px);
+  }
+
+  .btn-geo.outline {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+
+  .btn-geo.outline:hover {
+    border-color: var(--orange);
+    color: var(--orange);
+  }
+
+  /* ===== 3D WIREFRAME CONTAINER ===== */
+  .hero-visual {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    position: relative;
+  }
+
+  .wireframe-scene {
+    width: 400px;
+    height: 400px;
+    perspective: 800px;
+    position: relative;
+  }
+
+  .wireframe {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: wireRotate 20s linear infinite;
+  }
+
+  @keyframes wireRotate {
+    from { transform: rotateX(0deg) rotateY(0deg); }
+    to { transform: rotateX(360deg) rotateY(360deg); }
+  }
+
+  .wireframe .face {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border: 1px solid rgba(255,107,0,0.2);
+    left: 50%;
+    top: 50%;
+    margin-left: -100px;
+    margin-top: -100px;
+  }
+
+  .wireframe .face:nth-child(1) { transform: rotateY(0deg) translateZ(100px); }
+  .wireframe .face:nth-child(2) { transform: rotateY(90deg) translateZ(100px); }
+  .wireframe .face:nth-child(3) { transform: rotateY(180deg) translateZ(100px); }
+  .wireframe .face:nth-child(4) { transform: rotateY(270deg) translateZ(100px); }
+  .wireframe .face:nth-child(5) { transform: rotateX(90deg) translateZ(100px); }
+  .wireframe .face:nth-child(6) { transform: rotateX(-90deg) translateZ(100px); }
+
+  /* Second inner wireframe */
+  .wireframe-inner {
+    position: absolute;
+    width: 100%; height: 100%;
+    transform-style: preserve-3d;
+    animation: wireRotate 15s linear infinite reverse;
+  }
+
+  .wireframe-inner .face {
+    width: 120px; height: 120px;
+    margin-left: -60px;
+    margin-top: -60px;
+    border-color: rgba(255,170,0,0.15);
+  }
+
+  .wireframe-inner .face:nth-child(1) { transform: rotateY(0deg) translateZ(60px); }
+  .wireframe-inner .face:nth-child(2) { transform: rotateY(90deg) translateZ(60px); }
+  .wireframe-inner .face:nth-child(3) { transform: rotateY(180deg) translateZ(60px); }
+  .wireframe-inner .face:nth-child(4) { transform: rotateY(270deg) translateZ(60px); }
+  .wireframe-inner .face:nth-child(5) { transform: rotateX(90deg) translateZ(60px); }
+  .wireframe-inner .face:nth-child(6) { transform: rotateX(-90deg) translateZ(60px); }
+
+  /* Orbiting dots */
+  .orbit-dot {
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--orange);
+    box-shadow: 0 0 10px var(--orange);
+    top: 50%; left: 50%;
+    margin: -3px;
+  }
+
+  .orbit-ring {
+    position: absolute;
+    width: 350px; height: 350px;
+    top: 50%; left: 50%;
+    margin: -175px;
+    border: 1px solid rgba(255,107,0,0.06);
+    border-radius: 50%;
+    animation: orbitSpin 12s linear infinite;
+  }
+
+  .orbit-ring:nth-child(2) {
+    width: 280px; height: 280px;
+    margin: -140px;
+    animation-duration: 8s;
+    animation-direction: reverse;
+  }
+
+  @keyframes orbitSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* ===== SECTIONS ===== */
+  section {
+    position: relative;
+    z-index: 1;
+    padding: 8rem 3rem;
+  }
+
+  .section-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .section-label::before {
+    content: '';
+    width: 30px;
+    height: 1px;
+    background: var(--orange);
+  }
+
+  .section-title {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 900;
+    letter-spacing: -1px;
+    margin-bottom: 1rem;
+  }
+
+  .section-title .accent { color: var(--orange); }
+
+  .section-subtitle {
+    color: var(--text-dim);
+    font-size: 1rem;
+    max-width: 600px;
+    margin-bottom: 3rem;
+  }
+
+  /* ===== METRIC BLOCKS ===== */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin-top: 3rem;
+    border: 1px solid var(--border);
+  }
+
+  .metric {
+    padding: 3rem 2rem;
+    border-right: 1px solid var(--border);
+    transition: all 0.4s;
+    opacity: 0;
+    transform: translateY(20px);
+    position: relative;
+  }
+
+  .metric.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .metric:last-child { border-right: none; }
+
+  .metric:hover {
+    background: rgba(255,107,0,0.03);
+  }
+
+  .metric::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 2px;
+    background: var(--orange);
+    transform: scaleX(0);
+    transition: transform 0.4s;
+    transform-origin: left;
+  }
+
+  .metric:hover::after { transform: scaleX(1); }
+
+  .metric-value {
+    font-size: 3rem;
+    font-weight: 900;
+    color: var(--orange);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+  }
+
+  .metric-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ===== WORK BLOCKS ===== */
+  .work-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border: 1px solid var(--border);
+    margin-top: 3rem;
+  }
+
+  .work-block {
+    padding: 3rem 2rem;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    transition: all 0.4s;
+    opacity: 0;
+    transform: translateY(20px);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .work-block.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .work-block:nth-child(3n) { border-right: none; }
+
+  .work-block:hover {
+    background: rgba(255,107,0,0.03);
+  }
+
+  .work-block .number {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--orange);
+    letter-spacing: 2px;
+    margin-bottom: 1.5rem;
+  }
+
+  .work-block h3 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    letter-spacing: -0.5px;
+  }
+
+  .work-block p {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  /* Corner accent */
+  .work-block::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 20px; height: 20px;
+    border-top: 2px solid var(--orange);
+    border-right: 2px solid var(--orange);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .work-block:hover::before { opacity: 1; }
+
+  /* ===== COMMUNITY ===== */
+  .community-block {
+    margin-top: 3rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--border);
+  }
+
+  .community-left {
+    padding: 4rem 3rem;
+    border-right: 1px solid var(--border);
+  }
+
+  .community-left h3 {
+    font-size: 2rem;
+    font-weight: 900;
+    margin-bottom: 1rem;
+    letter-spacing: -1px;
+  }
+
+  .community-left p {
+    color: var(--text-dim);
+    font-size: 1rem;
+    line-height: 1.8;
+    margin-bottom: 2rem;
+  }
+
+  .community-right {
+    padding: 4rem 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: rgba(255,107,0,0.02);
+  }
+
+  .community-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.2rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .community-stat:last-child { border-bottom: none; }
+
+  .community-stat .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .community-stat .value {
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: var(--orange);
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    position: relative;
+    z-index: 1;
+    padding: 3rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer p {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  .footer .coordinates {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  /* ===== MOCKUP SWITCHER ===== */
+  .mockup-switcher {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 200;
+    background: rgba(5,5,5,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    padding: 0.8rem 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .mockup-switcher span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-right: 1rem;
+  }
+
+  .mockup-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.5rem 1.2rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s;
+    letter-spacing: 1px;
+  }
+
+  .mockup-btn:hover {
+    border-color: var(--orange);
+    color: var(--orange);
+  }
+
+  .mockup-btn.active {
+    background: var(--orange);
+    color: var(--bg);
+    border-color: var(--orange);
+    font-weight: 600;
+  }
+
+  /* ===== ANIMATIONS ===== */
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+
+  @keyframes slideRight {
+    from { opacity: 0; transform: translateX(-40px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @media (max-width: 968px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero-visual { height: 50vh; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .metrics .metric:nth-child(2) { border-right: none; }
+    .work-grid { grid-template-columns: 1fr; }
+    .work-block { border-right: none !important; }
+    .community-block { grid-template-columns: 1fr; }
+    .community-left { border-right: none; border-bottom: 1px solid var(--border); }
+    .topnav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="dot-grid"></div>
+
+<nav class="topnav">
+  <div class="logo">ZECH<span class="dim">.SH</span></div>
+  <div class="topnav-links">
+    <a href="#about">About</a>
+    <a href="#work">Work</a>
+    <a href="#community">Community</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-tag">Est. 2004</div>
+    <h1 class="hero-title">
+      <span class="outline">ZECH</span><br>
+      <span class="accent">.SH</span>
+    </h1>
+    <p class="hero-desc">
+      The one who <strong>dreams while others sleep</strong>. Two decades of turning impossible ideas into shipped reality.
+    </p>
+    <div class="hero-actions">
+      <a href="#work" class="btn-geo primary">View Work</a>
+      <a href="#community" class="btn-geo outline">Community</a>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="wireframe-scene">
+      <div class="orbit-ring"><div class="orbit-dot" style="top: 0; left: 50%; margin-top: -3px;"></div></div>
+      <div class="orbit-ring"><div class="orbit-dot" style="top: 50%; right: 0; margin-right: -3px;"></div></div>
+      <div class="wireframe">
+        <div class="face"></div>
+        <div class="face"></div>
+        <div class="face"></div>
+        <div class="face"></div>
+        <div class="face"></div>
+        <div class="face"></div>
+        <div class="wireframe-inner">
+          <div class="face"></div>
+          <div class="face"></div>
+          <div class="face"></div>
+          <div class="face"></div>
+          <div class="face"></div>
+          <div class="face"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="about">
+  <div class="section-inner">
+    <div class="section-label">Metrics</div>
+    <h2 class="section-title">By the <span class="accent">numbers</span></h2>
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-value">20+</div>
+        <div class="metric-label">Years Active</div>
+      </div>
+      <div class="metric">
+        <div class="metric-value">&infin;</div>
+        <div class="metric-label">Ideas Shipped</div>
+      </div>
+      <div class="metric">
+        <div class="metric-value">1</div>
+        <div class="metric-label">Community</div>
+      </div>
+      <div class="metric">
+        <div class="metric-value">0</div>
+        <div class="metric-label">Hours Sleep</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="work">
+  <div class="section-inner">
+    <div class="section-label">Capabilities</div>
+    <h2 class="section-title">What I <span class="accent">build</span></h2>
+    <p class="section-subtitle">Precision engineering from the bare metal up. Architecture that scales, code that endures, ideas that ship.</p>
+    <div class="work-grid">
+      <div class="work-block">
+        <div class="number">001</div>
+        <h3>Systems Architecture</h3>
+        <p>Distributed systems, infrastructure, and backend engineering designed for scale and resilience.</p>
+      </div>
+      <div class="work-block">
+        <div class="number">002</div>
+        <h3>Frontend Engineering</h3>
+        <p>Pixel-perfect interfaces with performance in mind. From design systems to interactive experiences.</p>
+      </div>
+      <div class="work-block">
+        <div class="number">003</div>
+        <h3>AI & Emerging Tech</h3>
+        <p>AI-augmented development workflows, experimental tooling, and interfaces that don't exist yet.</p>
+      </div>
+      <div class="work-block">
+        <div class="number">004</div>
+        <h3>Community Building</h3>
+        <p>Smarter Dev Discord — a home for developers who think bigger and build smarter.</p>
+      </div>
+      <div class="work-block">
+        <div class="number">005</div>
+        <h3>Open Source</h3>
+        <p>Building in public, contributing back, and creating tools that empower other developers.</p>
+      </div>
+      <div class="work-block">
+        <div class="number">006</div>
+        <h3>Technical Vision</h3>
+        <p>Turning impossible ideas into production reality. Tomorrow's technology, shipped today.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="community">
+  <div class="section-inner">
+    <div class="section-label">Community</div>
+    <h2 class="section-title">Smarter <span class="accent">Dev</span></h2>
+    <div class="community-block">
+      <div class="community-left">
+        <h3>Dream bigger.<br>Build smarter.</h3>
+        <p>A Discord community for developers who refuse to settle. We push boundaries, share knowledge, and ship things that actually matter.</p>
+        <a href="#" class="btn-geo primary">Join Discord</a>
+      </div>
+      <div class="community-right">
+        <div class="community-stat">
+          <span class="label">Status</span>
+          <span class="value">Active</span>
+        </div>
+        <div class="community-stat">
+          <span class="label">Focus</span>
+          <span class="value">Full Stack</span>
+        </div>
+        <div class="community-stat">
+          <span class="label">Vibe</span>
+          <span class="value">Ambitious</span>
+        </div>
+        <div class="community-stat">
+          <span class="label">Level</span>
+          <span class="value">All Welcome</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>&copy; 2026 ZECH.SH</p>
+  <div class="coordinates">DREAMING WHILE OTHERS SLEEP</div>
+</footer>
+
+<nav class="mockup-switcher">
+  <span>Designs</span>
+  <a class="mockup-btn" href="design-1-neural.html">01 Neural</a>
+  <a class="mockup-btn" href="design-2-terminal.html">02 Terminal</a>
+  <a class="mockup-btn" href="design-3-holographic.html">03 Holo</a>
+  <a class="mockup-btn active" href="design-4-geometric.html">04 Geo</a>
+  <a class="mockup-btn" href="design-5-cyberpunk.html">05 Cyber</a>
+</nav>
+
+<script>
+// ===== SCROLL REVEAL =====
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.15 });
+
+document.querySelectorAll('.metric, .work-block').forEach((el, i) => {
+  el.style.transitionDelay = `${(i % 4) * 0.1}s`;
+  observer.observe(el);
+});
+
+// ===== MOUSE PARALLAX ON WIREFRAME =====
+const wireframeScene = document.querySelector('.wireframe-scene');
+document.addEventListener('mousemove', e => {
+  if (!wireframeScene) return;
+  const x = (e.clientX / window.innerWidth - 0.5) * 20;
+  const y = (e.clientY / window.innerHeight - 0.5) * 20;
+  wireframeScene.style.transform = `rotateX(${y}deg) rotateY(${x}deg)`;
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZECH — Arctic Storm</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #040810;
+    --surface: #0a1020;
+    --primary: #00e5ff;
+    --secondary: #b4c7ff;
+    --accent: #e0eaff;
+    --dim: #103050;
+    --text: #e0eaf8;
+    --text-dim: #7a92b0;
+    --glow: 0 0 30px rgba(0,229,255,0.3);
+    --glow-lg: 0 0 60px rgba(0,229,255,0.15);
+    --glow-sec: 0 0 30px rgba(180,199,255,0.3);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    overflow-x: hidden; line-height: 1.6;
+  }
+
+  canvas#neuralCanvas {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0; pointer-events: none;
+  }
+
+  .scanlines {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%; z-index: 900;
+    pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+  }
+
+  .noise-layer {
+    position: fixed; top: -50%; left: -50%;
+    width: 200%; height: 200%; z-index: 800;
+    pointer-events: none; opacity: 0.012;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: noiseMove 0.3s steps(3) infinite;
+  }
+
+  @keyframes noiseMove {
+    0% { transform: translate(0,0); }
+    33% { transform: translate(-5px,3px); }
+    66% { transform: translate(3px,-2px); }
+    100% { transform: translate(-1px,5px); }
+  }
+
+  .topnav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 1rem 3rem;
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(4,8,16,0.8);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(0,229,255,0.08);
+  }
+
+  .topnav .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem; font-weight: 900;
+    color: var(--primary);
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px rgba(0,229,255,0.4);
+    position: relative;
+  }
+
+  .topnav .logo::after {
+    content: 'ZECH.SH';
+    position: absolute; top: 0; left: 2px;
+    color: var(--secondary); opacity: 0.2;
+    clip-path: inset(0 0 50% 0);
+  }
+
+  .topnav-links { display: flex; gap: 2rem; }
+
+  .topnav-links a {
+    font-family: 'Orbitron', sans-serif;
+    color: var(--text-dim); text-decoration: none;
+    font-size: 0.65rem; font-weight: 500;
+    letter-spacing: 3px; text-transform: uppercase;
+    transition: all 0.3s;
+  }
+
+  .topnav-links a:hover {
+    color: var(--primary);
+    text-shadow: 0 0 10px rgba(0,229,255,0.5);
+  }
+
+  .hero {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    text-align: center; padding: 2rem;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute; bottom: 0; left: -10%;
+    width: 120%; height: 50%;
+    background:
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    transform: perspective(500px) rotateX(60deg);
+    transform-origin: bottom;
+    animation: gridScroll 1.5s linear infinite;
+    mask-image: linear-gradient(to top, rgba(0,0,0,0.2), transparent);
+  }
+
+  @keyframes gridScroll { 0% { background-position: 0 0; } 100% { background-position: 0 60px; } }
+
+  .hero-tag {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem; font-weight: 600;
+    letter-spacing: 8px; text-transform: uppercase;
+    color: var(--secondary); margin-bottom: 2rem;
+    text-shadow: 0 0 15px rgba(180,199,255,0.4);
+    opacity: 0; animation: fadeIn 0.6s 0.3s forwards;
+  }
+
+  .glitch-wrapper { position: relative; margin-bottom: 2rem; }
+
+  .glitch {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(4rem, 12vw, 10rem);
+    font-weight: 900; line-height: 0.9; letter-spacing: 6px;
+    color: var(--text); position: relative;
+    text-shadow: 0 0 10px rgba(0,229,255,0.2), 0 0 40px rgba(0,229,255,0.08);
+    animation: glitchReveal 0.8s 0.5s forwards; opacity: 0;
+  }
+
+  @keyframes glitchReveal {
+    0% { opacity: 0; transform: translateY(30px); }
+    50% { opacity: 1; transform: translateY(-5px); }
+    60% { transform: translateX(5px) skewX(2deg); }
+    70% { transform: translateX(-3px) skewX(-1deg); }
+    80% { transform: translateX(2px); }
+    100% { opacity: 1; transform: translateY(0) translateX(0) skewX(0); }
+  }
+
+  .glitch::before, .glitch::after {
+    content: attr(data-text);
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    font-size: inherit; font-weight: inherit;
+    letter-spacing: inherit; line-height: inherit;
+  }
+
+  .glitch::before {
+    color: var(--primary); z-index: -1;
+    animation: glitchA 2s infinite linear alternate-reverse;
+  }
+
+  .glitch::after {
+    color: var(--secondary); z-index: -1;
+    animation: glitchB 1.8s infinite linear alternate-reverse;
+  }
+
+  @keyframes glitchA {
+    0%,70%,100% { clip-path: inset(0); transform: translate(0); }
+    72% { clip-path: inset(10% 0 70% 0); transform: translate(-6px, 2px); }
+    75% { clip-path: inset(40% 0 20% 0); transform: translate(5px, -3px); }
+    78% { clip-path: inset(60% 0 5% 0); transform: translate(-4px, 1px); }
+    81% { clip-path: inset(5% 0 85% 0); transform: translate(7px, -2px); }
+    84% { clip-path: inset(25% 0 50% 0); transform: translate(-3px, 3px); }
+    87% { clip-path: inset(0); transform: translate(0); }
+    90% { clip-path: inset(15% 0 65% 0); transform: translate(4px, -1px); }
+    93% { clip-path: inset(0); transform: translate(0); }
+  }
+
+  @keyframes glitchB {
+    0%,72%,100% { clip-path: inset(0); transform: translate(0); }
+    74% { clip-path: inset(30% 0 40% 0); transform: translate(5px, -2px); }
+    77% { clip-path: inset(70% 0 5% 0); transform: translate(-6px, 3px); }
+    80% { clip-path: inset(5% 0 80% 0); transform: translate(4px, 1px); }
+    83% { clip-path: inset(50% 0 20% 0); transform: translate(-5px, -2px); }
+    86% { clip-path: inset(0); transform: translate(0); }
+    89% { clip-path: inset(20% 0 60% 0); transform: translate(6px, 2px); }
+    92% { clip-path: inset(0); transform: translate(0); }
+  }
+
+  .hero-subtitle {
+    font-size: clamp(1rem, 2.5vw, 1.4rem); font-weight: 400;
+    color: var(--text-dim); max-width: 550px; margin-bottom: 3rem;
+    opacity: 0; animation: fadeIn 0.8s 1.3s forwards;
+  }
+
+  .hero-subtitle .neon { color: var(--primary); text-shadow: 0 0 10px rgba(0,229,255,0.5); font-weight: 600; }
+  .hero-subtitle .neon-alt { color: var(--secondary); text-shadow: 0 0 10px rgba(180,199,255,0.5); font-weight: 600; }
+
+  .hero-cta { display: flex; gap: 1.5rem; opacity: 0; animation: fadeIn 0.6s 1.7s forwards; }
+
+  .btn-cyber {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase;
+    padding: 1rem 2.5rem; border: none; cursor: pointer;
+    text-decoration: none; transition: all 0.3s;
+    clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  }
+
+  .btn-cyber.primary { background: var(--primary); color: var(--bg); }
+
+  .btn-cyber.primary:hover {
+    box-shadow: var(--glow), var(--glow-lg);
+    transform: translateY(-2px);
+  }
+
+  .btn-cyber.ghost {
+    background: transparent; color: var(--secondary);
+    border: 1px solid var(--secondary);
+    clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  }
+
+  .btn-cyber.ghost:hover {
+    background: rgba(180,199,255,0.06);
+    box-shadow: var(--glow-sec); transform: translateY(-2px);
+  }
+
+  .data-stream {
+    position: absolute; bottom: 4rem; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--primary), var(--secondary), transparent);
+    opacity: 0.25; z-index: 1;
+  }
+
+  .data-stream::before {
+    content: ''; position: absolute; width: 60px; height: 3px;
+    background: var(--primary); box-shadow: 0 0 10px var(--primary);
+    animation: dataFlow 1.5s linear infinite; top: -1px;
+  }
+
+  @keyframes dataFlow { 0% { left: -60px; } 100% { left: 100%; } }
+
+  section { position: relative; z-index: 1; padding: 8rem 3rem; }
+  .section-inner { max-width: 1100px; margin: 0 auto; }
+
+  .section-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 6px; text-transform: uppercase;
+    color: var(--primary); margin-bottom: 1rem;
+    text-shadow: 0 0 10px rgba(0,229,255,0.3);
+    display: flex; align-items: center; gap: 1rem;
+  }
+
+  .section-label::before { content: '//'; color: var(--secondary); }
+
+  .section-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 800; letter-spacing: 2px; margin-bottom: 1rem; line-height: 1.2;
+  }
+
+  .section-title .a { color: var(--primary); text-shadow: 0 0 20px rgba(0,229,255,0.3); }
+  .section-title .b { color: var(--secondary); text-shadow: 0 0 20px rgba(180,199,255,0.3); }
+
+  .about-split { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; margin-top: 3rem; }
+  .about-text { font-size: 1.05rem; color: var(--text-dim); line-height: 1.9; }
+  .about-text strong { color: var(--text); font-weight: 600; }
+
+  .cyber-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: rgba(0,229,255,0.06); }
+
+  .cyber-stat {
+    background: var(--bg); padding: 2rem; text-align: center;
+    position: relative; overflow: hidden; transition: all 0.3s;
+    opacity: 0; transform: scale(0.95);
+  }
+
+  .cyber-stat.visible { opacity: 1; transform: scale(1); }
+  .cyber-stat:hover { background: rgba(0,229,255,0.02); }
+
+  .cyber-stat::before {
+    content: ''; position: absolute; top: 8px; left: 8px;
+    width: 12px; height: 12px;
+    border-top: 2px solid var(--primary); border-left: 2px solid var(--primary); opacity: 0.4;
+  }
+
+  .cyber-stat::after {
+    content: ''; position: absolute; bottom: 8px; right: 8px;
+    width: 12px; height: 12px;
+    border-bottom: 2px solid var(--secondary); border-right: 2px solid var(--secondary); opacity: 0.4;
+  }
+
+  .cyber-stat .value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.5rem; font-weight: 900; color: var(--primary);
+    text-shadow: 0 0 20px rgba(0,229,255,0.3);
+    line-height: 1; margin-bottom: 0.5rem;
+  }
+
+  .cyber-stat .label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem; font-weight: 500;
+    color: var(--text-dim); letter-spacing: 3px; text-transform: uppercase;
+  }
+
+  .cyber-cards {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1px; background: rgba(0,229,255,0.05); margin-top: 3rem;
+  }
+
+  .cyber-card {
+    background: var(--bg); padding: 3rem 2rem;
+    position: relative; overflow: hidden; transition: all 0.4s;
+    opacity: 0; transform: translateY(20px);
+  }
+
+  .cyber-card.visible { opacity: 1; transform: translateY(0); }
+
+  .cyber-card::before {
+    content: ''; position: absolute; top: 0; left: 0;
+    width: 100%; height: 2px;
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    transform: scaleX(0); transform-origin: left; transition: transform 0.4s;
+  }
+
+  .cyber-card:hover::before { transform: scaleX(1); }
+  .cyber-card:hover { background: rgba(0,229,255,0.015); }
+
+  .cyber-card .card-id {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.55rem; font-weight: 700;
+    color: var(--secondary); letter-spacing: 3px; margin-bottom: 1.5rem;
+    text-shadow: 0 0 8px rgba(180,199,255,0.3);
+  }
+
+  .cyber-card h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 1rem;
+  }
+
+  .cyber-card p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.7; }
+
+  .community-block {
+    margin-top: 3rem; padding: 4rem;
+    position: relative; overflow: hidden;
+    border: 1px solid rgba(0,229,255,0.08);
+    background: linear-gradient(135deg, rgba(0,229,255,0.02), rgba(180,199,255,0.01));
+  }
+
+  .corner { position: absolute; width: 30px; height: 30px; }
+  .corner.tl { top: 0; left: 0; border-top: 2px solid var(--primary); border-left: 2px solid var(--primary); }
+  .corner.br { bottom: 0; right: 0; border-bottom: 2px solid var(--primary); border-right: 2px solid var(--primary); }
+
+  .community-content {
+    display: flex; align-items: center;
+    justify-content: space-between; gap: 3rem;
+    position: relative; z-index: 1;
+  }
+
+  .community-content h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem; font-weight: 800; letter-spacing: 2px; margin-bottom: 1rem;
+  }
+
+  .community-content p { color: var(--text-dim); max-width: 500px; font-size: 1rem; }
+
+  .footer {
+    position: relative; z-index: 1; padding: 3rem;
+    border-top: 1px solid rgba(0,229,255,0.06);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .footer p { font-family: 'Orbitron', sans-serif; font-size: 0.6rem; color: var(--text-dim); letter-spacing: 3px; }
+
+  .footer .status {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-family: 'Orbitron', sans-serif; font-size: 0.6rem;
+    color: var(--text-dim); letter-spacing: 2px;
+  }
+
+  .footer .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--primary); box-shadow: 0 0 8px var(--primary);
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes statusPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .mockup-switcher {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+    background: rgba(4,8,16,0.95); backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(0,229,255,0.08);
+    padding: 0.8rem 2rem;
+    display: flex; justify-content: center; align-items: center; gap: 0.5rem;
+  }
+
+  .mockup-switcher span {
+    font-family: 'Orbitron', sans-serif; font-size: 0.55rem;
+    color: var(--text-dim); letter-spacing: 3px; text-transform: uppercase; margin-right: 1rem;
+  }
+
+  .mockup-btn {
+    font-family: 'Orbitron', sans-serif; font-size: 0.6rem; font-weight: 500;
+    padding: 0.5rem 1rem; background: transparent;
+    border: 1px solid rgba(0,229,255,0.08);
+    color: var(--text-dim); cursor: pointer; text-decoration: none;
+    transition: all 0.3s; letter-spacing: 1px;
+    clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+  }
+
+  .mockup-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  .mockup-btn.active {
+    background: var(--primary); color: var(--bg);
+    border-color: var(--primary); font-weight: 700;
+  }
+
+  @media (max-width: 768px) {
+    .about-split { grid-template-columns: 1fr; }
+    .cyber-cards { grid-template-columns: 1fr; }
+    .community-content { flex-direction: column; text-align: center; }
+    .topnav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="neuralCanvas"></canvas>
+<div class="scanlines"></div>
+<div class="noise-layer"></div>
+
+<nav class="topnav">
+  <div class="logo">ZECH.SH</div>
+  <div class="topnav-links">
+    <a href="#about">// ABOUT</a>
+    <a href="#work">// WORK</a>
+    <a href="#community">// COMM</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-tag">SYS.ONLINE // DEV.ACTIVE // SLEEP.NULL</div>
+  <div class="glitch-wrapper">
+    <h1 class="glitch" data-text="ZECH.SH">ZECH.SH</h1>
+  </div>
+  <p class="hero-subtitle">
+    The one who <span class="neon">dreams</span> while others sleep.
+    Building the <span class="neon-alt">future</span> with tomorrow's technology.
+  </p>
+  <div class="hero-cta">
+    <a href="#work" class="btn-cyber primary">INIT_WORK</a>
+    <a href="#community" class="btn-cyber ghost">JOIN_NET</a>
+  </div>
+  <div class="data-stream"></div>
+</section>
+
+<section id="about">
+  <div class="section-inner">
+    <div class="section-label">SYS.PROFILE</div>
+    <h2 class="section-title">TWO DECADES OF <span class="a">DIGITAL</span> <span class="b">CRAFT</span></h2>
+    <div class="about-split">
+      <div class="about-text">
+        <p>I'm Zech &mdash; a <strong>developer, architect, and relentless builder</strong> who's been writing code for over two decades. I run the <strong>Smarter Dev</strong> Discord community where developers come to level up.</p>
+        <br>
+        <p>My work sits at the intersection of <strong>wild ambition and precise execution</strong>. I take ideas that feel impossible and turn them into production systems.</p>
+      </div>
+      <div class="cyber-stats">
+        <div class="cyber-stat"><div class="value">20+</div><div class="label">Years</div></div>
+        <div class="cyber-stat"><div class="value">&infin;</div><div class="label">Shipped</div></div>
+        <div class="cyber-stat"><div class="value">01</div><div class="label">Community</div></div>
+        <div class="cyber-stat"><div class="value">00</div><div class="label">Sleep.hrs</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="work">
+  <div class="section-inner">
+    <div class="section-label">CAPABILITIES</div>
+    <h2 class="section-title">BUILDING AT THE <span class="a">BLEEDING</span> <span class="b">EDGE</span></h2>
+    <div class="cyber-cards">
+      <div class="cyber-card">
+        <div class="card-id">MOD_001</div>
+        <h3>FULL-STACK SYS</h3>
+        <p>From bare metal infrastructure to pixel-perfect frontends. Architecture designed to scale, code built to last.</p>
+      </div>
+      <div class="cyber-card">
+        <div class="card-id">MOD_002</div>
+        <h3>COMMUNITY.NET</h3>
+        <p>Running Smarter Dev — a Discord collective for developers who think bigger and build smarter together.</p>
+      </div>
+      <div class="cyber-card">
+        <div class="card-id">MOD_003</div>
+        <h3>NEXT_GEN.AI</h3>
+        <p>AI-augmented development, experimental interfaces, and tooling that doesn't exist yet. The future is being built.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="community">
+  <div class="section-inner">
+    <div class="section-label">NETWORK</div>
+    <h2 class="section-title"><span class="a">SMARTER</span> <span class="b">DEV</span></h2>
+    <div class="community-block">
+      <div class="corner tl"></div>
+      <div class="corner br"></div>
+      <div class="community-content">
+        <div>
+          <h3>JACK IN.</h3>
+          <p>A collective of developers who refuse to build ordinary things. We push limits, share breakthroughs, and ship code that matters.</p>
+        </div>
+        <a href="#" class="btn-cyber primary">CONNECT</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>&copy; 2026 ZECH.SH</p>
+  <div class="status"><div class="status-dot"></div>SYSTEM ONLINE</div>
+</footer>
+
+<nav class="mockup-switcher">
+  <span>Designs</span>
+  <a class="mockup-btn" href="design-11-hyperactive.html">11 Hyper</a>
+  <a class="mockup-btn" href="design-12-whisper.html">12 Whisper</a>
+  <a class="mockup-btn" href="design-13-denseweb.html">13 Dense</a>
+  <a class="mockup-btn" href="design-14-pulse.html">14 Pulse</a>
+  <a class="mockup-btn active" href="design-15-storm.html">15 Storm</a>
+</nav>
+
+<script>
+const canvas = document.getElementById('neuralCanvas');
+const ctx = canvas.getContext('2d');
+let width, height, particles, mouse;
+
+function init() {
+  width = canvas.width = window.innerWidth;
+  height = canvas.height = window.innerHeight;
+  mouse = { x: width/2, y: height/2 };
+  const count = Math.min(200, Math.floor((width*height)/5000));
+  particles = [];
+  for (let i = 0; i < count; i++) {
+    const speedMult = 0.5 + Math.random() * 1.5; // randomized speed multiplier (0.5x to 2x)
+    const baseV = 0.6 + Math.random() * 0.2; // base velocity 0.6-0.8
+    particles.push({
+      x: Math.random()*width, y: Math.random()*height,
+      vx: (Math.random()-0.5)*baseV*2, vy: (Math.random()-0.5)*baseV*2,
+      speedMult: speedMult,
+      radius: Math.random()*1.5+0.5,
+      hue: 190 + Math.random()*30,
+      alpha: Math.random()*0.4+0.2,
+    });
+  }
+}
+
+function animate() {
+  ctx.clearRect(0, 0, width, height);
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    const dx = mouse.x-p.x, dy = mouse.y-p.y;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    // REPEL from cursor (negative force)
+    if (dist < 250) {
+      const force = 0.00012;
+      p.vx -= dx*force*p.speedMult;
+      p.vy -= dy*force*p.speedMult;
+    }
+    p.x += p.vx * p.speedMult; p.y += p.vy * p.speedMult;
+    // Stronger damping compensation — stays energetic
+    p.vx *= 0.998; p.vy *= 0.998;
+
+    // Re-inject energy if particle gets too slow
+    const speed = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+    if (speed < 0.15) {
+      const angle = Math.random() * Math.PI * 2;
+      p.vx += Math.cos(angle) * 0.3;
+      p.vy += Math.sin(angle) * 0.3;
+    }
+
+    if (p.x<0) p.x=width; if (p.x>width) p.x=0;
+    if (p.y<0) p.y=height; if (p.y>height) p.y=0;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+    ctx.fillStyle = `hsla(${p.hue}, 80%, 65%, ${p.alpha})`;
+    ctx.fill();
+
+    // Short connection distance (100px), thin lines (0.4px), higher alpha (0.2)
+    for (let j = i+1; j < particles.length; j++) {
+      const p2 = particles[j];
+      const dx2 = p.x-p2.x, dy2 = p.y-p2.y;
+      const dist2 = Math.sqrt(dx2*dx2+dy2*dy2);
+      if (dist2 < 100) {
+        const alpha = (1-dist2/100)*0.2;
+        ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p2.x,p2.y);
+        ctx.strokeStyle = `hsla(200, 80%, 65%, ${alpha})`;
+        ctx.lineWidth = 0.4; ctx.stroke();
+      }
+    }
+  }
+  requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize', init);
+window.addEventListener('mousemove', e => { mouse.x=e.clientX; mouse.y=e.clientY; });
+init(); animate();
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.15 });
+document.querySelectorAll('.cyber-stat, .cyber-card').forEach((el,i) => {
+  el.style.transitionDelay = `${(i%4)*0.12}s`;
+  observer.observe(el);
+});
+
+// Frequent, aggressive glitch bursts (every 1.5-3s, 8-12px displacement, 5-8deg skew)
+const glitchEl = document.querySelector('.glitch');
+function triggerGlitch() {
+  const x = (Math.random()-0.5)*24; // 8-12px range
+  const skew = (Math.random()-0.5)*16; // 5-8deg range
+  glitchEl.style.transform = `translateX(${x}px) skewX(${skew}deg)`;
+  // Sometimes do a double-hit
+  if (Math.random() > 0.5) {
+    setTimeout(() => {
+      const x2 = (Math.random()-0.5)*16;
+      const skew2 = (Math.random()-0.5)*10;
+      glitchEl.style.transform = `translateX(${x2}px) skewX(${skew2}deg)`;
+    }, 50);
+  }
+  setTimeout(() => { glitchEl.style.transform = ''; }, 120);
+  setTimeout(triggerGlitch, 1500+Math.random()*1500);
+}
+setTimeout(triggerGlitch, 1500);
+</script>
+</body>
+</html>

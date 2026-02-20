@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZECH — Neural Constellation</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #060a1a;
+    --bg-surface: #0c1230;
+    --cyan: #00d4ff;
+    --purple: #7b2ff7;
+    --pink: #ff2d95;
+    --text: #e8eaf6;
+    --text-dim: #5a6088;
+    --glow-cyan: 0 0 40px rgba(0,212,255,0.3);
+    --glow-purple: 0 0 40px rgba(123,47,247,0.3);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* ===== CANVAS ===== */
+  #neuralCanvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ===== NAV ===== */
+  .topnav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 1.5rem 3rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(20px);
+    background: rgba(6,10,26,0.6);
+    border-bottom: 1px solid rgba(0,212,255,0.08);
+  }
+
+  .topnav .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+
+  .topnav .logo span { color: var(--purple); }
+
+  .topnav-links { display: flex; gap: 2.5rem; }
+
+  .topnav-links a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 400;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: color 0.3s;
+    position: relative;
+  }
+
+  .topnav-links a::after {
+    content: '';
+    position: absolute;
+    bottom: -4px; left: 0;
+    width: 0; height: 1px;
+    background: var(--cyan);
+    transition: width 0.3s;
+  }
+
+  .topnav-links a:hover { color: var(--cyan); }
+  .topnav-links a:hover::after { width: 100%; }
+
+  /* ===== HERO ===== */
+  .hero {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .hero-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 2rem;
+    opacity: 0;
+    animation: fadeSlideUp 0.8s 0.5s forwards;
+  }
+
+  .hero-name {
+    font-size: clamp(4rem, 12vw, 10rem);
+    font-weight: 900;
+    line-height: 0.9;
+    letter-spacing: -2px;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+
+  .hero-name .letter {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(60px) rotateX(40deg);
+    animation: letterReveal 0.6s forwards;
+    background: linear-gradient(135deg, var(--text) 0%, var(--cyan) 50%, var(--purple) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-name .letter:nth-child(1) { animation-delay: 0.8s; }
+  .hero-name .letter:nth-child(2) { animation-delay: 0.9s; }
+  .hero-name .letter:nth-child(3) { animation-delay: 1.0s; }
+  .hero-name .letter:nth-child(4) { animation-delay: 1.1s; }
+  .hero-name .letter:nth-child(5) { animation-delay: 1.15s; }
+  .hero-name .letter:nth-child(6) { animation-delay: 1.2s; }
+  .hero-name .letter:nth-child(7) { animation-delay: 1.25s; }
+
+  .hero-dot {
+    display: inline-block;
+    opacity: 0;
+    animation: dotPulse 0.4s 1.5s forwards;
+    background: var(--cyan);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: var(--glow-cyan);
+  }
+
+  .hero-subtitle {
+    font-size: clamp(1rem, 2.5vw, 1.4rem);
+    font-weight: 300;
+    color: var(--text-dim);
+    max-width: 600px;
+    opacity: 0;
+    animation: fadeSlideUp 1s 1.8s forwards;
+    margin-bottom: 3rem;
+  }
+
+  .hero-subtitle em {
+    font-style: italic;
+    color: var(--cyan);
+    font-weight: 400;
+  }
+
+  .hero-cta {
+    display: flex;
+    gap: 1.5rem;
+    opacity: 0;
+    animation: fadeSlideUp 0.8s 2.2s forwards;
+  }
+
+  .btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 1rem 2.5rem;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    color: var(--bg);
+    font-weight: 700;
+  }
+
+  .btn-primary:hover {
+    box-shadow: var(--glow-cyan), var(--glow-purple);
+    transform: translateY(-2px);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid rgba(0,212,255,0.2);
+  }
+
+  .btn-ghost:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    box-shadow: var(--glow-cyan);
+  }
+
+  /* ===== SCROLL INDICATOR ===== */
+  .scroll-indicator {
+    position: absolute;
+    bottom: 3rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0;
+    animation: fadeSlideUp 0.6s 2.8s forwards;
+  }
+
+  .scroll-indicator span {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .scroll-line {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, var(--cyan), transparent);
+    animation: scrollPulse 2s infinite;
+  }
+
+  /* ===== SECTIONS ===== */
+  section {
+    position: relative;
+    z-index: 1;
+    padding: 8rem 3rem;
+  }
+
+  .section-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    margin-bottom: 2rem;
+    line-height: 1.1;
+  }
+
+  .section-title .gradient {
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ===== ABOUT ===== */
+  .about-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    margin-top: 3rem;
+  }
+
+  .about-text {
+    font-size: 1.1rem;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+
+  .about-text strong { color: var(--text); font-weight: 600; }
+
+  .about-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+
+  .stat {
+    padding: 2rem;
+    border: 1px solid rgba(0,212,255,0.1);
+    background: rgba(12,18,48,0.5);
+    backdrop-filter: blur(10px);
+    transition: all 0.4s;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  .stat.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .stat:hover {
+    border-color: var(--cyan);
+    box-shadow: var(--glow-cyan);
+    transform: translateY(-4px);
+  }
+
+  .stat-number {
+    font-family: 'Space Mono', monospace;
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 0.5rem;
+  }
+
+  /* ===== PILLARS ===== */
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-top: 3rem;
+  }
+
+  .pillar {
+    padding: 3rem 2rem;
+    border: 1px solid rgba(0,212,255,0.08);
+    background: linear-gradient(135deg, rgba(12,18,48,0.4), rgba(6,10,26,0.8));
+    position: relative;
+    overflow: hidden;
+    transition: all 0.5s;
+    opacity: 0;
+    transform: translateY(40px);
+  }
+
+  .pillar.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .pillar::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  .pillar:hover::before { opacity: 1; }
+
+  .pillar:hover {
+    border-color: rgba(0,212,255,0.2);
+    transform: translateY(-6px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+
+  .pillar-icon {
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+    display: block;
+    width: 50px; height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0,212,255,0.2);
+    color: var(--cyan);
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+  }
+
+  .pillar h3 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .pillar p {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  /* ===== COMMUNITY ===== */
+  .community-banner {
+    margin-top: 3rem;
+    padding: 4rem;
+    border: 1px solid rgba(123,47,247,0.15);
+    background: linear-gradient(135deg, rgba(123,47,247,0.08), rgba(0,212,255,0.05));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .community-banner::before {
+    content: '';
+    position: absolute;
+    top: -50%; right: -10%;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(123,47,247,0.1), transparent 70%);
+    border-radius: 50%;
+    animation: float 8s ease-in-out infinite;
+  }
+
+  .community-text h3 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 0.8rem;
+  }
+
+  .community-text p {
+    color: var(--text-dim);
+    font-size: 1.05rem;
+    max-width: 500px;
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    position: relative;
+    z-index: 1;
+    padding: 3rem;
+    border-top: 1px solid rgba(0,212,255,0.08);
+    text-align: center;
+  }
+
+  .footer p {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+  }
+
+  /* ===== MOCKUP SWITCHER ===== */
+  .mockup-switcher {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 200;
+    background: rgba(6,10,26,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(0,212,255,0.15);
+    padding: 0.8rem 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .mockup-switcher span {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-right: 1rem;
+  }
+
+  .mockup-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.5rem 1.2rem;
+    background: transparent;
+    border: 1px solid rgba(0,212,255,0.15);
+    color: var(--text-dim);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s;
+    letter-spacing: 1px;
+  }
+
+  .mockup-btn:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    box-shadow: var(--glow-cyan);
+  }
+
+  .mockup-btn.active {
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    color: var(--bg);
+    border-color: transparent;
+    font-weight: 700;
+  }
+
+  /* ===== ANIMATIONS ===== */
+  @keyframes letterReveal {
+    to { opacity: 1; transform: translateY(0) rotateX(0); }
+  }
+
+  @keyframes dotPulse {
+    0% { opacity: 0; transform: scale(0); }
+    60% { opacity: 1; transform: scale(1.4); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes fadeSlideUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scrollPulse {
+    0%, 100% { opacity: 0.3; transform: scaleY(0.5); transform-origin: top; }
+    50% { opacity: 1; transform: scaleY(1); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-20px, 20px); }
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .about-grid { grid-template-columns: 1fr; gap: 3rem; }
+    .pillars { grid-template-columns: 1fr; }
+    .community-banner { flex-direction: column; text-align: center; padding: 3rem 2rem; }
+    .topnav-links { display: none; }
+    .topnav { padding: 1.2rem 2rem; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="neuralCanvas"></canvas>
+
+<nav class="topnav">
+  <div class="logo">ZECH<span>.SH</span></div>
+  <div class="topnav-links">
+    <a href="#about">About</a>
+    <a href="#pillars">Work</a>
+    <a href="#community">Community</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-tag">Developer &bull; Dreamer &bull; Builder</div>
+  <h1 class="hero-name">
+    <span class="letter">Z</span><span class="letter">E</span><span class="letter">C</span><span class="letter">H</span><span class="letter hero-dot">.</span><span class="letter">S</span><span class="letter">H</span>
+  </h1>
+  <p class="hero-subtitle">The one who <em>dreams while others sleep</em>. Bringing incredible ideas to life with tomorrow's technology.</p>
+  <div class="hero-cta">
+    <a href="#pillars" class="btn btn-primary">Explore Work</a>
+    <a href="#community" class="btn btn-ghost">Join Community</a>
+  </div>
+  <div class="scroll-indicator">
+    <span>Scroll</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<section id="about">
+  <div class="section-inner">
+    <div class="section-label">// About</div>
+    <h2 class="section-title">Two decades of <span class="gradient">building the future</span></h2>
+    <div class="about-grid">
+      <div class="about-text">
+        <p>I'm Zech — a <strong>developer, architect, and relentless builder</strong> with 20+ years of crafting software. I run the <strong>Smarter Dev</strong> Discord community where developers push each other to think bigger.</p>
+        <br>
+        <p>My work lives at the intersection of <strong>vision and execution</strong> — taking ideas that feel impossible and shipping them as reality. Tomorrow's tech, today.</p>
+      </div>
+      <div class="about-stats">
+        <div class="stat">
+          <div class="stat-number">20+</div>
+          <div class="stat-label">Years Building</div>
+        </div>
+        <div class="stat">
+          <div class="stat-number">&infin;</div>
+          <div class="stat-label">Ideas Shipped</div>
+        </div>
+        <div class="stat">
+          <div class="stat-number">1</div>
+          <div class="stat-label">Community</div>
+        </div>
+        <div class="stat">
+          <div class="stat-number">0</div>
+          <div class="stat-label">Sleep Required</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pillars">
+  <div class="section-inner">
+    <div class="section-label">// What I Do</div>
+    <h2 class="section-title">Building at the <span class="gradient">bleeding edge</span></h2>
+    <div class="pillars">
+      <div class="pillar">
+        <div class="pillar-icon">&gt;_</div>
+        <h3>Full-Stack Engineering</h3>
+        <p>From bare metal to beautiful frontends. Architecture that scales, code that lasts, systems that just work.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-icon">&lt;/&gt;</div>
+        <h3>Open Source & Community</h3>
+        <p>Running Smarter Dev — a Discord for developers who want to level up. Building in public, learning together.</p>
+      </div>
+      <div class="pillar">
+        <div class="pillar-icon">AI</div>
+        <h3>Tomorrow's Technology</h3>
+        <p>AI-augmented development, cutting-edge tooling, and experimental interfaces. The future isn't coming — it's being built.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="community">
+  <div class="section-inner">
+    <div class="section-label">// Community</div>
+    <h2 class="section-title"><span class="gradient">Smarter Dev</span></h2>
+    <div class="community-banner">
+      <div class="community-text">
+        <h3>Dream bigger. Build smarter.</h3>
+        <p>Join a community of developers who refuse to settle. We push boundaries, share knowledge, and ship things that matter.</p>
+      </div>
+      <a href="#" class="btn btn-primary">Join Discord</a>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>&copy; 2026 ZECH.SH &mdash; Dreaming while others sleep</p>
+</footer>
+
+<nav class="mockup-switcher">
+  <span>Designs</span>
+  <a class="mockup-btn active" href="design-1-neural.html">01 Neural</a>
+  <a class="mockup-btn" href="design-2-terminal.html">02 Terminal</a>
+  <a class="mockup-btn" href="design-3-holographic.html">03 Holo</a>
+  <a class="mockup-btn" href="design-4-geometric.html">04 Geo</a>
+  <a class="mockup-btn" href="design-5-cyberpunk.html">05 Cyber</a>
+</nav>
+
+<script>
+// ===== NEURAL CONSTELLATION CANVAS =====
+const canvas = document.getElementById('neuralCanvas');
+const ctx = canvas.getContext('2d');
+let width, height, particles, mouse;
+
+function init() {
+  width = canvas.width = window.innerWidth;
+  height = canvas.height = window.innerHeight;
+  mouse = { x: width / 2, y: height / 2 };
+
+  const count = Math.min(Math.floor((width * height) / 8000), 200);
+  particles = [];
+
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      radius: Math.random() * 1.5 + 0.5,
+      hue: Math.random() > 0.5 ? 190 : 270, // cyan or purple
+      alpha: Math.random() * 0.5 + 0.3,
+    });
+  }
+}
+
+function animate() {
+  ctx.clearRect(0, 0, width, height);
+
+  // Update & draw particles
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+
+    // Mouse attraction
+    const dx = mouse.x - p.x;
+    const dy = mouse.y - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 200) {
+      p.vx += dx * 0.00005;
+      p.vy += dy * 0.00005;
+    }
+
+    p.x += p.vx;
+    p.y += p.vy;
+
+    // Dampen
+    p.vx *= 0.999;
+    p.vy *= 0.999;
+
+    // Wrap
+    if (p.x < 0) p.x = width;
+    if (p.x > width) p.x = 0;
+    if (p.y < 0) p.y = height;
+    if (p.y > height) p.y = 0;
+
+    // Draw particle
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${p.hue}, 100%, 65%, ${p.alpha})`;
+    ctx.fill();
+
+    // Draw connections
+    for (let j = i + 1; j < particles.length; j++) {
+      const p2 = particles[j];
+      const dx2 = p.x - p2.x;
+      const dy2 = p.y - p2.y;
+      const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+
+      if (dist2 < 120) {
+        const alpha = (1 - dist2 / 120) * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = `hsla(200, 100%, 65%, ${alpha})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize', init);
+window.addEventListener('mousemove', e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+
+init();
+animate();
+
+// ===== SCROLL REVEAL =====
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.2 });
+
+document.querySelectorAll('.stat, .pillar').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

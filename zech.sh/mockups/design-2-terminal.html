@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZECH — Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #0a0a0a;
+    --dark: #111111;
+    --green: #00ff41;
+    --green-dim: #00aa2a;
+    --green-glow: 0 0 20px rgba(0,255,65,0.3), 0 0 60px rgba(0,255,65,0.1);
+    --amber: #ffb000;
+    --text-dim: #334433;
+    --gray: #2a2a2a;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--green);
+    font-family: 'JetBrains Mono', monospace;
+    overflow-x: hidden;
+    line-height: 1.7;
+    position: relative;
+  }
+
+  /* CRT Effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* Subtle screen flicker */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,255,65,0.01);
+    pointer-events: none;
+    z-index: 999;
+    animation: flicker 4s infinite;
+  }
+
+  @keyframes flicker {
+    0%, 95%, 100% { opacity: 0; }
+    96% { opacity: 1; }
+  }
+
+  /* ===== BOOT SEQUENCE ===== */
+  .boot-screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: var(--black);
+    z-index: 500;
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    font-size: 0.85rem;
+    transition: opacity 0.5s;
+  }
+
+  .boot-screen.done {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .boot-line {
+    opacity: 0;
+    margin-bottom: 0.3rem;
+    white-space: pre;
+  }
+
+  .boot-line.visible { opacity: 1; }
+
+  .boot-line .ok {
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .boot-line .warn { color: var(--amber); }
+
+  .boot-line .path { color: var(--green-dim); }
+
+  /* ===== MAIN TERMINAL ===== */
+  .terminal {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem 3rem;
+    padding-bottom: 8rem;
+  }
+
+  .prompt-symbol {
+    color: var(--amber);
+    margin-right: 0.5rem;
+  }
+
+  .directory {
+    color: var(--green-dim);
+    margin-right: 0.5rem;
+  }
+
+  .hero-ascii {
+    color: var(--green);
+    font-size: clamp(0.5rem, 1.5vw, 0.9rem);
+    line-height: 1.2;
+    margin: 2rem 0;
+    opacity: 0;
+    text-shadow: var(--green-glow);
+    white-space: pre;
+  }
+
+  .hero-ascii.visible {
+    opacity: 1;
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes glow {
+    from { text-shadow: 0 0 10px rgba(0,255,65,0.3); }
+    to { text-shadow: 0 0 30px rgba(0,255,65,0.5), 0 0 60px rgba(0,255,65,0.2); }
+  }
+
+  .hero-cmd {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    opacity: 0;
+  }
+
+  .hero-cmd.visible { opacity: 1; }
+
+  .hero-output {
+    color: var(--green-dim);
+    font-size: 0.85rem;
+    margin-bottom: 1.5rem;
+    margin-left: 1.8rem;
+    opacity: 0;
+  }
+
+  .hero-output.visible { opacity: 1; }
+
+  .hero-output .highlight {
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .hero-output .link {
+    color: var(--amber);
+    text-decoration: underline;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 0.55em;
+    height: 1.1em;
+    background: var(--green);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ===== SECTIONS ===== */
+  .section {
+    padding: 4rem 3rem;
+    border-top: 1px solid var(--gray);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+  }
+
+  .cmd-output {
+    margin-left: 1.8rem;
+    font-size: 0.85rem;
+    color: var(--green-dim);
+    line-height: 2;
+  }
+
+  .cmd-output .filename { color: var(--green); font-weight: 500; }
+  .cmd-output .dir { color: var(--amber); font-weight: 700; }
+  .cmd-output .permissions { color: var(--text-dim); }
+  .cmd-output .size { color: var(--green-dim); }
+
+  /* File listing table */
+  .file-listing {
+    margin-left: 1.8rem;
+    font-size: 0.8rem;
+  }
+
+  .file-row {
+    display: grid;
+    grid-template-columns: 120px 60px 1fr;
+    gap: 2rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(0,255,65,0.05);
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: all 0.3s;
+  }
+
+  .file-row.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .file-row:hover { background: rgba(0,255,65,0.03); }
+
+  .file-row .perm { color: var(--text-dim); }
+  .file-row .size { color: var(--green-dim); text-align: right; }
+  .file-row .name { color: var(--green); }
+  .file-row .name.is-dir { color: var(--amber); font-weight: 700; }
+
+  /* ===== COMMUNITY SECTION ===== */
+  .irc-window {
+    margin-left: 1.8rem;
+    margin-top: 1rem;
+    border: 1px solid var(--gray);
+    padding: 1.5rem;
+    max-width: 700px;
+  }
+
+  .irc-line {
+    font-size: 0.8rem;
+    margin-bottom: 0.6rem;
+    opacity: 0;
+  }
+
+  .irc-line.visible { opacity: 1; }
+
+  .irc-nick { color: var(--amber); font-weight: 700; }
+  .irc-msg { color: var(--green-dim); }
+  .irc-sys { color: var(--text-dim); font-style: italic; }
+  .irc-action { color: var(--green); }
+
+  /* ===== CONTACT ===== */
+  .contact-form {
+    margin-left: 1.8rem;
+    margin-top: 1rem;
+    max-width: 500px;
+  }
+
+  .form-line {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .form-line label {
+    color: var(--green-dim);
+    margin-right: 0.5rem;
+    white-space: nowrap;
+  }
+
+  .form-line input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--gray);
+    color: var(--green);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    padding: 0.3rem 0;
+    flex: 1;
+    outline: none;
+  }
+
+  .form-line input:focus {
+    border-bottom-color: var(--green);
+    box-shadow: 0 1px 0 var(--green);
+  }
+
+  .submit-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    padding: 0.8rem 2rem;
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-left: 1.8rem;
+    margin-top: 1rem;
+  }
+
+  .submit-btn:hover {
+    background: var(--green);
+    color: var(--black);
+    box-shadow: var(--green-glow);
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    padding: 2rem 3rem;
+    border-top: 1px solid var(--gray);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  .footer span { color: var(--green-dim); }
+
+  /* ===== MOCKUP SWITCHER ===== */
+  .mockup-switcher {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 1100;
+    background: rgba(10,10,10,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--gray);
+    padding: 0.8rem 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .mockup-switcher span {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-right: 1rem;
+  }
+
+  .mockup-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.5rem 1.2rem;
+    background: transparent;
+    border: 1px solid var(--gray);
+    color: var(--text-dim);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s;
+  }
+
+  .mockup-btn:hover {
+    border-color: var(--green);
+    color: var(--green);
+    box-shadow: var(--green-glow);
+  }
+
+  .mockup-btn.active {
+    background: var(--green);
+    color: var(--black);
+    border-color: var(--green);
+    font-weight: 700;
+  }
+
+  @media (max-width: 768px) {
+    .hero, .section { padding: 3rem 1.5rem; }
+    .file-row { grid-template-columns: 100px 50px 1fr; gap: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- BOOT SEQUENCE -->
+<div class="boot-screen" id="bootScreen">
+  <div class="boot-line" data-delay="0">BIOS v4.2.0 &mdash; ZECH SYSTEMS</div>
+  <div class="boot-line" data-delay="200">Memory check... <span class="ok">256GB OK</span></div>
+  <div class="boot-line" data-delay="500">Loading kernel... <span class="path">/boot/vmlinuz-zech</span></div>
+  <div class="boot-line" data-delay="800">[  <span class="ok">OK</span>  ] Started network daemon</div>
+  <div class="boot-line" data-delay="1000">[  <span class="ok">OK</span>  ] Mounted /dev/dreams</div>
+  <div class="boot-line" data-delay="1200">[  <span class="ok">OK</span>  ] Started creativity.service</div>
+  <div class="boot-line" data-delay="1400">[  <span class="warn">WARN</span> ] sleep.service not found &mdash; skipping</div>
+  <div class="boot-line" data-delay="1600">[  <span class="ok">OK</span>  ] Started smarter-dev-community.service</div>
+  <div class="boot-line" data-delay="1800">[  <span class="ok">OK</span>  ] Loaded 20+ years of experience</div>
+  <div class="boot-line" data-delay="2100"></div>
+  <div class="boot-line" data-delay="2300">Welcome to <span class="ok">ZECH.SH</span> &mdash; dreaming while others sleep.</div>
+  <div class="boot-line" data-delay="2500"></div>
+  <div class="boot-line" data-delay="2700"><span class="path">zech@future</span>:<span class="ok">~</span>$ <span class="cursor"></span></div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="terminal" id="mainTerminal" style="opacity: 0;">
+
+  <section class="hero">
+    <div class="hero-cmd" data-delay="0">
+      <span class="prompt-symbol">$</span>
+      <span class="directory">~/</span>
+      cat banner.txt
+    </div>
+    <pre class="hero-ascii" data-delay="200">
+ ________  ______   ______   __    __        ______   __    __
+|        \|      \ /      \ |  \  |  \      /      \ |  \  |  \
+ \$$$$$$$$  \$$$$$$|  $$$$$$\| $$  | $$     |  $$$$$$\| $$  | $$
+    /  $$    | $$  | $$   \$$| $$__| $$     | $$___\$$| $$__| $$
+   /  $$     | $$  | $$      | $$    $$      \$$    \ | $$    $$
+  /  $$      | $$  | $$   __ | $$$$$$$$      _\$$$$$$\| $$$$$$$$
+ /  $$_____ _| $$_ | $$__/  \| $$  | $$  __ |  \__| $$| $$  | $$
+|  $$     \|   $$ \ \$$    $$| $$  | $$ |  \ \$$    $$| $$  | $$
+ \$$$$$$$$ \$$$$$$  \$$$$$$  \$$   \$$  \$$  \$$$$$$  \$$   \$$
+    </pre>
+
+    <div class="hero-cmd" data-delay="600">
+      <span class="prompt-symbol">$</span>
+      <span class="directory">~/</span>
+      whoami
+    </div>
+    <div class="hero-output" data-delay="800">
+      <span class="highlight">Zech</span> &mdash; Developer, dreamer, builder. 20+ years of making impossible things real.
+    </div>
+
+    <div class="hero-cmd" data-delay="1000">
+      <span class="prompt-symbol">$</span>
+      <span class="directory">~/</span>
+      echo $MISSION
+    </div>
+    <div class="hero-output" data-delay="1200">
+      Bringing <span class="highlight">incredible ideas</span> to life with <span class="highlight">tomorrow's technology</span>.
+    </div>
+
+    <div class="hero-cmd" data-delay="1400">
+      <span class="prompt-symbol">$</span>
+      <span class="directory">~/</span>
+      cat /etc/motto
+    </div>
+    <div class="hero-output" data-delay="1600">
+      "<span class="highlight">The one who dreams while others sleep.</span>"
+    </div>
+
+    <div class="hero-cmd" data-delay="1800">
+      <span class="prompt-symbol">$</span>
+      <span class="directory">~/</span>
+      <span class="cursor"></span>
+    </div>
+  </section>
+
+  <section class="section" id="projects">
+    <div class="section-header">
+      <span class="prompt-symbol">$</span>
+      <span class="directory">~/projects/</span>
+      ls -la
+    </div>
+    <div class="file-listing">
+      <div class="file-row" data-delay="0">
+        <span class="perm">drwxr-xr-x</span>
+        <span class="size">--</span>
+        <span class="name is-dir">./</span>
+      </div>
+      <div class="file-row" data-delay="80">
+        <span class="perm">drwxr-xr-x</span>
+        <span class="size">--</span>
+        <span class="name is-dir">full-stack-systems/</span>
+      </div>
+      <div class="file-row" data-delay="160">
+        <span class="perm">drwxr-xr-x</span>
+        <span class="size">--</span>
+        <span class="name is-dir">ai-experiments/</span>
+      </div>
+      <div class="file-row" data-delay="240">
+        <span class="perm">drwxr-xr-x</span>
+        <span class="size">--</span>
+        <span class="name is-dir">smarter-dev/</span>
+      </div>
+      <div class="file-row" data-delay="320">
+        <span class="perm">-rw-r--r--</span>
+        <span class="size">4.2K</span>
+        <span class="name">bleeding-edge.config</span>
+      </div>
+      <div class="file-row" data-delay="400">
+        <span class="perm">-rwxr-xr-x</span>
+        <span class="size">2.1K</span>
+        <span class="name">build-the-future.sh</span>
+      </div>
+      <div class="file-row" data-delay="480">
+        <span class="perm">-rw-r--r--</span>
+        <span class="size">∞</span>
+        <span class="name">ideas.md</span>
+      </div>
+      <div class="file-row" data-delay="560">
+        <span class="perm">-rw-r--r--</span>
+        <span class="size">0B</span>
+        <span class="name">sleep.log</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="community">
+    <div class="section-header">
+      <span class="prompt-symbol">$</span>
+      <span class="directory">~/</span>
+      irc --connect smarter-dev
+    </div>
+    <div class="irc-window">
+      <div class="irc-line" data-delay="0">
+        <span class="irc-sys">*** Connected to #smarter-dev ***</span>
+      </div>
+      <div class="irc-line" data-delay="150">
+        <span class="irc-sys">*** Topic: Dream bigger. Build smarter. Ship faster. ***</span>
+      </div>
+      <div class="irc-line" data-delay="300">
+        <span class="irc-nick">&lt;zech&gt;</span> <span class="irc-msg">Welcome to Smarter Dev. We build things that matter here.</span>
+      </div>
+      <div class="irc-line" data-delay="450">
+        <span class="irc-sys">*** 200+ developers have joined ***</span>
+      </div>
+      <div class="irc-line" data-delay="600">
+        <span class="irc-nick">&lt;dev_01&gt;</span> <span class="irc-msg">Just shipped my first project using the stack we discussed!</span>
+      </div>
+      <div class="irc-line" data-delay="750">
+        <span class="irc-nick">&lt;zech&gt;</span> <span class="irc-action">That's what I'm talking about. Let's see it.</span>
+      </div>
+      <div class="irc-line" data-delay="900">
+        <span class="irc-nick">&lt;dev_02&gt;</span> <span class="irc-msg">This community changed how I think about code.</span>
+      </div>
+      <div class="irc-line" data-delay="1050">
+        <span class="irc-sys">*** Join us: discord.gg/smarter-dev ***</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="contact">
+    <div class="section-header">
+      <span class="prompt-symbol">$</span>
+      <span class="directory">~/</span>
+      ./connect.sh
+    </div>
+    <div class="contact-form">
+      <div class="form-line">
+        <label>name:</label>
+        <input type="text" placeholder="your_handle">
+      </div>
+      <div class="form-line">
+        <label>email:</label>
+        <input type="email" placeholder="you@example.com">
+      </div>
+      <div class="form-line">
+        <label>message:</label>
+        <input type="text" placeholder="Let's build something incredible">
+      </div>
+    </div>
+    <button class="submit-btn">$ send --message</button>
+  </section>
+
+  <footer class="footer">
+    <span class="prompt-symbol">$</span> echo "<span>ZECH.SH &copy; 2026</span> &mdash; <span>PID $$, uptime 20y+, sleep 0h</span>"
+  </footer>
+</div>
+
+<nav class="mockup-switcher">
+  <span>Designs</span>
+  <a class="mockup-btn" href="design-1-neural.html">01 Neural</a>
+  <a class="mockup-btn active" href="design-2-terminal.html">02 Terminal</a>
+  <a class="mockup-btn" href="design-3-holographic.html">03 Holo</a>
+  <a class="mockup-btn" href="design-4-geometric.html">04 Geo</a>
+  <a class="mockup-btn" href="design-5-cyberpunk.html">05 Cyber</a>
+</nav>
+
+<script>
+// ===== BOOT SEQUENCE =====
+const bootLines = document.querySelectorAll('.boot-line');
+const bootScreen = document.getElementById('bootScreen');
+const mainTerminal = document.getElementById('mainTerminal');
+
+bootLines.forEach(line => {
+  const delay = parseInt(line.dataset.delay);
+  setTimeout(() => line.classList.add('visible'), delay);
+});
+
+// After boot, transition to main
+setTimeout(() => {
+  bootScreen.classList.add('done');
+  mainTerminal.style.opacity = '1';
+  mainTerminal.style.transition = 'opacity 0.5s';
+  revealHero();
+}, 3500);
+
+// ===== HERO TYPING REVEAL =====
+function revealHero() {
+  const elements = document.querySelectorAll('.hero .hero-cmd, .hero .hero-output, .hero .hero-ascii');
+  elements.forEach(el => {
+    const delay = parseInt(el.dataset.delay);
+    setTimeout(() => el.classList.add('visible'), delay);
+  });
+}
+
+// ===== SCROLL REVEAL FOR FILE ROWS & IRC =====
+const scrollObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const el = entry.target;
+      const delay = parseInt(el.dataset.delay) || 0;
+      setTimeout(() => el.classList.add('visible'), delay);
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.file-row, .irc-line').forEach(el => scrollObserver.observe(el));
+</script>
+
+</body>
+</html>
