@@ -203,6 +203,7 @@ label {
   color: var(--zech-primary);
   letter-spacing: 4px;
   text-shadow: 0 0 10px rgba(0,229,255,0.4);
+  text-transform: uppercase;
   position: relative;
   text-decoration: none;
 }
@@ -772,7 +773,6 @@ label {
   position: relative;
   z-index: 1;
   padding: 3rem;
-  border-top: 1px solid rgba(0,229,255,0.06);
   display: flex;
   justify-content: space-between;
   align-items: center;
