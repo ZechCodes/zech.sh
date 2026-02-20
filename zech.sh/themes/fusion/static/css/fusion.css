@@ -482,28 +482,6 @@ label {
   animation: fadeIn 0.6s 1.7s forwards;
 }
 
-.zech-data-stream {
-  position: absolute;
-  bottom: 4rem;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--zech-primary), var(--zech-secondary), transparent);
-  opacity: 0.25;
-  z-index: 1;
-}
-
-.zech-data-stream::before {
-  content: '';
-  position: absolute;
-  width: 60px;
-  height: 3px;
-  background: var(--zech-primary);
-  box-shadow: 0 0 10px var(--zech-primary);
-  animation: dataFlow 1.5s linear infinite;
-  top: -1px;
-}
-
 /* --------------------------------------------------------------------------
    8. Sections
    -------------------------------------------------------------------------- */
@@ -910,11 +888,6 @@ label {
 @keyframes gridScroll {
   0% { background-position: 0 0; }
   100% { background-position: 0 60px; }
-}
-
-@keyframes dataFlow {
-  0% { left: -60px; }
-  100% { left: 100%; }
 }
 
 @keyframes statusPulse {

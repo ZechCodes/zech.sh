@@ -44,6 +44,13 @@
       const dy = mouse.y - p.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
+      // Hard bounce off cursor — all particles repelled within 10px
+      if (dist < 10 && dist > 0.1) {
+        const bounceStrength = 3 / (dist * dist);
+        p.vx += (dx / dist) * -bounceStrength;
+        p.vy += (dy / dist) * -bounceStrength;
+      }
+
       // Magnetic polarity force (attract/repel from cursor)
       if (dist < 250 && dist > 1) {
         const strength = p.force * p.polarity;

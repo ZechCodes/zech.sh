@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="zg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="100%" stop-color="#b4c7ff"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="0.8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Dark background -->
+  <rect width="32" height="32" rx="6" fill="#0a0e1a"/>
+
+  <!-- Z letterform — three strokes with sharp angles -->
+  <path
+    d="M 7 8 L 25 8 L 9 24 L 27 24"
+    fill="none"
+    stroke="url(#zg)"
+    stroke-width="3.5"
+    stroke-linecap="square"
+    stroke-linejoin="miter"
+    filter="url(#glow)"
+  />
+
+  <!-- Bright accent node at top-right corner -->
+  <circle cx="25" cy="8" r="1.6" fill="#00e5ff" opacity="0.7"/>
+
+  <!-- Bright accent node at bottom-left corner -->
+  <circle cx="9" cy="24" r="1.6" fill="#b4c7ff" opacity="0.7"/>
+</svg>
