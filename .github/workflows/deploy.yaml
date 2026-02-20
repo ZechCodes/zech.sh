@@ -11,6 +11,9 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: zech.sh
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -27,7 +30,7 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: zech.sh
           push: true
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}
