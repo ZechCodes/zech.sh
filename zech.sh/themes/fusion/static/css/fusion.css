@@ -453,6 +453,11 @@ label {
   animation: glitchB 1.8s infinite linear alternate-reverse;
 }
 
+.error-code.zech-glitch {
+  opacity: 1;
+  animation: none;
+}
+
 .zech-hero-subtitle {
   font-size: clamp(1rem, 2.5vw, 1.4rem);
   font-weight: 400;
