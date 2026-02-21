@@ -2,23 +2,40 @@
 
 from __future__ import annotations
 
+import io
 import os
 from dataclasses import dataclass
 from functools import lru_cache
 
 import httpx
+from bs4 import BeautifulSoup
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google_gla import GoogleGLAProvider
+from pypdf import PdfReader
 
 from skrift.lib.notifications import NotificationMode, notify_session
+
+# Maximum characters of document text to send to the extraction model.
+_MAX_DOC_CHARS = 200_000
+
+
+@lru_cache(maxsize=1)
+def _google_provider() -> GoogleGLAProvider:
+    return GoogleGLAProvider(api_key=os.environ["GOOGLE_API_KEY"])
 
 
 @lru_cache(maxsize=1)
 def gemini_flash() -> GoogleModel:
     """Build a Gemini Flash model using the existing GOOGLE_API_KEY env var."""
-    provider = GoogleGLAProvider(api_key=os.environ["GOOGLE_API_KEY"])
-    return GoogleModel("gemini-2.0-flash", provider=provider)
+    return GoogleModel("gemini-2.0-flash", provider=_google_provider())
+
+
+@lru_cache(maxsize=1)
+def gemini_flash_lite() -> GoogleModel:
+    """Cheap/fast model for document extraction."""
+    return GoogleModel("gemini-2.5-flash-lite", provider=_google_provider())
 
 
 @dataclass
@@ -76,6 +93,78 @@ async def web_search(ctx: RunContext[ResearchDeps], query: str) -> str:
         results.append(f"**{title}**\n{description}\nURL: {url}")
 
     return "\n\n".join(results) if results else "No results found."
+
+
+# ---------------------------------------------------------------------------
+# Extraction sub-agent (Gemini 2.5 Flash Lite) — searches fetched documents
+# ---------------------------------------------------------------------------
+
+extraction_agent = Agent(
+    system_prompt=(
+        "You are a document extraction assistant. "
+        "Given a document and a query, find and extract the sections that are "
+        "relevant to the query. Return the relevant portions verbatim, preserving "
+        "original formatting. If the document is an image, describe the relevant "
+        "content in detail. If nothing relevant is found, say so briefly."
+    ),
+)
+
+
+def _html_to_text(html: str) -> str:
+    """Strip HTML to readable plain text."""
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
+        tag.decompose()
+    return soup.get_text(separator="\n", strip=True)
+
+
+def _pdf_to_text(data: bytes) -> str:
+    """Extract text from PDF bytes."""
+    reader = PdfReader(io.BytesIO(data))
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+@research_agent.tool
+async def fetch_url(ctx: RunContext[ResearchDeps], url: str, query: str) -> str:
+    """Fetch a URL and extract the sections relevant to a query.
+
+    Supports HTML pages, PDFs, and images. A lightweight model reads the
+    fetched document and returns only the parts that answer the query.
+
+    Args:
+        url: The URL to fetch.
+        query: What to look for in the document.
+    """
+    await notify_session(
+        ctx.deps.nid,
+        "research_status",
+        status="reading",
+        query=url,
+        mode=NotificationMode.EPHEMERAL,
+    )
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        resp = await client.get(url, timeout=30.0)
+        resp.raise_for_status()
+
+    content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+
+    if content_type == "application/pdf":
+        text = _pdf_to_text(resp.content)
+        prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
+    elif content_type.startswith("image/"):
+        prompt = [
+            f"Query: {query}\n\nDescribe the relevant content from this image:",
+            BinaryContent(data=resp.content, media_type=content_type),
+        ]
+    elif "html" in content_type or content_type.startswith("text/"):
+        text = _html_to_text(resp.text) if "html" in content_type else resp.text
+        prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
+    else:
+        return f"Unsupported content type: {content_type}"
+
+    result = await extraction_agent.run(prompt, model=gemini_flash_lite())
+    return result.output
 
 
 classify_agent = Agent(

@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "asyncpg>=0.30.0",
+    "beautifulsoup4>=4.12.0",
     "pydantic-ai-slim[google]>=1.62.0",
+    "pypdf>=5.0.0",
     "skrift[logfire]>=0.1.0a46",
 ]
 
