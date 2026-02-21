@@ -1,0 +1,97 @@
+/* ==========================================================================
+   SCAN — Smart search relay styles using Fusion design tokens
+   ========================================================================== */
+
+.scan-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 200px);
+  padding: 2rem 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Search Section
+   -------------------------------------------------------------------------- */
+
+.scan-search-section {
+  text-align: center;
+  width: 100%;
+  max-width: 640px;
+}
+
+.scan-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  margin-bottom: 2rem;
+}
+
+.scan-form {
+  width: 100%;
+}
+
+.scan-input {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--zech-text);
+  background: rgba(0, 229, 255, 0.03);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  box-sizing: border-box;
+}
+
+.scan-input::placeholder {
+  color: var(--zech-text-dim);
+  opacity: 0.6;
+}
+
+.scan-input:focus {
+  border-color: var(--zech-primary);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.1), inset 0 0 20px rgba(0, 229, 255, 0.03);
+}
+
+/* --------------------------------------------------------------------------
+   Unauthorized Section
+   -------------------------------------------------------------------------- */
+
+.scan-unauthorized-section {
+  text-align: center;
+  max-width: 560px;
+}
+
+.scan-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--zech-text);
+  margin-bottom: 1rem;
+}
+
+.scan-description {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.1rem;
+  color: var(--zech-text-dim);
+  line-height: 1.6;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+  .scan-input {
+    font-size: 1rem;
+    padding: 0.85rem 1.25rem;
+  }
+}

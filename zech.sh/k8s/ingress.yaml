@@ -12,6 +12,7 @@ spec:
     - hosts:
         - zech.sh
         - dump.zech.sh
+        - scan.zech.sh
       secretName: zech-sh-tls
   rules:
     - host: zech.sh
@@ -25,6 +26,16 @@ spec:
                 port:
                   number: 8080
     - host: dump.zech.sh
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zech-sh
+                port:
+                  number: 8080
+    - host: scan.zech.sh
       http:
         paths:
           - path: /

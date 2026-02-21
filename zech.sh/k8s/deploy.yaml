@@ -55,6 +55,11 @@ spec:
                 secretKeyRef:
                   name: zech-sh-secrets
                   key: google-oauth-client-secret
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zech-sh-secrets
+                  key: google-api-key
           resources:
             requests:
               memory: "128Mi"

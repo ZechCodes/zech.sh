@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SCAN.ZECH.SH{% endblock %}</title>
+
+    <link rel="icon" type="image/svg+xml" href="{{ static_url('fusion/favicon.svg') }}">
+    <link rel="stylesheet" href="{{ static_url('fusion/css/fonts.css') }}">
+    <link rel="stylesheet" href="{{ static_url('fusion/css/fusion.css') }}">
+    <link rel="stylesheet" href="{{ theme_url('css/scan.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+<div class="zech-scanlines"></div>
+<div class="zech-noise-layer"></div>
+
+<nav class="zech-topnav">
+    <a href="/" class="logo" data-text="SCAN.ZECH.SH">SCAN.ZECH.SH</a>
+</nav>
+
+<main class="scan-main">
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="zech-footer">
+    <p>&copy; {{ now().year }} SCAN.ZECH.SH</p>
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

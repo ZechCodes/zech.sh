@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}SCAN.ZECH.SH — Smart Search Relay{% endblock %}
+
+{% block head %}
+<link rel="search" type="application/opensearchdescription+xml" title="Scan" href="/opensearch.xml">
+{% endblock %}
+
+{% block content %}
+<section class="scan-search-section">
+    <div class="scan-label">QUERY.RELAY</div>
+    <form class="scan-form" action="/search" method="get" autocomplete="off">
+        <input
+            class="scan-input"
+            type="text"
+            name="q"
+            placeholder="Search, navigate, or ask..."
+            autofocus
+            required
+        >
+    </form>
+</section>
+{% endblock %}

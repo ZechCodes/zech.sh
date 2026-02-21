@@ -27,6 +27,11 @@ sites:
     controllers:
       - skrift.controllers.sitemap:SitemapController
     theme: dump
+  scan:
+    subdomain: scan
+    controllers:
+      - controllers.scan:ScanController
+    theme: scan
 
 db:
   url: $DATABASE_URL

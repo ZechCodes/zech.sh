@@ -8,3 +8,9 @@ dependencies = [
     "asyncpg>=0.30.0",
     "skrift[logfire]>=0.1.0a46",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+]
