@@ -4,6 +4,8 @@
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   let width, height, particles, mouse;
+  // Scale particles ~2x on high-density displays (phones, retina)
+  const densityScale = Math.min(window.devicePixelRatio || 1, 2);
 
   function init() {
     width = canvas.width = window.innerWidth;
@@ -17,8 +19,8 @@
     for (let i = 0; i < count; i++) {
       // Magnetic polarity: +1 attracted, -1 repelled
       const polarity = Math.random() > 0.5 ? 1 : -1;
-      // Dense sizing: radius 0.3-1.3
-      const radius = Math.random() * 1 + 0.3;
+      // Dense sizing: radius 0.3-1.3 (scaled up on high-density displays)
+      const radius = (Math.random() * 1 + 0.3) * densityScale;
       particles.push({
         x: Math.random() * width,
         y: Math.random() * height,
@@ -103,7 +105,7 @@
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(p2.x, p2.y);
           ctx.strokeStyle = `hsla(${lineHue}, 80%, ${lineLightness}%, ${alpha})`;
-          ctx.lineWidth = crossPolar ? 0.8 : 0.5;
+          ctx.lineWidth = (crossPolar ? 0.8 : 0.5) * densityScale;
           ctx.stroke();
         }
       }
