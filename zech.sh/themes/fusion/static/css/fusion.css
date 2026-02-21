@@ -661,6 +661,8 @@ label {
   transition: all 0.4s;
   opacity: 0;
   transform: translateY(20px);
+  display: flex;
+  flex-direction: column;
 }
 
 .zech-card.visible {
@@ -722,7 +724,7 @@ label {
   text-decoration: none;
   display: inline-block;
   margin-top: 1.5rem;
-  float: right;
+  align-self: center;
   padding: 0.6rem 1.5rem;
   border: 1px solid rgba(0,229,255,0.25);
   transition: all 0.3s;
