@@ -8,7 +8,6 @@ controllers:
   - controllers.admin_integrations:IntegrationsAdminController
   - skrift.admin.controller:AdminController
   - controllers.redirects:RedirectsController
-  - skrift.controllers.sitemap:SitemapController
   - skrift.controllers.web:WebController
   - controllers.health:HealthController
 
@@ -26,7 +25,6 @@ sites:
   dump:
     subdomain: dump
     controllers:
-      - skrift.controllers.sitemap:SitemapController
       - controllers.dump:DumpController
     theme: dump
 
