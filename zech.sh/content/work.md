@@ -1,4 +1,4 @@
-Everything I build ships open. Here's what's done, what's close, and what's next.
+Frameworks ship open. Products ship when they're ready. Here's what's done, what's close, and what's next.
 
 ## Shipped
 

@@ -1,6 +1,6 @@
 I'm Zech Zimmerman — a Python developer, open-source creator, and community builder who's been shipping code for over twenty years.
 
-I started writing software as a kid and never stopped. Along the way, I built [Bevy](https://github.com/ZechCodes/Bevy) — a dependency injection framework for Python — and [Skrift](https://github.com/ZechCodes/Skrift), the async CMS that powers this very site. I'm also building [Schism](https://github.com/ZechCodes/Schism) (monolith-to-microservice framework) and [Ommi](https://github.com/ZechCodes/Ommi) (cross-ORM object mapping), both approaching their first stable releases. Everything ships open.
+I started writing software as a kid and never stopped. Along the way, I built [Bevy](https://github.com/ZechCodes/Bevy) — a dependency injection framework for Python — and [Skrift](https://github.com/ZechCodes/Skrift), the async CMS that powers this very site. I'm also building [Schism](https://github.com/ZechCodes/Schism) (monolith-to-microservice framework) and [Ommi](https://github.com/ZechCodes/Ommi) (cross-ORM object mapping), both approaching their first stable releases.
 
 I also built [Smarter.Dev](/discord), a 13,000+ member Discord community where developers learn, ship, and level up together. It started as Beginner.Codes — a place for new developers to get real help from real developers. It grew into something bigger.
 
