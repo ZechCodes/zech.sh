@@ -5,6 +5,7 @@
 {% block scripts %}
 <script src="{{ theme_url('js/highlight.min.js') }}"></script>
 <script src="{{ theme_url('js/highlight-init.js') }}"></script>
+<script src="{{ theme_url('js/toc.js') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -28,8 +29,19 @@
             {% endif %}
         </header>
 
-        <div class="dump-article-content">
-            {{ page.content | markdown | safe }}
+        <div class="dump-article-body">
+            <div class="dump-article-content">
+                {{ page.content | markdown | safe }}
+            </div>
+            <aside class="dump-toc-sidebar" aria-label="Table of contents">
+                <nav class="dump-toc">
+                    <button class="dump-toc-toggle" type="button" aria-expanded="false">
+                        <span class="dump-toc-label">// CONTENTS</span>
+                        <span class="dump-toc-chevron" aria-hidden="true"></span>
+                    </button>
+                    <ol class="dump-toc-list"></ol>
+                </nav>
+            </aside>
         </div>
     </div>
 </article>

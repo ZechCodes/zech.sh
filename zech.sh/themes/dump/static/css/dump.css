@@ -407,6 +407,103 @@
 }
 
 /* --------------------------------------------------------------------------
+   9. Table of Contents
+   -------------------------------------------------------------------------- */
+
+/* Grid layout — only when JS adds .has-toc */
+.dump-article-body.has-toc {
+  display: grid;
+  grid-template-columns: minmax(0, 720px) 1fr;
+  gap: 3rem;
+}
+
+/* Sticky sidebar */
+.dump-toc-sidebar {
+  position: sticky;
+  top: 6rem;
+  max-height: calc(100vh - 7rem);
+  overflow-y: auto;
+  align-self: start;
+}
+
+.dump-toc {
+  border-left: 2px solid rgba(0,229,255,0.15);
+  padding-left: 1.25rem;
+}
+
+.dump-toc-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--zech-primary);
+  display: block;
+  margin-bottom: 1rem;
+}
+
+/* Toggle button — hidden on desktop */
+.dump-toc-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.dump-toc-chevron {
+  display: none;
+}
+
+/* TOC list */
+.dump-toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dump-toc-item {
+  margin-bottom: 0.25rem;
+}
+
+.dump-toc-h3 {
+  padding-left: 1rem;
+}
+
+.dump-toc-link {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  display: block;
+  padding: 0.2rem 0;
+  padding-left: 0.75rem;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.dump-toc-link:hover {
+  color: var(--zech-primary);
+}
+
+.dump-toc-link.toc-active {
+  color: var(--zech-primary);
+}
+
+.dump-toc-link.toc-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.15rem;
+  bottom: 0.15rem;
+  width: 2px;
+  background: var(--zech-primary);
+  box-shadow: 0 0 6px rgba(0,229,255,0.5);
+}
+
+/* --------------------------------------------------------------------------
    7. Responsive
    -------------------------------------------------------------------------- */
 
@@ -428,5 +525,57 @@
     flex-direction: column;
     gap: 0.5rem;
     align-items: flex-start;
+  }
+
+  /* TOC mobile — accordion above content */
+  .dump-article-body.has-toc {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dump-toc-sidebar {
+    order: -1;
+    position: static;
+    max-height: none;
+    overflow: visible;
+    margin-bottom: 2rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid rgba(0,229,255,0.1);
+    background: rgba(0,229,255,0.02);
+  }
+
+  .dump-toc {
+    border-left: none;
+    padding-left: 0;
+  }
+
+  .dump-toc-label {
+    margin-bottom: 0;
+  }
+
+  .dump-toc-chevron {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 2px solid var(--zech-primary);
+    border-bottom: 2px solid var(--zech-primary);
+    transform: rotate(45deg);
+    transition: transform 0.2s;
+    margin-left: auto;
+  }
+
+  .toc-open .dump-toc-chevron {
+    transform: rotate(-135deg);
+  }
+
+  .dump-toc-list {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+
+  .toc-open .dump-toc-list {
+    max-height: 500px;
+    margin-top: 1rem;
   }
 }
