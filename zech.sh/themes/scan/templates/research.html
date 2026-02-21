@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}SCAN.ZECH.SH — Research{% endblock %}
+
+{% block head %}
+<link rel="search" type="application/opensearchdescription+xml" title="Scan" href="/opensearch.xml">
+{% endblock %}
+
+{% block content %}
+<section class="research-section">
+    <div class="scan-label">RESEARCH.MODE</div>
+    <div class="research-query">{{ query }}</div>
+    <div class="research-response" id="researchResponse">
+        <div class="research-cursor" id="researchCursor"></div>
+    </div>
+    <div class="research-status" id="researchStatus"></div>
+    <form class="scan-form research-followup" action="/search" method="get" autocomplete="off">
+        <input
+            class="scan-input"
+            type="text"
+            name="q"
+            placeholder="Ask a follow-up..."
+            autofocus
+        >
+    </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.__researchQuery = {{ query | tojson }};
+</script>
+<script src="{{ theme_url('js/research.js') }}"></script>
+{% endblock %}

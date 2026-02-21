@@ -1,62 +1,18 @@
+import json
 import os
 import re
+from collections.abc import AsyncGenerator
 from urllib.parse import quote_plus
 
-import httpx
 from litestar import Controller, Request, get
 from litestar.response import Redirect, Response
 from litestar.response import Template as TemplateResponse
+from litestar.response.sse import ServerSentEvent, ServerSentEventMessage
 
 from skrift.auth.session_keys import SESSION_USER_ID
+from skrift.lib.notifications import _ensure_nid
 
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
-
-SYSTEM_PROMPT = """\
-You are a query classifier. Given a user input, classify it as exactly one of:
-
-URL — The input looks like a domain name, IP address, or URL (with or without a protocol). \
-Examples: "github.com", "docs.python.org/3/library/asyncio", "192.168.1.1", "example.com/path?query=1"
-
-SEARCH — The input is a simple web search query looking for results/links. \
-Examples: "python list comprehension", "best pizza near me", "litestar framework", "weather today"
-
-RESEARCH — The input is a question or request that needs a comprehensive, direct answer or \
-in-depth analysis rather than a list of links. \
-Examples: "how does TCP congestion control work?", "compare React vs Svelte for SPAs", \
-"explain the difference between threads and processes"
-
-Respond with exactly one word: URL, SEARCH, or RESEARCH. Nothing else."""
-
-
-async def classify_query(query: str) -> str:
-    """Classify a query using Gemini Flash."""
-    api_key = os.environ["GOOGLE_API_KEY"]
-    payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": [{"parts": [{"text": query}]}],
-        "generationConfig": {
-            "temperature": 0,
-            "maxOutputTokens": 256,
-            "thinkingConfig": {
-                "thinkingLevel": "minimal",
-            },
-        },
-    }
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{GEMINI_API_URL}?key={api_key}",
-            json=payload,
-            timeout=10.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-
-    parts = data["candidates"][0]["content"]["parts"]
-    # Thinking models may include thought parts; find the text part
-    text = next(p["text"] for p in parts if "text" in p).strip().upper()
-    if text not in ("URL", "SEARCH", "RESEARCH"):
-        return "SEARCH"
-    return text
+from controllers.scan_agent import ResearchDeps, classify_query, gemini_flash, research_agent
 
 
 def build_redirect_url(classification: str, query: str) -> str:
@@ -64,8 +20,6 @@ def build_redirect_url(classification: str, query: str) -> str:
     if classification == "URL":
         cleaned = re.sub(r"^https?://", "", query.strip())
         return f"https://{cleaned}"
-    elif classification == "RESEARCH":
-        return f"https://www.perplexity.ai/search?q={quote_plus(query)}"
     else:
         return f"https://www.google.com/search?q={quote_plus(query)}"
 
@@ -96,9 +50,43 @@ class ScanController(Controller):
             return TemplateResponse("unauthorized.html")
         if not q.strip():
             return Redirect(path="/")
+
         classification = await classify_query(q)
+
+        if classification == "RESEARCH":
+            return TemplateResponse("research.html", context={"query": q})
+
         url = build_redirect_url(classification, q)
         return Redirect(path=url)
+
+    @get("/research/stream")
+    async def research_stream(self, request: Request, q: str = "") -> ServerSentEvent | TemplateResponse:
+        user_id = request.session.get(SESSION_USER_ID)
+        if not user_id:
+            return TemplateResponse("unauthorized.html")
+        if not q.strip():
+            return ServerSentEvent(iter([]))
+
+        nid = _ensure_nid(request)
+        brave_api_key = os.environ.get("BRAVE_API_KEY", "")
+        deps = ResearchDeps(nid=nid, brave_api_key=brave_api_key)
+
+        async def generate() -> AsyncGenerator[ServerSentEventMessage, None]:
+            try:
+                async with research_agent.run_stream(q, deps=deps, model=gemini_flash()) as stream:
+                    async for text in stream.stream_text(delta=True):
+                        yield ServerSentEventMessage(
+                            data=json.dumps({"text": text}),
+                            event="text",
+                        )
+                yield ServerSentEventMessage(data="", event="done")
+            except Exception as exc:
+                yield ServerSentEventMessage(
+                    data=json.dumps({"error": str(exc)}),
+                    event="error",
+                )
+
+        return ServerSentEvent(generate())
 
     @get("/opensearch.xml")
     async def opensearch(self) -> Response:

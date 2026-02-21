@@ -1,6 +1,6 @@
 """Integration tests for the scan query classifier.
 
-These tests call the real Gemini API to verify the system prompt
+These tests call the real Gemini API via Pydantic AI to verify the system prompt
 classifies queries correctly. Requires GOOGLE_API_KEY in .env.
 """
 
@@ -16,7 +16,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 # Add project root to path so we can import the controller module directly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from controllers.scan import classify_query
+from controllers.scan_agent import classify_query
 
 pytestmark = pytest.mark.integration
 
