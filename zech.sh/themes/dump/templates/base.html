@@ -5,6 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}DUMP.ZECH.SH{% endblock %}</title>
 
+    {# SEO Meta Tags #}
+    {% block seo_meta %}
+    {% if seo_meta %}
+    {% if seo_meta.description %}<meta name="description" content="{{ seo_meta.description }}">{% endif %}
+    {% if seo_meta.robots %}<meta name="robots" content="{{ seo_meta.robots }}">{% endif %}
+    <link rel="canonical" href="{{ seo_meta.canonical_url }}">
+    {% endif %}
+    {% endblock %}
+
+    {# OpenGraph Tags #}
+    {% block og_meta %}
+    {% if og_meta %}
+    <meta property="og:title" content="{{ og_meta.title }}">
+    {% if og_meta.description %}<meta property="og:description" content="{{ og_meta.description }}">{% endif %}
+    {% if og_meta.image %}<meta property="og:image" content="{{ og_meta.image }}">{% endif %}
+    <meta property="og:url" content="{{ og_meta.url }}">
+    <meta property="og:site_name" content="{{ og_meta.site_name }}">
+    <meta property="og:type" content="{{ og_meta.type }}">
+    {% endif %}
+    {% endblock %}
+
     <link rel="icon" type="image/svg+xml" href="{{ static_url('fusion/favicon.svg') }}">
     <link rel="stylesheet" href="{{ static_url('fusion/css/fonts.css') }}">
     <link rel="stylesheet" href="{{ static_url('fusion/css/fusion.css') }}">

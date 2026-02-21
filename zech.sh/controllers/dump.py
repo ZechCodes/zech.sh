@@ -9,6 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.db.models.user import User
 from skrift.db.services import page_service
+from skrift.db.services.setting_service import (
+    get_cached_site_base_url,
+    get_cached_site_name_for,
+)
+from skrift.lib.seo import (
+    OpenGraphMeta,
+    SEOMeta,
+    get_page_og_meta,
+    get_page_seo_meta,
+)
 
 
 class DumpController(Controller):
@@ -43,9 +53,32 @@ class DumpController(Controller):
             order_by="published",
         )
 
+        site_name = get_cached_site_name_for("dump") or "DUMP.ZECH.SH"
+        base_url = get_cached_site_base_url() or str(request.base_url).rstrip("/")
+        seo_meta = SEOMeta(
+            title="DUMP.ZECH.SH",
+            description="Code-heavy posts from the trenches",
+            canonical_url=base_url,
+            robots=None,
+        )
+        og_meta = OpenGraphMeta(
+            title="DUMP.ZECH.SH",
+            description="Code-heavy posts from the trenches",
+            url=base_url,
+            site_name=site_name,
+            image=None,
+            type="website",
+        )
+
         return TemplateResponse(
             "index.html",
-            context={"posts": posts, "flash": flash, **user_ctx},
+            context={
+                "posts": posts,
+                "flash": flash,
+                "seo_meta": seo_meta,
+                "og_meta": og_meta,
+                **user_ctx,
+            },
         )
 
     @get("/{slug:str}")
@@ -66,7 +99,18 @@ class DumpController(Controller):
         if not post:
             raise NotFoundException(f"Post '{slug}' not found")
 
+        site_name = get_cached_site_name_for("dump") or "DUMP.ZECH.SH"
+        base_url = get_cached_site_base_url() or str(request.base_url).rstrip("/")
+        seo_meta = await get_page_seo_meta(post, site_name, base_url)
+        og_meta = await get_page_og_meta(post, site_name, base_url)
+
         return TemplateResponse(
             "post.html",
-            context={"post": post, "flash": flash, **user_ctx},
+            context={
+                "post": post,
+                "flash": flash,
+                "seo_meta": seo_meta,
+                "og_meta": og_meta,
+                **user_ctx,
+            },
         )
