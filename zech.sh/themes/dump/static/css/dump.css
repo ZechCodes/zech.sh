@@ -360,10 +360,21 @@
 }
 
 .hljs-keyword,
-.hljs-built_in,
-.hljs-type,
 .hljs-selector-tag {
   color: var(--zech-primary);
+}
+
+.hljs-built_in,
+.hljs-type {
+  color: #5eead4;
+}
+
+.hljs-title.function_ {
+  color: #5eead4;
+}
+
+.hljs-title.class_ {
+  color: #c4b5fd;
 }
 
 .hljs-string,
@@ -376,22 +387,21 @@
   font-style: italic;
 }
 
-.hljs-meta {
+.hljs-meta,
+.hljs-meta .hljs-keyword {
   color: var(--zech-text-dim);
 }
 
 .hljs-number,
 .hljs-literal,
 .hljs-variable.constant_ {
-  color: var(--zech-accent);
+  color: #f9cb8b;
 }
 
-.hljs-title.function_,
-.hljs-title.class_ {
-  color: var(--zech-text);
+.hljs-params {
+  color: var(--zech-secondary);
 }
 
-.hljs-params,
 .hljs-punctuation {
   color: inherit;
 }
