@@ -350,6 +350,53 @@
 }
 
 /* --------------------------------------------------------------------------
+   8. Syntax Highlighting (highlight.js custom theme)
+   -------------------------------------------------------------------------- */
+
+.hljs {
+  background: transparent;
+  color: var(--zech-text);
+  padding: 0;
+}
+
+.hljs-keyword,
+.hljs-built_in,
+.hljs-type,
+.hljs-selector-tag {
+  color: var(--zech-primary);
+}
+
+.hljs-string,
+.hljs-attr {
+  color: var(--zech-secondary);
+}
+
+.hljs-comment {
+  color: var(--zech-text-dim);
+  font-style: italic;
+}
+
+.hljs-meta {
+  color: var(--zech-text-dim);
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable.constant_ {
+  color: var(--zech-accent);
+}
+
+.hljs-title.function_,
+.hljs-title.class_ {
+  color: var(--zech-text);
+}
+
+.hljs-params,
+.hljs-punctuation {
+  color: inherit;
+}
+
+/* --------------------------------------------------------------------------
    7. Responsive
    -------------------------------------------------------------------------- */
 
