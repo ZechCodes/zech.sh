@@ -26,6 +26,16 @@
     {% endif %}
     {% endblock %}
 
+    {# Twitter Card Tags #}
+    {% block twitter_meta %}
+    {% if og_meta %}
+    <meta name="twitter:card" content="{% if og_meta.image %}summary_large_image{% else %}summary{% endif %}">
+    <meta name="twitter:title" content="{{ og_meta.title }}">
+    {% if og_meta.description %}<meta name="twitter:description" content="{{ og_meta.description }}">{% endif %}
+    {% if og_meta.image %}<meta name="twitter:image" content="{{ og_meta.image }}">{% endif %}
+    {% endif %}
+    {% endblock %}
+
     <link rel="icon" type="image/svg+xml" href="{{ static_url('fusion/favicon.svg') }}">
     <link rel="stylesheet" href="{{ static_url('fusion/css/fonts.css') }}">
     <link rel="stylesheet" href="{{ static_url('fusion/css/fusion.css') }}">

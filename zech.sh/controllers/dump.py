@@ -9,10 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.db.models.user import User
 from skrift.db.services import page_service
-from skrift.db.services.setting_service import (
-    get_cached_site_base_url,
-    get_cached_site_name_for,
-)
+from skrift.db.services.setting_service import get_cached_site_name_for
 from skrift.lib.seo import (
     OpenGraphMeta,
     SEOMeta,
@@ -54,7 +51,7 @@ class DumpController(Controller):
         )
 
         site_name = get_cached_site_name_for("dump") or "DUMP.ZECH.SH"
-        base_url = get_cached_site_base_url() or str(request.base_url).rstrip("/")
+        base_url = str(request.base_url).rstrip("/").replace("http://", "https://", 1)
         seo_meta = SEOMeta(
             title="DUMP.ZECH.SH",
             description="Code-heavy posts from the trenches",
@@ -100,7 +97,7 @@ class DumpController(Controller):
             raise NotFoundException(f"Post '{slug}' not found")
 
         site_name = get_cached_site_name_for("dump") or "DUMP.ZECH.SH"
-        base_url = get_cached_site_base_url() or str(request.base_url).rstrip("/")
+        base_url = str(request.base_url).rstrip("/").replace("http://", "https://", 1)
         seo_meta = await get_page_seo_meta(post, site_name, base_url)
         og_meta = await get_page_og_meta(post, site_name, base_url)
 
