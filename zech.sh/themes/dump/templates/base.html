@@ -18,6 +18,9 @@
 
 <nav class="zech-topnav">
     <a href="/" class="logo" data-text="DUMP.ZECH.SH">DUMP.ZECH.SH</a>
+    <button class="zech-nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
+        <span></span><span></span><span></span>
+    </button>
     <div class="zech-topnav-right">
         <div class="zech-topnav-links">
             <a href="https://zech.sh">// ZECH.SH</a>
@@ -72,6 +75,11 @@
     <p>&copy; {{ now().year }} DUMP.ZECH.SH</p>
 </footer>
 
+<button class="dump-back-top" type="button" aria-label="Back to top">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="18 15 12 9 6 15"/>
+    </svg>
+</button>
 <script src="{{ theme_url('js/dump.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

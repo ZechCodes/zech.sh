@@ -407,7 +407,43 @@
 }
 
 /* --------------------------------------------------------------------------
-   9. Table of Contents
+   9. Back to Top
+   -------------------------------------------------------------------------- */
+
+.dump-back-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 40px;
+  height: 40px;
+  background: var(--zech-bg);
+  border: 1px solid rgba(0,229,255,0.2);
+  color: var(--zech-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(1rem);
+  transition: all 0.3s;
+  pointer-events: none;
+  z-index: 90;
+}
+
+.dump-back-top.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.dump-back-top:hover {
+  background: rgba(0,229,255,0.08);
+  border-color: var(--zech-primary);
+  box-shadow: 0 0 12px rgba(0,229,255,0.2);
+}
+
+/* --------------------------------------------------------------------------
+   10. Table of Contents
    -------------------------------------------------------------------------- */
 
 /* Grid layout — only when JS adds .has-toc */
