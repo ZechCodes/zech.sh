@@ -3,6 +3,7 @@ theme: fusion
 
 controllers:
   - skrift.controllers.auth:AuthController
+  - controllers.admin_import_posts:ImportPostsAdminController
   - controllers.admin_integrations:IntegrationsAdminController
   - skrift.admin.controller:AdminController
   - controllers.redirects:RedirectsController

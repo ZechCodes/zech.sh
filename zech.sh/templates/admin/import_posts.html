@@ -1,0 +1,71 @@
+{% extends "admin/base.html" %}
+{% block title %}Import Posts - Admin - {{ site_name() }}{% endblock %}
+
+{% block admin_content %}
+<hgroup>
+    <h1>Import Posts</h1>
+    <p>Bulk import posts from an XML file</p>
+</hgroup>
+
+<form method="post" action="/admin/import-posts" enctype="multipart/form-data">
+    <label for="xml_file">XML File</label>
+    <input type="file" id="xml_file" name="xml_file" accept=".xml" required>
+    <small class="sk-text-muted">Upload an XML file containing posts to import</small>
+
+    <div class="sk-form-actions">
+        <button type="submit">Import Posts</button>
+    </div>
+</form>
+
+{% if results %}
+<h2>Import Results</h2>
+<table class="sk-admin-table">
+    <thead>
+        <tr>
+            <th>Status</th>
+            <th>Title</th>
+            <th>Slug</th>
+            <th>Detail</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in results %}
+        <tr>
+            <td>
+                {% if row.status == "created" %}
+                <span class="sk-status-published">Created</span>
+                {% elif row.status == "skipped" %}
+                <span class="sk-status-draft">Skipped</span>
+                {% else %}
+                <span class="sk-status-error">Error</span>
+                {% endif %}
+            </td>
+            <td>{{ row.title }}</td>
+            <td><code>{{ row.slug }}</code></td>
+            <td>{{ row.detail }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<details style="margin-top: 2rem;">
+    <summary>XML Format Reference</summary>
+    <pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;posts&gt;
+  &lt;post&gt;
+    &lt;title&gt;Post Title&lt;/title&gt;
+    &lt;slug&gt;post-slug&lt;/slug&gt;
+    &lt;content&gt;&lt;![CDATA[
+Markdown content here...
+    ]]&gt;&lt;/content&gt;
+    &lt;published_at&gt;2021-09-03T00:19:45+00:00&lt;/published_at&gt;
+    &lt;is_published&gt;true&lt;/is_published&gt;
+    &lt;!-- Optional --&gt;
+    &lt;meta_description&gt;...&lt;/meta_description&gt;
+    &lt;order&gt;0&lt;/order&gt;
+  &lt;/post&gt;
+&lt;/posts&gt;</code></pre>
+    <p class="sk-text-muted">Required: <code>&lt;title&gt;</code>, <code>&lt;slug&gt;</code>. Everything else has sensible defaults.</p>
+</details>
+{% endblock %}
