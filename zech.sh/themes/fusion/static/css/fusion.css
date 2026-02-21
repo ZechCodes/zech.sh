@@ -709,6 +709,28 @@ label {
   line-height: 1.7;
 }
 
+.zech-card-link {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 3px;
+  color: var(--zech-primary);
+  text-decoration: none;
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.6rem 1.5rem;
+  border: 1px solid rgba(0,229,255,0.25);
+  transition: all 0.3s;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+
+.zech-card-link:hover {
+  background: rgba(0,229,255,0.08);
+  border-color: var(--zech-primary);
+  box-shadow: 0 0 12px rgba(0,229,255,0.2);
+  transform: translateY(-1px);
+}
+
 /* --------------------------------------------------------------------------
    12. Community Block — .zech-community-block
    -------------------------------------------------------------------------- */
