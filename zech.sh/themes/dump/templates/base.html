@@ -74,27 +74,7 @@
     <p>&copy; {{ now().year }} DUMP.ZECH.SH</p>
 </footer>
 
-<script src="{{ static_url('skrift/js/notifications.js') }}"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const toggle = document.querySelector('.zech-user-toggle');
-    const menu = document.querySelector('.zech-user-menu');
-    if (toggle && menu) {
-        toggle.addEventListener('click', function(e) {
-            e.stopPropagation();
-            menu.classList.toggle('open');
-        });
-        document.addEventListener('click', function() {
-            menu.classList.remove('open');
-        });
-    }
-    document.querySelectorAll('.sk-flash-dismiss').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            this.closest('.sk-flash').remove();
-        });
-    });
-});
-</script>
+<script src="{{ theme_url('js/dump.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
