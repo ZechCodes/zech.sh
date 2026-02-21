@@ -8,21 +8,21 @@
         <div class="zech-section-label">TRANSMISSIONS</div>
         <h1 class="zech-section-title"><span class="a">DATA</span> <span class="b">DUMP</span></h1>
 
-        {% if posts %}
+        {% if pages %}
         <div class="dump-posts">
-            {% for post in posts %}
-            <a href="/{{ post.slug }}" class="dump-post-card">
+            {% for page in pages %}
+            <a href="/{{ page.slug }}" class="dump-post-card">
                 <div class="dump-post-card-inner">
-                    {% if not post.is_published %}
+                    {% if not page.is_published %}
                     <span class="dump-draft-badge">DRAFT</span>
                     {% endif %}
-                    <h2 class="dump-post-title">{{ post.title }}</h2>
-                    {% if post.published_at %}
-                    <time class="dump-post-date" datetime="{{ post.published_at.isoformat() }}">
-                        {{ post.published_at.strftime('%Y.%m.%d') }}
+                    <h2 class="dump-post-title">{{ page.title }}</h2>
+                    {% if page.published_at %}
+                    <time class="dump-post-date" datetime="{{ page.published_at.isoformat() }}">
+                        {{ page.published_at.strftime('%Y.%m.%d') }}
                     </time>
                     {% endif %}
-                    <p class="dump-post-excerpt">{{ post.content | striptags | truncate(200) }}</p>
+                    <p class="dump-post-excerpt">{{ page.content | striptags | truncate(200) }}</p>
                     <span class="dump-post-read">READ &raquo;</span>
                 </div>
             </a>

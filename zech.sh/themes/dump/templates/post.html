@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ post.title }} — DUMP{% endblock %}
+{% block title %}{{ page.title }} — DUMP{% endblock %}
 
 {% block scripts %}
 <script src="{{ theme_url('js/highlight.min.js') }}"></script>
@@ -12,7 +12,7 @@
     <div class="zech-section-inner">
         <a href="/" class="dump-back-link">&laquo; ALL POSTS</a>
 
-        {% if not post.is_published %}
+        {% if not page.is_published %}
         <div class="dump-draft-notice">
             <span class="dump-draft-badge">DRAFT</span>
             <span>This post is not yet published.</span>
@@ -20,16 +20,16 @@
         {% endif %}
 
         <header class="dump-article-header">
-            <h1 class="dump-article-title">{{ post.title }}</h1>
-            {% if post.published_at %}
-            <time class="dump-post-date" datetime="{{ post.published_at.isoformat() }}">
-                {{ post.published_at.strftime('%Y.%m.%d') }}
+            <h1 class="dump-article-title">{{ page.title }}</h1>
+            {% if page.published_at %}
+            <time class="dump-post-date" datetime="{{ page.published_at.isoformat() }}">
+                {{ page.published_at.strftime('%Y.%m.%d') }}
             </time>
             {% endif %}
         </header>
 
         <div class="dump-article-content">
-            {{ post.content | markdown | safe }}
+            {{ page.content | markdown | safe }}
         </div>
     </div>
 </article>

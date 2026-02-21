@@ -24,8 +24,6 @@ page_types:
 sites:
   dump:
     subdomain: dump
-    controllers:
-      - controllers.dump:DumpController
     theme: dump
 
 db:
