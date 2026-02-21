@@ -24,6 +24,8 @@ page_types:
 sites:
   dump:
     subdomain: dump
+    controllers:
+      - skrift.controllers.sitemap:SitemapController
     theme: dump
 
 db:
