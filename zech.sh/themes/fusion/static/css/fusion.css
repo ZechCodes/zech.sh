@@ -239,6 +239,38 @@ label {
   text-shadow: 0 0 10px rgba(0,229,255,0.5);
 }
 
+/* Hamburger toggle — hidden on desktop */
+.zech-nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 1001;
+}
+
+.zech-nav-toggle span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--zech-text);
+  transition: all 0.3s;
+}
+
+.zech-nav-toggle.open span:nth-child(1) {
+  transform: rotate(45deg) translate(5px, 5px);
+}
+
+.zech-nav-toggle.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.zech-nav-toggle.open span:nth-child(3) {
+  transform: rotate(-45deg) translate(5px, -5px);
+}
+
 .zech-topnav-right {
   display: flex;
   align-items: center;
@@ -408,6 +440,16 @@ label {
   text-shadow: 0 0 15px rgba(180,199,255,0.4);
   opacity: 0;
   animation: fadeIn 0.6s 0.3s forwards;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: 0.75em;
+}
+
+.zech-hero-sep {
+  visibility: hidden;
+  width: 0;
+  overflow: hidden;
 }
 
 .zech-glitch-wrapper {
@@ -1028,8 +1070,35 @@ label {
     text-align: center;
   }
 
+  .zech-nav-toggle {
+    display: flex;
+  }
+
+  .zech-topnav-right {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 250px;
+    height: 100vh;
+    background: var(--zech-bg);
+    border-left: 1px solid rgba(0,229,255,0.1);
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 5rem 2rem 2rem;
+    gap: 0;
+    transform: translateX(100%);
+    transition: transform 0.3s;
+    z-index: 1000;
+  }
+
+  .zech-topnav-right.open {
+    transform: translateX(0);
+  }
+
   .zech-topnav-links {
-    display: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
   }
 
   .zech-section {

@@ -40,6 +40,9 @@
 
 <nav class="zech-topnav">
     <a href="/" class="logo" data-text="{{ site_name() }}">{{ site_name() }}</a>
+    <button class="zech-nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
+        <span></span><span></span><span></span>
+    </button>
     <div class="zech-topnav-right">
         <div class="zech-topnav-links">
             {% block nav_links %}

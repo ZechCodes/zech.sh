@@ -14,6 +14,22 @@
       observer.observe(el);
     });
 
+    // Hero tag separators: show // only when on same line as adjacent text
+    var seps = document.querySelectorAll('.zech-hero-sep');
+    function updateSeps() {
+      seps.forEach(function(sep) {
+        var prev = sep.previousElementSibling;
+        if (!prev) return;
+        var sameLine = prev.getBoundingClientRect().top === sep.getBoundingClientRect().top;
+        sep.style.visibility = sameLine ? 'visible' : 'hidden';
+        sep.style.width = sameLine ? 'auto' : '0';
+      });
+    }
+    if (seps.length) {
+      updateSeps();
+      window.addEventListener('resize', updateSeps);
+    }
+
     // Storm glitch: aggressive, frequent, with double-hit
     var glitchEl = document.querySelector('.zech-glitch');
     if (glitchEl) {
@@ -48,6 +64,18 @@
         setTimeout(function() { flash.remove(); }, 300);
       }, 5000);
     });
+
+    // Mobile nav toggle
+    var navToggle = document.querySelector('.zech-nav-toggle');
+    var navRight = document.querySelector('.zech-topnav-right');
+    if (navToggle && navRight) {
+      navToggle.addEventListener('click', function() {
+        navToggle.classList.toggle('open');
+        navRight.classList.toggle('open');
+        navToggle.setAttribute('aria-expanded',
+          navToggle.classList.contains('open') ? 'true' : 'false');
+      });
+    }
 
     // User menu toggle
     var menu = document.querySelector('.zech-user-menu');
