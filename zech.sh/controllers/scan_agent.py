@@ -41,7 +41,7 @@ def _google_provider() -> GoogleProvider:
 @lru_cache(maxsize=1)
 def gemini_flash() -> GoogleModel:
     """Build a Gemini Flash model using the existing GOOGLE_API_KEY env var."""
-    return GoogleModel("gemini-2.5-flash", provider=_google_provider())
+    return GoogleModel("gemini-3-flash-preview", provider=_google_provider())
 
 
 @lru_cache(maxsize=1)
