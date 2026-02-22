@@ -1,13 +1,17 @@
 import os
 import re
 from urllib.parse import quote_plus
+from uuid import UUID
 
 import httpx
 from litestar import Controller, Request, get
 from litestar.response import Redirect, Response
 from litestar.response import Template as TemplateResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from skrift.auth.session_keys import SESSION_USER_ID
+from skrift.db.models.user import User
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
 
@@ -82,22 +86,41 @@ OPENSEARCH_XML = """\
 class ScanController(Controller):
     path = "/"
 
-    @get("/")
-    async def index(self, request: Request) -> TemplateResponse:
+    async def _get_user(
+        self, request: Request, db_session: AsyncSession
+    ) -> User | None:
         user_id = request.session.get(SESSION_USER_ID)
         if not user_id:
+            return None
+        result = await db_session.execute(
+            select(User).where(User.id == UUID(user_id))
+        )
+        return result.scalar_one_or_none()
+
+    @get("/")
+    async def index(
+        self, request: Request, db_session: AsyncSession
+    ) -> TemplateResponse:
+        user = await self._get_user(request, db_session)
+        if not user:
             return TemplateResponse("unauthorized.html")
-        return TemplateResponse("index.html")
+        return TemplateResponse("index.html", context={"user": user})
 
     @get("/search")
-    async def search(self, request: Request, q: str = "") -> Redirect | TemplateResponse:
-        user_id = request.session.get(SESSION_USER_ID)
-        if not user_id:
+    async def search(
+        self, request: Request, db_session: AsyncSession, q: str = ""
+    ) -> Response | Redirect | TemplateResponse:
+        user = await self._get_user(request, db_session)
+        if not user:
             return TemplateResponse("unauthorized.html")
         if not q.strip():
             return Redirect(path="/")
         classification = await classify_query(q)
         url = build_redirect_url(classification, q)
+        # Return JSON for fetch requests (form JS), redirect for direct navigation (OpenSearch)
+        accept = request.headers.get("accept", "")
+        if "application/json" in accept:
+            return Response(content={"url": url}, status_code=200)
         return Redirect(path=url)
 
     @get("/opensearch.xml")
