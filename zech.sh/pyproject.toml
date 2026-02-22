@@ -9,6 +9,7 @@ dependencies = [
     "beautifulsoup4>=4.12.0",
     "pydantic-ai-slim[google]>=1.62.0",
     "pypdf>=5.0.0",
+    "redis>=5.0.0",
     "skrift[logfire]>=0.1.0a47",
 ]
 

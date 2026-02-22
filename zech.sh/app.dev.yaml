@@ -1,5 +1,8 @@
 domain: zech.sh
 
+models:
+  - models
+
 controllers:
   - skrift.controllers.auth:AuthController
   - skrift.admin.controller:AdminController

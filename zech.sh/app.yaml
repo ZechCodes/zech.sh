@@ -2,6 +2,9 @@ domain: zech.sh
 theme: fusion
 security_contact: security@zech.sh
 
+models:
+  - models
+
 controllers:
   - skrift.controllers.auth:AuthController
   - controllers.admin_import_posts:ImportPostsAdminController
@@ -42,6 +45,10 @@ db:
   pool_timeout: 30
   pool_pre_ping: true
   echo: false
+
+redis:
+  url: $REDIS_URL
+  prefix: zech-sh
 
 session:
   cookie_domain: .zech.sh
