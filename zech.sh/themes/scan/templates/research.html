@@ -10,10 +10,13 @@
 <section class="research-section">
     <div class="scan-label">RESEARCH.MODE</div>
     <div class="research-query">{{ query }}</div>
+    <div class="research-pipeline" id="researchPipeline">
+        <div class="pipeline-status" id="pipelineStatus"></div>
+        <div class="pipeline-details" id="pipelineDetails"></div>
+    </div>
     <div class="research-response" id="researchResponse">
         <div class="research-cursor" id="researchCursor"></div>
     </div>
-    <div class="research-status" id="researchStatus"></div>
     <form class="scan-form research-followup" action="/search" method="get" autocomplete="off">
         <input
             class="scan-input"
@@ -27,8 +30,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-    window.__researchQuery = {{ query | tojson }};
-</script>
-<script src="{{ theme_url('js/research.js') }}"></script>
+<script src="{{ theme_url('js/research.js') }}" data-query="{{ query }}"></script>
 {% endblock %}

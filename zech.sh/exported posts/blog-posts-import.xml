@@ -1,0 +1,1633 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<posts>
+  <post>
+    <title>Terrible But Cool Code - Metaclasses</title>
+    <slug>terrible-but-cool-code-metaclasses</slug>
+    <content><![CDATA[
+So the other day I was picking a challenge on Edabit for my Discord server. I came across [Counting Instances Created from a Class](https://edabit.com/challenge/TkbgxTEn7rxd9hmx7), which gave me an odd idea. The challenge asks you to create a class that counts the number of instances that are created.
+
+Simple enough, clearly an obvious case for using Python's metaclasses!!!
+
+A metaclass allows us to modify the behavior of a class object, essentially treating the class as an instance of the metaclass. As an example:
+
+```python
+class MyMetaclass(type):
+    ...
+
+class Example(metaclass=MyMetaclass):
+    ...
+
+print(type(Example))
+```
+
+That will print `<class '__main__.MyMetaclass'>` telling us that the `Example` class is a type of `MyMetaclass`.
+
+So if we want to change functionality like add an instance counter we could add a dunder init and dunder call like so:
+
+```python
+class CounterMetaclass(type):
+    def __init__(cls, name, bases, attrs):
+        super().__init__(name, bases, attrs)
+        cls.count = 0
+
+    def __call__(cls, *args, **kwargs):
+        cls.count += 1
+        return super().__call__(*args, **kwargs)
+
+
+class Example(metaclass=CounterMetaclass):
+    ...
+
+
+inst_1 = Example()
+inst_2 = Example()
+print(Example.count)
+```
+
+Which will print `2` since 2 instances were created.
+
+That works because when a class is first created (`Example` variable is assigned) the metaclass's dunder init is called passing in the name of the class ("Example"), what classes it inherits from, and all the attributes and methods that the class has as a dictionary of name/value pairs.
+
+The dunder call is run anytime that the class (in this case `Example`) is called to create an instance (for example `inst_1 = Example()`).
+
+## Don't Do It That Way
+
+This is actually a terrible approach because it hides implementation details in a metaclass. This could lead to code behaving in an unexpected way that is hard to debug. It also adds a lot of complexity requiring you to create a second class (the metaclass) and two custom dunder methods. Metaclasses should generally be avoided.
+
+## Do This Instead
+
+Just do it this way. Much clearer and all implementation details are in the class itself making it easier to debug and understand.
+
+```python
+class Example:
+    count = 0
+
+    def __init__(self):
+        Example.count += 1
+
+
+inst_1 = Example()
+inst_2 = Example()
+print(Example.count)
+```
+
+## So Why Show Us This?
+
+So if metaclasses should be avoided, why'd I write this blog post? Mostly because I think it's valuable to understand how things work under the hood. Knowing the steps that Python is taking to create a class helps with understanding how each class functions and why certain things behave how they do.
+
+Hope you found this interesting and that you learned something new!
+    ]]></content>
+    <published_at>2021-08-19T16:55:59+00:00</published_at>
+    <is_published>true</is_published>
+  </post>
+  <post>
+    <title>Moving On From Discord.py</title>
+    <slug>moving-on-from-discordpy</slug>
+    <content><![CDATA[
+I run a ~4k member [Discord server](https://discord.gg/sfHykntuGy) that helps people who want to learn to code. Being on Discord we see a lot of people who are asking how to make their own Discord bots. Recently the maintainer for the most popular Python Discord API client has stepped away and archived the project. This has understandably led a lot of people to ask us what API clients we think are best. So I'm gonna give a quick look at a couple of the options I've seen pop up.
+
+## What Options Are There?
+
+Thankfully in the wake of [Discord.py](https://discordpy.readthedocs.io/en/stable/) going away a bunch of people have stepped forward to maintain their own forks of the project. So I'm gonna quickly cover two of the better ones I've found:
+
+- [nextcord](https://nextcord.readthedocs.io/en/latest/index.html)
+- [pycord](https://pycord.readthedocs.io/en/latest/index.html)
+
+### nextcord
+
+[nextcord](https://nextcord.readthedocs.io/en/latest/index.html) is a recent fork of [Discord.py](https://discordpy.readthedocs.io/en/stable/). It merged some of the alpha changes that were in the project to add support for buttons, drop downs, and threads. As of writing this they had not yet implemented slash commands, however everything is there, just need to add the necessary logic to tie it all together.
+
+This project also renames the package, so when importing it'll be `nextcord` not `discord`.
+
+#### Features
+
+- Commands (using the same implementation as [Discord.py](https://discordpy.readthedocs.io/en/stable/))
+- Extensions (the same cog implementation as [Discord.py](https://discordpy.readthedocs.io/en/stable/))
+- Threads
+- Buttons/drop downs
+- Near perfect compatibility with bots written for [Discord.py](https://discordpy.readthedocs.io/en/stable/)
+
+#### Issues
+
+- Since the package is renamed it is necessary to update all of your code with the new import
+- No slash commands (yet)
+- Datetimes have been made timezone aware, this breaks some code using datetimes on any Discord object.
+
+### pycord
+
+[pycord](https://pycord.readthedocs.io/en/latest/index.html) is another recent fork of [Discord.py](https://discordpy.readthedocs.io/en/stable/). It also merged the alpha changes from [Discord.py](https://discordpy.readthedocs.io/en/stable/) adding support for buttons, drop downs, and threads. Additionally they have begun implementing their own bot class that adds support for slash commands.
+
+This project kept the `discord` package name, so migrating is simpler but it is necessary to uninstall [Discord.py](https://discordpy.readthedocs.io/en/stable/) to avoid conflicts. This has the added benefit of maintaining support for any packages built for [Discord.py](https://discordpy.readthedocs.io/en/stable/).
+
+#### Features
+
+- Commands (using the same implementation as [Discord.py](https://discordpy.readthedocs.io/en/stable/))
+- Extensions (the same cog implementation as [Discord.py](https://discordpy.readthedocs.io/en/stable/))
+- Threads
+- Buttons/drop downs
+- Near perfect compatibility with bots written for [Discord.py](https://discordpy.readthedocs.io/en/stable/)
+- Mostly compatible with existing packages designed to be used with [Discord.py](https://discordpy.readthedocs.io/en/stable/)
+
+#### Issues
+
+- Since the package shares the `discord` name with the [Discord.py](https://discordpy.readthedocs.io/en/stable/) package it is necessary to uninstall [Discord.py](https://discordpy.readthedocs.io/en/stable/) before installing pycord, this will ensure there are no conflicts.
+- Datetimes have been made timezone aware, this breaks some code using datetimes on any Discord object.
+- It's my opinion that adding yet another bot client class is adding more bloat.
+
+## How To Migrate
+
+Thankfully migrating isn't too difficult with either nextcord or pycord.
+
+### Migrating to nextcord
+
+1. Uninstall [Discord.py](https://discordpy.readthedocs.io/en/stable/) by running `pip uninstall discord.py`
+2. Install nextcord by running `pip install nextcord`
+3. Search for `discord` in all of your bot's files and replace it with `nextcord`
+   *Watch out for webhooks, you'll need to make sure they don't get changed to `nextcord.com`*
+4. Anywhere that you're using `thing_url` you'll need to change to `thing.url`. Do a search and replace for all of these converting the `_` to a `.`
+   1. `avatar_url` -> `avatar.url`
+   2. `banner_url` -> `banner.url`
+   3. `default_avatar_url` -> `default_avatar.url`
+   4. `icon_url` -> `icon.url`
+5. If you're using the [Discord.py](https://discordpy.readthedocs.io/en/stable/) webhook implementation you'll need to change `adapter=AsyncWebhookAdapter(session)` to `adpater=session`.
+
+### Migrating to pycord
+
+1. Uninstall [Discord.py](https://discordpy.readthedocs.io/en/stable/) by running `pip uninstall discord.py`
+2. Install pycord by running `pip install pycord`
+
+### Migrating Datetimes
+
+Python has two kinds of datetimes: naive and timezone aware. Naive datetimes have no timezone set while timezone aware datetimes have a timezone. Because Python doesn't know the timezone for a naive datetime you cannot do math or compare them with a timezone aware datetime.
+
+Both nextcord and pycord inherited a breaking change from [Discord.py](https://discordpy.readthedocs.io/en/stable/) that changed all datetimes on Discord objects from naive to aware. So to fix that, anywhere that you have a time comparison or are doing math with one, you need to make your datetime timezone aware.
+
+The good news is, it's fairly simple to do, as Discord objects are all using UTC. Do this to all of your datetimes:
+
+```python
+from datetime import timezone
+
+...
+your_datetime.astimezone(timezone.utc)
+```
+
+## Thanks For Reading
+
+I hope you found this helpful! If you have any questions or need any further help feel free to hit me up on [Discord (where I'm Zech)](https://discord.gg/sfHykntuGy) or [Twitter](https://twitter.com/ZechCodes).
+    ]]></content>
+    <published_at>2021-09-03T00:19:45+00:00</published_at>
+    <is_published>true</is_published>
+  </post>
+  <post>
+    <title>Try, Except … Else?</title>
+    <slug>try-except-else</slug>
+    <content><![CDATA[
+If you've spent anytime playing around with Python you have probably learned about the `try` statement and its `except` clause. It's a handy tool for capturing and dealing with exceptions before they break your program.
+
+There's another clause you can use with `try` that I don't think most people know about. For those who are aware of it, I'm not sure that they fully understand why they'd ever want to use it. This other clause is `else`.
+
+## What does it do?
+
+The `else` clause in a `try` statement is pretty simple, its code runs right after the `try` block finishes, but only if no exceptions were raised. Let's look at an example.
+
+```py
+try:
+    index = my_list.index("foo")
+    print(f"We found foo at index {index}")
+except ValueError:
+    print("Foo was not found in the list")
+```
+
+This code is pretty straightforward, look for the string `"foo"` in a list. If it's found, a message with the index of the string is printed, if it's not found a message indicating it wasn't in the list will be printed.
+
+Now let's rewrite it using an `else` clause.
+
+```py
+try:
+    index = my_list.index("foo")
+except ValueError:
+    print("Foo was not found in the list")
+else:
+    print(f"We found foo at index {index}")
+```
+
+This code has the exact same output. It runs the line in the `try` block, stores the index of the string in a variable, and when there are no exceptions it moves down to the `else` and prints out the message. The `else` has access to any variables created in the `try` block, so we can safely use the `index` variable.
+
+Pretty simple, but…
+
+## Why would you use it?
+
+Alright, so if the output of both snippets is the same, why even use the `else` clause? Ultimately it comes down to the idea that you should put as few lines in the `try` block as you possibly can.
+
+You want to limit the lines of code in the `try` block to just those that you expect to give an error. If, for example, you have 2 lines in the try block, the first might give you a `ValueError` that you want to handle. The other line you don't expect will ever give you an error.
+
+The concern here becomes "what if someday that second line does given an error?" In that extreme case you'd wanna know about the failure. Having it inside the `try` block *might* hide it from you.
+
+So, simply the idea is to limit the number of lines you've placed inside the `try` block so that if anything decides to fail in an unexpected way you'll find out. That's why the `else` clause is very useful! It lets you write code that you want to observe for exceptions and follow it by code that you don't want to observe.
+
+## Let's look at another example!
+
+Consider this code.
+
+```py
+try:
+    user_data = user.load_data()
+    user_data.coins += 1
+    user_data.save()
+except FileNotFoundError:
+    user.setup_data()
+```
+
+It loads a user's data from a file, placing it into some kind of object. It then increments the coin count by 1 and saves the changes. If the user's data file isn't found, it'll raise a `FileNotFoundError`. This in turn will cause `setup_data` to be called and create a new file with a set of default values.
+
+What happens though, if the `save` method needs to access another file and gets its own `FileNotFoundError`. We won't know it happened in the `save` method because we're expecting only the `load_data` method to give that exception. `setup_data` will then run and overwrite the user's data, and we won't actually know why it happened.
+
+This is where the `else` clause comes in to make our lives much easier.
+
+```py
+try:
+    user_data = user.load_data()
+except FileNotFoundError:
+    user.setup_data()
+else:
+    user_data.coins += 1
+    user_data.save()
+```
+
+Now if the `save` method fails we'll see the exception in our console/logs and we'll know right away that we need to fix the `save` method and that nothing went wrong with the `load_data` method.
+
+## In conclusion, use it!
+
+The `try` statement's `else` clause is a powerful tool at our disposal. It helps us write code that's much easier to understand and maintain. It allows us to write code with a clear flow, but without costing us valuable runtime context.
+
+Have a great day and be sure to use the `else` clause in your next project!
+    ]]></content>
+    <published_at>2022-03-12T21:41:56+00:00</published_at>
+    <is_published>true</is_published>
+  </post>
+  <post>
+    <title>How To Use Any/All Efficiently in Python</title>
+    <slug>how-to-use-anyall-efficiently-in-python</slug>
+    <content><![CDATA[
+One day you're tasked with checking if the number 200 million is in the range of 0 to 1 billion. Super trivial I know, just use the `any` function with a listcomp, bam, done.
+
+```python
+def find_200_million() -> bool:
+    return any([number == 200_000_000 for number in range(1_000_000_000)])
+```
+
+Not so fast though! You've got 1 billion numbers and it just hangs when you run it... For me, it hangs for about 42 seconds.
+
+## Why? How can we prevent it from hanging?
+
+First off let's understand what is happening and then we'll see if we can't find a way to prevent it from hanging.
+
+When we run that function two things happen:
+
+1. The listcomp runs, building a list of ~1 billion bools checking if each number equals 200 million.
+2. `any` then runs, iterating through the list checking if any of the items are `True`, as soon as a `True` is found, it returns.
+
+So there are two loops iterating 1.2 billion times! `any` will iterate to the 200 millionth value fairly quickly. The listcomp, on the other hand, is building a massive list of 1 billion boolean values. That takes a lot of time.
+
+When I ran it, the listcomp took about 40 seconds to complete while `any` found the first `True` in under 2 seconds. Now that we know what's happening, how can we improve this performance? The primary issue is that there are a ton of values and it takes time to create the list. So if we can reduce the number of values that get added to the list it should be able to finish more quickly.
+
+## Implementing the listcomp more efficiently!
+
+The list can be made smaller by using the listcomp's `if` filtering syntax. This will cause the generated list to only contain `True` values and no `False` values.
+
+```python
+def find_200_million() -> bool:
+    return any([True for number in range(1_000_000_000) if number == 200_000_000])
+```
+
+Now we're generating a list that only contains one item for each number that was equal to 200 million. So we get a list with only a single item.
+
+Testing this I find the listcomp finishes in 33 seconds, about 7 seconds faster, and `any` finishes instantly since it only needs to search a list with a single item. So it's gone from taking about 42 seconds to only taking 33!
+
+## Can this be any faster?
+
+33 seconds is still a lot of time, how can we further improve this? Currently, the listcomp is iterating through all 1 billion items, checking each one, and then giving back a list. What if we used a generator expression instead? Would that help?
+
+```py
+def find_200_million() -> bool:
+    return any(True for number in range(1_000_000_000) if number == 200_000_000)
+```
+
+Running this it finishes in just 6 seconds!
+
+## Why is the generator expression so fast?
+
+Generator expressions aren't faster than listcomps. Their only advantage is that they create the next item on request, whereas the listcomp generates the entire list ahead of time. This is great when using `any` since it will stop as soon as it finds a match.
+
+Let's break down the steps this code is going through to better understand how it works.
+
+1. A generator is created that will go from 0 to 999,999,999 and will yield `True` for each value that is equal to 200 million.
+2. `any` is passed the generator and requests the first value from it.
+3. The generator begins iterating through the numbers until it finds one that meets the condition of equalling 200 million. It then yields a `True` back to `any`.
+4. `any` gets the yielded `True` and returns, checking no more values.
+
+So, this is faster because nothing is iterating past the 200 millionth number in the range! If on the other hand, we had been searching for the last number in the range (999,999,999), this would have been about as fast as using a listcomp. It's only faster when the first value that meets the condition is not at the end of the search space.
+
+## Ok, but what if we didn't use the filtering if?
+
+So, this raises the question, what if we had the condition as the yielded value and didn't use the `if` filtering syntax on the generator expression?
+
+```py
+def find_200_million() -> bool:
+    return any(number == 200_000_000 for number in range(1_000_000_000))
+```
+
+This finishes in about 9 seconds, so it's about 3 seconds slower than using the filtering `if`. This is because now the generator is yielding `False` for the numbers 0 to 199,999,999, and `any` is having to do 200 million checks before it's done. That's 199,999,999 more checks than when we used the filtering `if`.
+
+## In summary
+
+Using the filtering `if` syntax will narrow the search space that `any` has to scan and when done correctly `any` will only have to check the first value it sees.
+
+Also, use generator expressions. They're not always faster but they will stop as soon as `any` is done, often saving time and always saving memory!
+
+## Oh, wait, what about the all function?
+
+Does any of this apply to the `all` function? Can we make it faster too? Yes! We can!
+
+`any` is looking for `True` values and will return `True` when it finds the first one, or `False` if it finds none. `all` does the exact opposite, it looks for `False` and returns `False` when it finds the first one, or `True` if it finds no `False` values.
+
+So you can apply the same optimization techniques, just switch your filtering `if` to look for the failure condition and yield `False` not `True`!
+
+```py
+def all_not_equal_to_200_million() -> bool:
+    return all(False for number in range(1_000_000_000) if number == 200_000_000)
+```
+
+In this example, it yields `False` only if it finds a number that meets the failure condition of equaling 200 million. If no numbers equal 200 million, nothing will ever be yielded, and `all` will return `True` since the generator is empty.
+    ]]></content>
+    <published_at>2022-07-17T14:36:36+00:00</published_at>
+    <is_published>true</is_published>
+  </post>
+  <post>
+    <title>Bevy v2.0</title>
+    <slug>bevy-v2</slug>
+    <content><![CDATA[
+Modern software can be complex, with many components that depend on each other. It can be hard to manage those dependencies without your project becoming a mess of spaghetti code. In this article, I'd like to introduce you to [Bevy v2.0](https://bevy.zech.codes), a robust Dependency Injection framework that will help you simplify your Python applications.
+
+[Bevy](https://bevy.zech.codes) has a simple and familiar approach for injecting dependencies into classes and functions. It also makes it very easy to provide alternative implementations of an interface and override how dependencies are determined and created.
+
+## Managing Dependencies in Python
+
+When writing code, it's common for one part of your application to depend on other parts of your application. That dependence often goes even deeper with dependencies that have their own dependencies that have their own dependencies. It's also common for one section of code to share similar dependencies with other sections.
+
+A simple blog website is an excellent example of this. You have an authentication function that uses the database connection to look up users and verify that their usernames and passwords are valid. You have another function for creating new blog posts. It needs the database connection to confirm that the user has authenticated and to add the new blog post to the database. That database connection is a shared dependency between the authentication and new blog post functions.
+
+A straightforward solution is to have each function create a database connection.
+
+```python
+import os
+from databases import SQLite, Post
+
+def authenticate(username: str, password: str):
+    database = SQLite(
+        os.getenv("APP_DB_HOST"),
+        os.getenv("APP_DB_PORT"),
+        os.getenv("APP_DB_USERNAME"),
+        os.getenv("APP_DB_PASSWORD"),
+        os.getenv("APP_DB_NAME"),
+    )
+    ...
+
+def create_blog_post(title: str, content: str) -> Post:
+    database = SQLite(
+        os.getenv("APP_DB_HOST"),
+        os.getenv("APP_DB_PORT"),
+        os.getenv("APP_DB_USERNAME"),
+        os.getenv("APP_DB_PASSWORD"),
+        os.getenv("APP_DB_NAME"),
+    )
+    ...
+```
+
+This approach has a few drawbacks. Your code has to wait for the database to connect on every function call, you can't pool connections, and you can't easily switch out database implementations.
+
+You could use a function to check the environment, create a connection to the correct database, and have it store that connection in a global variable. That would fix most of your issues.
+
+```python
+import os
+from databases import Database, SQLite, PostgreSQL, Post
+
+database = None
+
+def get_database():
+    global database
+    if not database:
+        database = _connect_database()
+    return database
+
+def _connect_database() -> Database:
+    if os.getenv("APP_ENVIRONMENT") == "DEV":
+        return SQLite("db.sqlite")
+
+    return PostgreSQL(
+        os.getenv("APP_DB_HOST"),
+        os.getenv("APP_DB_PORT"),
+        os.getenv("APP_DB_USERNAME"),
+        os.getenv("APP_DB_PASSWORD"),
+        os.getenv("APP_DB_NAME"),
+    )
+
+def authenticate(username: str, password: str):
+    database = get_database()
+    ...
+
+def create_blog_post(title: str, content: str) -> Post:
+    database = get_database()
+    ...
+```
+
+That works great until you need to add even more functionality, say, sessions backed by a Redis server. You'd need another function and another global variable, eventually becoming quite cumbersome.
+
+Another solution is to create the dependencies when the application starts and pass them as parameters to the authentication and new blog post functions. The implementations of the dependencies are created outside of the functions and passed to them (injected) when called. This is Dependency Injection (DI) at its simplest.
+
+```python
+import os
+from databases import Database, SQLite, PostgreSQL, Post
+from sessions import Session
+
+def _connect_database() -> Database:
+    if os.getenv("APP_ENVIRONMENT") == "DEV":
+        return SQLite("db.sqlite")
+
+    return PostgreSQL(
+        os.getenv("APP_DB_HOST"),
+        os.getenv("APP_DB_PORT"),
+        os.getenv("APP_DB_USERNAME"),
+        os.getenv("APP_DB_PASSWORD"),
+        os.getenv("APP_DB_NAME"),
+    )
+
+def _connect_sessions() -> Session:
+    return Sessions(
+        os.getenv("APP_REDIS_HOST"),
+        os.getenv("APP_REDIS_PORT"),
+        os.getenv("APP_REDIS_PASSWORD"),
+    )
+
+...
+
+def authenticate(
+    username: str,
+    password: str,
+    database: Database,
+    session: Session,
+):
+    ...
+
+def create_blog_post(
+    title: str,
+    content: str,
+    database: Database,
+    session: Session,
+) -> Post:
+    ...
+
+...
+database = _connect_database()
+session = _connect_sessions()
+authenticate("Bob", "SuperSafePwd", database, session)
+```
+
+This DI solution is good because you can choose what implementation to provide. You could pass in an SQLite connection or a PostgreSQL connection. It won't be a problem for the code as long as they have the same interface.
+
+However, even this approach begins to fall apart once you have many dependencies. It requires lots of function parameters that must be passed between your functions. Let's look at an example.
+
+```python
+def create_blog_post(
+    title: str,
+    content: str,
+    database: Database,
+    session: Session,
+) -> Post:
+    if _can_create_posts(database, session):
+        ...
+
+def _can_create_posts(database: Database, session: Sesson) -> bool:
+    if not _is_authenticated(session):
+        return False
+
+    return _has_new_post_perms(session.get("user"), database)
+
+def _is_authenticated(session: Session) -> bool:
+    user = session.get("user")
+    if user is None:
+        return False
+
+    auth_duration = datetime.now() - user.last_authentication
+    return auth_duration > timedelta(days=7)
+
+def _has_new_post_perms(user: User, database: Database) -> bool:
+    perms = user.get_permissions(database)
+    return perms.CREATE_POSTS or perms.ADMIN
+```
+
+The function `create_blog_post` takes a database connection and session object that it then passes to `_can_create_post`. `_can_create_post` uses `session` but not `database`. It then has to pass `database` to `_has_new_post_perms` to look up the user's permissions object from the database.
+
+So you have a function that calls a function that calls yet another function, and that last called function is the only one that needs the database connection. This code structure forces you to make dependencies available in your functions by passing them through functions that don't directly need them. Quickly spaghettifying your code with dependencies noodling their way from function to function.
+
+What if I said you could do DI without having to pass arguments through functions that don't need them?
+
+## Bevy v2.0: DI Simplified!
+
+Meet [Bevy v2.0](https://bevy.zech.codes)! With just a few imports, [Bevy](https://bevy.zech.codes) has everything you need for Pythonic Dependency Injection: no more global variables, no more passing dependencies, and no more dependency spaghetti.
+
+If you've ever used FastAPI, [Bevy's](https://bevy.zech.codes) dependency injection will be familiar. [Bevy's](https://bevy.zech.codes) approach steps it up and puts DI into hyperdrive, working with every function, every class, everywhere.
+
+[Bevy](https://bevy.zech.codes) manages the messy global state for you, only requiring you to declare the dependencies your functions and classes have. Simple assignments and type hinting are all you need to take advantage of [Bevy](https://bevy.zech.codes).;
+
+If you need even more flexibility, you can change how [Bevy](https://bevy.zech.codes) resolves, creates, and caches dependencies by creating custom Injection Providers. You can directly access [Bevy's](https://bevy.zech.codes) dependency repository to change dependency implementations or get existing dependencies. [Bevy's](https://bevy.zech.codes)repositories are also context-aware, allowing you to have separate repositories for every thread and async task. You can even inherit dependencies across contexts by branching repositories.
+
+[*Bevy*](https://bevy.zech.codes) *gives you the power and flexibility to do what you need.*
+
+## How Bevy Works
+
+When you're writing code, you want to write code. You don't want to be distracted by the nuances of some framework. [Bevy](https://bevy.zech.codes) has that in mind. There is no setup or boilerplate required for it to work. Use type annotations, decorate your functions with `bevy.inject`, and mark required dependencies with `bevy.dependency`.
+
+### Parameter Injection
+
+Let's start with an example to see how exactly [Bevy](https://bevy.zech.codes) works.
+
+```python
+from bevy import dependency, inject
+from databases import database
+
+@inject
+def create_user(name: str, database: Database = dependency()):
+    if database.get_user_by_name(name):
+        raise Exception("A user with that name already exists")
+
+    database.create_new_user(name)
+
+create_user("Bob")
+```
+
+Here is a function that takes a name and a database. The `bevy.inject` decorator tells [Bevy](https://bevy.zech.codes) that this function has parameters it has to inject. The `database` parameter is annotated with the type `Database` and is assigned the default value `bevy.dependency()`. It's that simple. Whenever `create_user` is called, [Bevy](https://bevy.zech.codes) will inject a `Database` object if one exists. If none exists, [Bevy](https://bevy.zech.codes) will handle creating an instance it can use.
+
+Parameter injection works for functions, methods, class methods, and static methods. It even understands functions wrapped by decorators. [Bevy's](https://bevy.zech.codes) parameter injection is intelligent enough to ignore parameters passed to the function. It also fully understands function parameters and will correctly handle positional-only, positional, keyword, and keyword-only parameters.
+
+### Attribute Injection
+
+Class attribute injection is even more straightforward. Any attribute with a type annotation can be assigned `bevy.dependency()`. Nothing else is necessary to make the dependency available when the attribute is accessed.
+
+```python
+from dataclasses import dataclass
+from bevy import dependency
+from databases import Database
+from cars import Car
+
+@dataclass
+class User:
+    id: int
+    name: str
+    database: Database = dependency()
+
+    @property
+    def cars(self) -> list[Car]:
+        return self.database.get_users_cars(self.id)
+
+    @classmethod
+    def get_user(cls, id: int):
+        return cls.database.get_user(id)
+```
+
+This dataclass has an `database` attribute assigned as a dependency. In the `cars` property, the `database` attribute is accessed and injected by [Bevy](https://bevy.zech.codes). Then in the `get_user` class method, the `database` attribute is used and injected without issue as an attribute of the class object.
+
+### Bevy's Repository
+
+[Bevy](https://bevy.zech.codes) stores instances of dependencies in a context global repository object. The current repository can be accessed using the `bevy.get_repository` function, and the `bevy.Repository.set_repository` class method sets a new repository in the current context.
+
+Instances are added to the repository when created. They can also be added or updated by calling the repository's `set` method. The `set` method takes a key and the value to assign to that key. The key should match the type annotation used to inject the instance.
+
+```python
+>>> from bevy import dependency, get_repository, inject
+>>> get_repository().set(str, "Spam")
+>>> @inject
+... def example(word: str = dependency()):
+...     print(word)
+...
+>>> example()
+Spam
+```
+
+It's also possible to use a repository's `get` method to get an instance from the repository using a key. If no instance matching the key is in the repository, [Bevy](https://bevy.zech.codes) will attempt to create and store an instance for the key. If `get` cannot find or create an instance for the key, `default` is returned.
+
+```python
+>>> from bevy import dependency, get_repository, inject
+>>> repo = get_repository()
+>>> repo.set(str, "Spam")
+>>> print(repo.get(str))
+Spam
+>>> print(repo.get(list))
+[]
+>>> print(repo.get(None, "Null"))
+Null
+```
+
+### Dependency Constructors
+
+If a dependency is needed but doesn't exist in [Bevy's](https://bevy.zech.codes) repository, [Bevy](https://bevy.zech.codes) will try two things to create an instance for the dependency:
+
+1. Attempt to call the `__bevy_constructor__` class method (ex. `Thing.__bevy_constructor__()`)
+2. Attempt calling the type with no parameters (ex. `Thing()`)
+
+If either returns an instance, [Bevy](https://bevy.zech.codes) stores that in the repository.
+
+```python
+>>> from bevy import dependency, inject
+>>> from dataclasses import dataclass
+>>> @dataclass
+... class Demo:
+...     foo: str
+...     @classmethod
+...     def __bevy_constructor__(cls):
+...         return cls("Spam")
+...
+>>> @inject
+... def example(bazz: Demo = dependency()):
+...     print(bazz.foo)
+...
+>>> example()
+Spam
+```
+
+### typing.Annotated Support
+
+Since [Bevy](https://bevy.zech.codes) uses the dependency's type annotation as a key to look up the dependency, it's impossible to have multiple instances of the same type available for injection. To support that use case, [Bevy](https://bevy.zech.codes) relies on `typing.Annotated` type annotations.
+
+Provide the injected type and a hashable key as arguments to `Annotated`. [Bevy](https://bevy.zech.codes) will then handle the rest.
+
+```python
+>>> from bevy import dependency, get_repository, inject
+>>> from typing import Annotated
+>>> repo = get_repository()
+>>> repo.set(Annotated[str, "SPAM_STRING"], "Spam")
+>>> repo.set(Annotated[str, "HASH_STRING"], "Hash")
+>>> @inject
+... def example(
+...     spam: Annotated[str, "SPAM_STRING"] = dependency(),
+...     hash: Annotated[str, "HASH_STRING"] = dependency(),
+... ):
+...     print(f"{spam=}")
+...     print(f"{hash=}")
+...
+>> example()
+spam='Spam'
+hash='Hash'
+```
+
+If no instance exists for the annotation, [Bevy](https://bevy.zech.codes) will look for the annotated type.
+
+```python
+>>> from bevy import dependency, get_repository, inject
+>>> from typing import Annotated
+>>> repo = get_repository()
+>>> repo.set(str, "No Annotation Found")
+>>> @inject
+... def example(
+...     string: Annotated[str, "SOME_KEY"] = dependency(),
+... ):
+...     print(f"{string=}")
+...
+>> example()
+spam='No Annotation Found'
+```
+
+In this code, the string "No Annotation Found" is stored in the repository for the `str` type. There is no match for the dependency `Annotated[str, "SOME_KEY"]`, so [Bevy](https://bevy.zech.codes) falls back to injecting the string stored for the `str` type.
+
+### Providers
+
+[Bevy](https://bevy.zech.codes) uses providers that handle resolving, creating, and storing dependencies to make it as flexible as possible. Whenever setting, injecting, or creating a dependency, [Bevy's](https://bevy.zech.codes) repository calls each provider to find one that can handle the given key.
+
+[Bevy's](https://bevy.zech.codes) default repository has two providers:
+
+* `bevy.providers.AnnotatedProvider`: Handles all `typing.Annotated` type annotations.
+* `bevy.providers.TypeProvider`: Handles all type annotations that are class objects (`isinstance(annotation, type)` is `True`).
+
+The `add_providers` method adds any number of new providers to the repository. It adds them at a higher priority than all existing providers.
+
+```python
+from bevy import get_repository
+from bevy.providers.provider import Provider
+
+class CustomProvider(Provider):
+    ...
+
+get_repository().add_providers(CustomProvider())
+```
+
+There are six methods that providers can implement. `bevy.providers.provider.Provider` has basic implementations of all the methods, so it is a good base for new types of providers.
+
+Here's a demo using providers to create dataclasses populated from a JSON config file. The `__bevy_constructor__` method can accomplish the same result; I haven't done that solely to demonstrate a provider implementation.
+
+```python
+import dataclasses
+from bevy import dependency, get_repository, inject
+from bevy.options import Option, Value, Null
+from bevy.providers.provider import Provider
+from bevy.provider_state import ProviderState
+from database import PostgreSQL
+from typing import Annotated, Callable, Type, TypeVar
+import json
+
+T = TypeVar("T", bound="Config")
+
+class Config:
+    """Base class for all config dataclasses."""
+    __config_key__: str
+
+
+@dataclasses.dataclass()
+class DBSettings(Config):
+    """A Config dataclass for holding database connection details from a config JSON object."""
+    __config_key__ = "database"
+    host: str
+    port: int
+    name: str
+    user: str
+    password: str
+
+
+class ConfigProvider(Provider[Type[T], T]):
+    """A simple provider that handles Config dataclasses. When creating new instances of these
+    dataclasses, they are populated with the settings from the config file that is stored in
+    the Bevy repository."""
+
+    def factory(self, key: Type[T], state: ProviderState) -> Option[Callable[[], T]]:
+        """Create a factory function that populates a Config dataclass with values from the config
+        JSON file stored in the Bevy repository."""
+        if self.supports(key):
+            return Value(
+                lambda: key(
+                    **state.repository.get(
+                        Annotated[dict, "CONFIG"]
+                    ).get(key.__config_key__)
+                )
+            )
+        return Null()
+
+    def supports(self, key: Type[T], _=None) -> bool:
+        """Only support class objects that inherit from Config."""
+        match key:
+            case type() if issubclass(key, Config):
+                return True
+            case _:
+                return False
+
+
+# Add our new config provider to the Bevy repository
+repo = get_repository()
+repo.add_providers(ConfigProvider())
+
+# Load our config file and store in the Bevy repository
+with open("config.json") as json_file:
+    repo.set(
+        Annotated[dict, "CONFIG"],
+        json.load(json_file),
+    )
+
+@inject
+def connect_db(settings: DBSettings = dependency()) -> PostgreSQL:
+    """Create a PostgreSQL connection using the database settings config dataclass."""
+    return PostgreSQL(
+        settings.host,
+        settings.port,
+        settings.name,
+        settings.user,
+        settings.password,
+    )
+```
+
+### Context Awareness
+
+[Bevy](https://bevy.zech.codes) uses contextvars to allow each thread and async task to have separate repositories. The repositories can be branches of other repositories that already have dependencies or can be empty repositories.
+
+Repositories provide two methods for controlling the context: `set_repository` and `fork_context`.
+
+`bevy.Repository.set_repository` is a class method that takes an instance of `bevy.Repository` and sets the contextvar to that repository.
+
+`bevy.Repository.fork_context` branches the repository and sets the contextvar to the branch. The branch inherits all dependencies and providers.
+
+## In Conclusion
+
+[Bevy v2.0](https://bevy.zech.codes) helps you manage your code's dependencies as simply as possible without sacrificing flexibility and power. You can control dependency creation, lookup, and storage using the [Bevy](https://bevy.zech.codes) constructor and provider APIs. Alternative implementations of any interface are possible to add to any repository.
+
+Best of all, this underlying power is accessible in your code with just two functions. [Bevy](https://bevy.zech.codes) is one of the most powerful Dependency Injection frameworks that exist for Python. I hope you find it useful in your projects.
+
+Thanks for reading. Feel free to contact me on my socials or GitHub if you have any questions.
+
+Check out [Bevy's documentation here](https://bevy.zech.codes) and the [GitHub here](https://github.com/ZechCodes/Bevy).
+    ]]></content>
+    <published_at>2023-05-10T15:55:09+00:00</published_at>
+    <is_published>true</is_published>
+  </post>
+  <post>
+    <title>Understanding Async/Await in Python</title>
+    <slug>understanding-asyncawait-in-python</slug>
+    <content><![CDATA[
+Async/await is a powerful tool in Python that can significantly enhance your programming skills. In this post, we'll delve into the high-level workings of async/await and then venture into its fundamental implementation. We'll also compare and contrast async/await with threads, providing you with a comprehensive understanding of this fantastic tool.
+
+### A Quick Aside About This Article
+
+All the examples discussed in this post are available for you to run on my GitHub. Clone my [Blog Posts](https://github.com/ZechCodes/Blog-Posts/) repository, navigate to the "python-async-await" directory, and run the example you're interested in using [uv](https://docs.astral.sh/uv/getting-started/). This hands-on approach will allow you to grasp the concepts more effectively.
+
+```shell
+git clone https://github.com/ZechCodes/Blog-Posts/
+cd Blog-Posts/python-async-await
+uv run example-1-sync-requests.py
+```
+
+## Why Use Async/Await
+
+Async/await allows functions to release control to run other functions. Releasing is very helpful when a function needs to wait on something that blocks until a response is received.
+
+### The Problem - Blocking Functions
+
+When a function has to wait on something slow, it blocks the current thread, stopping all code from running in it. This often results from some kind of network request: database query, web request, etc. Let's look at an example of requesting multiple web pages using the `requests` package.
+
+[Example 1](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-1-sync-requests.py)
+
+```py
+import requests
+import time
+
+
+def request_page(page):
+    start_request = time.perf_counter()
+    requests.get(page)
+    end_request = time.perf_counter()
+    return page.rsplit("/", 1)[1], end_request - start_request
+
+
+def main():
+    pages = ["https://google.com", "https://facebook.com", "https://amazon.com", "https://apple.com", "https://netflix.com"]
+
+    start = time.perf_counter()
+
+    total_duration = 0
+    for page in pages:
+        name, duration = request_page(page)
+        total_duration += duration
+        print(f"Requested {name} in {duration:.2f} seconds")
+
+    end = time.perf_counter()
+    print(f"Run time {end - start:0.2f} seconds, cumulative run time {total_duration:0.2f} seconds")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+The total run time is roughly the same as the cumulative run time of each request. So, it's apparent that the requests are being made in sequence, and the code is stopping as it waits for each request response. It would be much faster if the requests didn't block each other and could run concurrently. Here is where async/await comes in.
+
+### A Solution - Async/Await
+
+Async/await lets functions release control when they block, enabling concurrency and maximizing how much of the time the code is running.
+
+Let's look at the same example but use the `httpx` package so the requests run concurrently.
+
+[Example 2](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-2-async-requests.py)
+
+```py
+import asyncio
+import httpx
+import time
+
+
+async def request_page(page):
+    start_request = time.perf_counter()
+    async with httpx.AsyncClient() as client:
+        await client.get(page)
+    end_request = time.perf_counter()
+    return page.rsplit("/", 1)[1], end_request - start_request
+
+
+async def main():
+    pages = ["https://google.com", "https://facebook.com", "https://amazon.com", "https://apple.com", "https://netflix.com"]
+
+    start = time.perf_counter()
+
+    tasks = [asyncio.create_task(request_page(page)) for page in pages]
+
+    total_duration = 0
+    for next_result in asyncio.as_completed(tasks):
+        site, duration = await next_result
+        total_duration += duration
+        print(f"Requested {site} in {duration:.2f} seconds")
+
+    end = time.perf_counter()
+    print(f"Run time {end - start:0.2f} seconds, cumulative run time {total_duration:0.2f} seconds")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+When we run it, we see that the run time is always less than the cumulative run time and slightly longer than the slowest request. From this, we can gather that each request runs concurrently and that no request is blocking while waiting for a response.
+
+## What Even Is Async/Await
+
+Async/await can seem a bit intimidating and magical, but at its core, it is actually quite simple. So, let's dive in and get a better understanding of how an async runtime can accept control back from a function when it needs to block and coordinate running other functions in that downtime.
+
+### Iterators
+
+Let's imagine that when we request a web page, we receive an iterable, like a list. From this iterable we get `WAIT` until the response is received, at which point the iterable gives that response.
+
+[Example 3](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-3-single-request-iterator.py)
+
+```py
+WAIT = object()
+request = [WAIT, WAIT, WAIT, "Hello World from Request One!!!"]
+
+for next_iteration in request:
+    match next_iteration:
+        case str() as result:
+            print(f"The result is {result!r}")
+        case _:
+            pass
+```
+
+Next, let's imagine we have a second request iterable. We could process the first request and then the second. It would block on the first request and then run the second request.
+
+[Example 4](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-4-multiple-request-iterators-blocking.py)
+
+```py
+WAIT = object()
+
+def process(request_iterator):
+    match request_iterator.pop(0):
+        case str() as result:
+            return result
+        case _:
+            return""
+
+def main():
+    request_1 = [WAIT, WAIT, WAIT, "Request One!!!"]
+    request_2 = [WAIT, "Request Two!!!"]
+
+    result = process(request_1)
+    while not result:
+        result = process(request_1)
+
+    print(result)
+
+    result = process(request_2)
+    while not result:
+        result = process(request_2)
+
+    print(result)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+When we run this, we see that the first request finishes before the second because it is started first and blocks until it is done. Let's try interleaving these iterators to get a form of concurrency.
+
+[Example 5](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-5-multiple-request-iterators-concurrent.py)
+
+```py
+WAIT = object()
+
+def process(request_iterator):
+    match request_iterator.pop(0):
+        case str() as result:
+            return result
+        case _:
+            return""
+
+def main():
+    request_1 = [WAIT, WAIT, WAIT, "Request One!!!"]
+    request_2 = [WAIT, "Request Two!!!"]
+
+    request_iterators = [request_1, request_2]
+    while request_iterators:
+        for i, request_iterator in enumerate(request_iterators):
+            if result := process(request_iterator):
+                print(result)
+                del request_iterators[i]
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Here, we're creating a stack of iterators and iterating through them repeatedly. When we reach the end of an iterator, it is removed from the stack. This results in processing request 1, then request 2, then request 1 again, and so on, until we get a result from one of them. At that point, we remove it from the stack and continue with the other.
+
+When we run this code, we see that request 2 finishes first because it has fewer `WAIT`s before the result. Lists are interesting in this use case but only somewhat useful. They're great for data sequences, but we need a way to run logic between the data.
+
+### Generators: Iterators that run code
+
+Enter generators. Generators are functions that behave like iterators using the `yield` statement. When they run, their code acts like code in a function. When a `yield` is used, though, the function pauses, and a value is sent back to the code that invoked the generator. The generator function is then reactivated, picking back up at the yield and continuing as normal.
+
+Let's take a quick crash course through generators by looking at a few examples.
+
+[Example 6](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-6-generator-example.py)
+
+```py
+def example_generator():
+    print("Hello")
+    yield
+    print("World")
+    return "Result"
+
+
+def main():
+    example = example_generator()
+
+    print("Starting")
+
+    try:
+        example.send(None)
+        print("Paused")
+        example.send(None)
+    except StopIteration as err:
+        print(f"Finished with {err.value}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Let's go through that step by step to help better understand it.
+
+1. `main` creates the `example_generator`. No code in the generator runs at this point.
+2. `main` prints "Starting"
+3. `main` calls `send` on the generator `example` running the code in the generator function
+4. `example_generator` prints "Hello" and then yields, pausing the generator function, giving control back to `main`
+5. `main` runs and prints "Paused"
+6. `main` calls `send` on the generator `example` running the code in the generator function, picking up where it paused
+7. `example_generator` prints "World" and then returns `"Result"` raising a `StopIteration` error
+8. `main` catches the raised error, captures the return from the `value` property of the exception, and prints "Finished with Result" before exiting
+
+Now, let's try something a bit crazier.
+
+[Example 7](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-7-generator-yield-from.py)
+
+```py
+def generator_a():
+    returned_value = yield from generator_b()
+    print(f"A got {returned_value!r}")
+    return "Return From A"
+
+
+def generator_b():
+    yield "Yielded From B"
+    return "Return From B"
+
+
+def main():
+    gen = generator_a()
+    try:
+        print(f"Main got {gen.send(None)!r}")
+        print(f"Main got {gen.send(None)!r}")  # This print causes StopIteration and doesn't print
+    except StopIteration as err:
+        print(f"Main got {err.value!r}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Here, we're using `yield from` to start a generator from within a generator, passing control downwards. A generator started with `yield from` will `yield` into the function that called `send` on the top-level generator.
+
+Let's walk through this to try and make that more understandable:
+
+1. `main` creates `generator_a`
+2. `main` calls `send` on `gen` running its code
+3. `generator_a` then yields from `generator_b`
+4. `generator_b` then yields `"Yielded From B"`
+5. `main` prints "Main got 'Yielded From B'"
+6. `main` calls `send` on `gen`
+7. `generator_b` returns `"Return From B"`
+8. `generator_a` prints "A got 'Return From B'"
+9. `generator_a` returns `"Return From A"`
+10. `main` prints "Main got 'Return From A'"
+11. The program exits
+
+> **Helpful Info**
+>
+> `yield from` is a magical bit of syntax. It's syntactic sugar for doing something specific: passing yielded values back up the call stack.
+>
+> Here's a quick example:
+>
+> ```py
+> yield from generator_b()
+> ```
+>
+> is functionally identical to:
+>
+> ```py
+> for value in generator_b():
+>     yield value
+> ```
+>
+> Isn't `yield from` so much nicer?
+
+Everyone ok? Everyone got that? It's a lot to process, so don't worry about it. All you need to take away from this is that a generator is an iterator that also runs code. Here's an elementary example showing that a generator is just a very complex iterator that runs code in between values:
+
+[Example 8](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-8-generators-are-iterators.py)
+
+```py
+def generator():
+    for i in range(5):
+        print(f"Yielding {i}")
+        yield i
+
+
+def main():
+    for i in generator():
+        print(f"main got {i}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+That means we can take [Example 5](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-5-multiple-request-iterators-concurrent.py) and rewrite it as generators:
+
+[Example 9](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-9-multiple-request-generators-concurrent.py)
+
+```py
+def process(request_iterator):
+    try:
+        request_iterator.send(None)
+    except StopIteration as err:
+        return err.value
+    else:
+        return
+
+def request_1_generator():
+    for i in range(3):
+        yield
+    return "Request One!!!"
+
+
+def request_2_generator():
+    for i in range(1):
+        yield
+    return "Request Two!!!"
+
+
+def main():
+    request_1 = request_1_generator()
+    request_2 = request_2_generator()
+
+    request_iterators = [request_1, request_2]
+    while request_iterators:
+        for i, request_iterator in enumerate(request_iterators):
+            if result := process(request_iterator):
+                print(result)
+                del request_iterators[i]
+
+
+if __name__ == "__main__":
+    main()
+```
+
+That is functionally the same as [Example 5](example-5-multiple-request-iterators-concurrent.py), but it uses `yield` to indicate a "wait" and generators instead of lists. At this point, if you squint really hard, you might begin to be able to see how this is going to turn into async/await.
+
+### Coroutines: Generators by a different name
+
+That was a lot to take in, but the fundamental structure of async functions and awaits is starting to come together. Now is an excellent time to introduce "coroutines." A coroutine is an async function implemented as a generator.
+
+It uses `yield` to pass control back upwards to the code that owns the top-level generator object. This is how coroutines pause when they have to wait on something that is blocking.
+
+A coroutine can also use `yield from` to wait on another coroutine, passing control downwards to that coroutine. You can think of this as calling that coroutine and letting it take control until it completes. Any yields in the new coroutine appear to come from the calling coroutine.
+
+Here's a simple example:
+
+[Example 10](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-10-simple-yield-from.py)
+
+```py
+def coroutine_a():
+    for _ in range(5):
+        yield
+
+    result = yield from coroutine_b()
+    print(result)
+
+
+def coroutine_b():
+    for _ in range(10):
+        yield
+
+    return "Hello World"
+
+
+def main():
+    wait_counter = 0
+    routine = coroutine_a()
+    while True:
+        try:
+            routine.send(None)
+            wait_counter += 1
+        except StopIteration:
+            break
+
+    print(f"Waited {wait_counter} times")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+When run, we see that it says it has waited 15 times. There are five waits in `coroutine_a` and another 10 in `coroutine_b`. So our `main` function is seeing the waits in `coroutine_b` even though it only ran `coroutine_a`. We also see that when `coroutine_a` used `yield from` to run `coroutine_b`, it was able to capture the return in very much the same way as if `coroutine_b` had been a standard function that it had called without `yield from`.
+
+Coroutines are not magic; they are just a specific use of generators that leverage pretty much every single generator feature that Python has to offer.
+
+### Translating This to Async/Await
+
+All right, we've covered much stuff and built up to coroutines. At this point, we've implemented async/await using generator syntax. Python has special syntax for its native coroutines to make distinguishing between generators and coroutines easier. Ultimately, async/await in Python is syntactic sugar for a special kind of generator.
+
+So, let's look at a rough and quick conversion of `coroutine_a` and `coroutine_b` to the async/await syntax.
+
+[Example 11](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-11-translate-generators-to-async.py)
+
+```py
+import asyncio
+
+cycles = 0
+
+
+class Sleep:
+    def __init__(self, cycles):
+        self.cycles = cycles
+
+    def __await__(self):
+        """ Dropping into the async/await API to let us use a generator as a coroutine."""
+        global cycles
+        for _ in range(self.cycles):
+            cycles += 1
+            yield
+
+
+async def coroutine_a():
+    await Sleep(5)
+    result = await coroutine_b()
+    print(result)
+
+
+async def coroutine_b():
+    await Sleep(10)
+    return "Hello World"
+
+
+async def main():
+    await coroutine_a()
+    print(f"Waited for {cycles} cycles")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Python doesn't provide a way to sleep for a set number of cycles, so I've implemented a simple `Sleep` type that uses a generator as a coroutine to sleep for a given number of cycles. This brings us to event loops, which cause the `Sleep` coroutine to iterate and update the `cycles` counter.
+
+### The Event Loop
+
+The event loop coordinates all the running coroutines, taking control when one yields and iterating all the others in turn, giving each control. In many of the earlier examples, there's a `while` loop in the `main` function; it is a very rudimentary "event loop" managing each of the coroutines.
+
+A more fully featured event loop should provide ways to add new top-level tasks, stop all running tasks, and offer futures. For the sake of exercise, let's look at a simple event loop implementation using generators.
+
+[Example 12](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-12-simple-event-loop.py)
+
+```py
+import time
+
+
+class Future:
+    def __init__(self):
+        self.finished = False
+        self.value = None
+
+    def close(self):
+        self.finished = True
+
+    def send(self, _):
+        if self.finished:
+            err = StopIteration()
+            err.value = self.value
+            raise err
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.send(None)
+
+
+class Task(Future):
+    def __init__(self, coro):
+        super().__init__()
+        self.coro = coro
+
+    def send(self, value):
+        try:
+            return self.coro.send(value)
+        except StopIteration as e:
+            self.value = e.value
+            self.finished = True
+            raise e
+
+    def close(self):
+        self.coro.close()
+        super().close()
+
+
+class EventLoop:
+    running_loop = None
+
+    def __init__(self):
+        self.tasks = []
+
+    def create_task(self, coro):
+        future = Task(coro)
+        self.tasks.append(future)
+        return future
+
+    def run_until_complete(self):
+        EventLoop.running_loop = self
+        try:
+            while True:
+                while self.tasks:
+                    task = self.tasks.pop(0)
+                    try:
+                        task.send(None)
+                        self.tasks.append(task)
+                    except StopIteration:
+                        pass
+                else:
+                    break
+        finally:
+            self.stop()
+
+    def stop(self):
+        for task in self.tasks:
+            task.close()
+
+        self.tasks.clear()
+        EventLoop.running_loop = None
+
+    @classmethod
+    def run(cls, coro):
+        loop = cls()
+        loop.create_task(coro)
+        loop.run_until_complete()
+        loop.stop()
+
+
+def sleep(delay):
+    start_time = time.time()
+    while time.time() < start_time + delay:
+        yield
+
+
+def do_stuff():
+    yield from sleep(1)
+    print("Doing more stuff")
+    result = yield from do_more_stuff()
+    print(result)
+
+
+def do_more_stuff():
+    yield from sleep(2)
+    return "Hello World"
+
+
+def countdown():
+    for i in range(10, 0, -1):
+        print(i)
+        yield from sleep(1)
+
+    print("TAKE OFF!!!!!")
+
+
+def main():
+    future = EventLoop.running_loop.create_task(countdown())
+    yield from sleep(0.5)
+    yield from do_stuff()
+    yield from future
+    print("Main is exiting")
+
+
+if __name__ == "__main__":
+    EventLoop.run(main())
+```
+
+This example implements a loop that can create tasks and stop running tasks. It provides a `Future` type for awaiting a value and a `Task` type that wraps a coroutine in a future. It also has a primitive `sleep` function that yields until a given time delay has passed.
+
+Running this starts the `main` coroutine and creates a new top-level task for the `countdown` coroutine. This `countdown` coroutine then runs concurrently with `main` and the coroutines it yields from. `main` even yields from the `countdown` future to wait on it before exiting.
+
+This implementation is barebones, but it shows how to implement a simple event loop for generator-based coroutines. At the most fundamental level, this is doing what Python's `asyncio` package is doing under the hood when you call [`asyncio.run`](http://asyncio.run).
+
+You can check out [Example 13](https://github.com/ZechCodes/Blog-Posts/blob/main/python-async-await/example-13-event-loop-asyncio.py) to see how to write these coroutines using Python's `asyncio` and the async/await syntax.
+
+## How Threads Differ
+
+Now that we've gone through how async/await works and implemented a basic version using generators, you're probably wondering how this differs from using threads.
+
+Async/await lets functions yield control back to the event loop. It only works with functions and relies on them to indicate when to run a new task. Since the event loop is part of the application code, everything happens within the application's runtime. This makes it great for IO-bound tasks, as the function knows when it is waiting on an IO task.
+
+Threads, on the other hand, are an OS-level construct that allows code to run in parallel, not just functions. Concurrency comes from running threads on separate CPU cores, giving true parallelism. In cases where there aren't enough CPU cores, the OS can pause threads and switch to another thread; this happens entirely outside the application code. Because threads can work without regard for what is happening in the code, they are excellent for CPU-bound tasks. They can run code in parallel and take advantage of multiple CPU cores, which is why they are often used for image processing, machine learning, and other computation-heavy tasks.
+
+## Async/Await & Parallelism
+
+Python's async/await is not parallelism; it is concurrency. The event loop can keep multiple tasks working towards completion, but only one can be active. In other languages, it is possible to run tasks in multiple threads to get parallel async/await tasks, but this is not currently possible because of Python's GIL.
+
+Future versions of Python may be free-threaded, allowing for parallel async/await tasks. Until then, if you need parallelism, you'll need to use threads or processes.
+
+`asyncio` actually has tools to run functions in a thread that you can await a result from; check out [run\_in\_executor](https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.run_in_executor) for more information.
+
+## Conclusion
+
+Async/await is a powerful tool for writing more effective code. It can seem a bit magical, but at its core, it is actually quite simple. Iteration, generators, and a clever application of fairly common syntax are all it boils down to.
+
+I hope you found this article helpful in improving your understanding of how async/await works and that it gave you a better understanding of how to use it in your code.
+    ]]></content>
+    <published_at>2024-11-04T00:19:27+00:00</published_at>
+    <is_published>true</is_published>
+  </post>
+  <post>
+    <title>Automate Python Package Publishing to PyPI with uv, Trusted Publisher, and GitHub Actions</title>
+    <slug>automate-uv-with-trusted-publisher</slug>
+    <content><![CDATA[
+You made a simple fix to your Python package, but now you've got to publish it again: find the correct commands and figure out authentication with the Python Package Index (PyPI). I've got a solution for you: automate Python package publishing using uv, PyPI's Trusted Publisher, and GitHub Actions!
+
+Today, I'm going to show you how to set up a GitHub Action with uv to securely automate publishing a Python package using PyPI's Trusted Publisher. Using this you're going to be able to `pip install your_awesome_project` from anywhere!
+
+## Tools Used
+
+1. uv is a fast package manager for Python written in Rust. It simplifies setting up your Python project, installing dependencies, and even installing Python!
+2. GitHub Actions are free cloud automations for your GitHub repos. You can run code in response to events on your repository!
+3. PyPI's Trusted Publisher uses OpenID Connect (OIDC) to securely connect your GitHub Actions to PyPI so you can publish new package versions without passwords or tokens! You can learn more in [this 2023 post on the Python blog](https://blog.pypi.org/posts/2023-04-20-introducing-trusted-publishers/).
+
+## Final Product
+
+You're busy, so let's skip to the end and then we'll work backward:
+
+```yaml
+name: Release to PyPI using Trusted Publisher
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.6.10"
+      - run: uv build
+      - run: uv publish --trusted-publishing always
+```
+
+## Usage
+
+1. Put that YAML in `.github/workflows/publish.yaml`
+   1. The `.github` folder should be at the root of your repo
+   2. You may need to create the `.github` and `workflows` folders
+2. Commit and then push the new `publish.yaml` to your repo on GitHub
+3. On your repo's GitHub page, create a `release` environment: [read how on GitHub](https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-deployments/managing-environments-for-deployment#creating-an-environment)
+
+Next, we need to configure Trusted Publisher on PyPI.
+
+### Creating Publishers for New Packages
+
+![The form for adding a new pending publisher](https://cdn.hashnode.com/res/hashnode/image/upload/v1743283153488/6e4560e1-c0f5-49d2-ad8e-521735738170.png align="center")
+
+If this is a new package that has never been published before, you must register a "pending new publisher." You have to choose a name that is unique on PyPI for your project, however this step **does not** reserve that name for you, you must publish the package to own the name.
+
+At the bottom of [this admin page](https://pypi.org/manage/account/publishing/) begin filling in the form by entering the name you have chosen for your package, it must not belong to another existing package on PyPI. Next, jump to step 3 of the next section.
+
+> **Reminder:** This step does not reserve the package name for you, you must publish the package to own the name.
+
+### Creating Publishers for Existing Packages
+
+![The form for adding a new publisher](https://cdn.hashnode.com/res/hashnode/image/upload/v1743283010760/b3bb737f-2963-468f-8669-e3d43b9951a0.png align="left")
+
+To set up Trusted Publisher for a package that already exists on PyPI, do this:
+
+1. Find your Project in the PyPI admin, [this admin page has all your projects](https://pypi.org/manage/projects/)
+2. Click on "Manage" > "Publishing" (left panel)
+3. Now add a new publisher
+   1. Use your GitHub username (mine would be `ZechCodes`)
+   2. The name of your GitHub repository (`Schism` is an example for one of mine)
+   3. The name of your workflow file (we named it `publish.yaml`)
+   4. The environment name (we created `release`)
+   5. Finally, click "Add"
+
+Now, your Python package publishing is automated! You can publish your package by creating a new release from the main page of your GitHub repo.
+
+![A successful run a our GitHub Action to deploy my Nubby package](https://cdn.hashnode.com/res/hashnode/image/upload/v1743283672966/d0d84f4b-4a9e-412d-91c4-b36c8192610c.png align="center")
+
+## How'd We Get To This GitHub Action
+
+uv's docs are incredible, but they don't show how to publish a package with Trusted Publisher. However, there is a slightly dated [example repo](https://github.com/astral-sh/trusted-publishing-examples/blob/24971e1aacf6277a711ae47c7d8a2dbd91f96aea/.github/workflows/release.yml) on the GitHub for Astral, the creators of uv, that shows how to do it.
+
+Taking what's in that repo, I adapted it by:
+
+* Publishing to PyPI when a new GitHub release is created gives a nice, consistent way to have consolidated version notes on GitHub.
+* Removing the smoke tests to keep this post as simple as possible.
+* Updating the version of `astral-sh/setup-uv` to the latest v5 (find the latest version [here](https://github.com/astral-sh/setup-uv/releases)).
+* Pinned the version of uv that's installed to the latest v0.6.10 (find the latest version [here](https://github.com/astral-sh/uv/releases)).
+
+## Leveling Up Our Comprehension
+
+### Understanding Why We Should Use Trusted Publisher
+
+It is much more secure than using tokens or passwords. Tokens and passwords are long-lived. If someone steals them, they can be used over and over to publish whatever they want to our package on PyPI. Trusted Publisher avoids that by transparently assigning short-lived tokens that are useless very soon after they are created. The best part: you don't have to worry about the security of your credentials, there are none.
+
+### Understanding "--trusted-publisher always"
+
+You may have noticed that when we run `uv publish,` we pass `--trusted-publisher always`. It isn't strictly necessary; if Trusted Publisher is available, uv will use it. The setting is a best practice to ensure uv *only* uses Trusted Publisher to publish by failing when it isn't configured correctly.
+
+### Understanding the "id-token" Permission
+
+```yaml
+permissions:
+  id-token: write
+```
+
+This permission is required to use Trusted Publisher. It allows the GitHub Action to request an OIDC token from the GitHub OIDC provider. This short-lived token enables a securely authenticated connection with PyPI without needing an auth token or password.
+
+### Understanding Why This Doesn't Install Python
+
+If you look closely at the `publish.yaml` here, you'll notice it never once installs Python. It's one of uv's superpowers — it handles all of that for you! If you need Python for any reason, use uv's commands to run your code; it handles the rest.
+
+## Making It Better
+
+The `publish.yaml` here is a barebones action that does nothing more than publish our Python package. It's important to not forget that. So here are a few changes that could be made to improve this publish automation:
+
+### Add Smoke Tests
+
+Smoke tests ensure that the code works *before* publishing it to PyPI. This is important so no one downloads our package and finds it doesn't work.
+
+Adding a step right before the final publish step, that ensures your package can be imported goes a long way, even if it's fairly simple (note: *Be sure to update* `your_package` to match the import name of your package):
+
+```yaml
+- name: Smoke Test
+  run: uv run --isolated --no-project -p 3.13 --with dist/*.whl -c "import your_package"
+```
+
+### Add Caching
+
+You can utilize caching to improve performance, especially in larger workflows. The uv docs cover [caching in good detail](https://docs.astral.sh/uv/guides/integration/github/#caching).
+
+To add some basic caching of dependencies that invalidates when the lock file changes, update the `astral-sh/setup-uv` action's step, like this:
+
+```yaml
+- uses: astral-sh/setup-uv@v5
+  with:
+    version: "0.6.10"
+    enable-cache: true
+    cache-dependency-glob: "uv.lock"
+```
+
+### Make uv Pinning Simpler
+
+Pinning the uv version in the workflow automation can be a bit cumbersome when you consider all of the other versions are pinned in the `pyproject.toml`. uv can be configured to pull its required version from the `pyproject.toml` as well.
+
+In your `pyproject.toml` add this:
+
+```toml
+[tool.uv]
+required-version = "0.6.10"
+```
+
+Next, update the `astral-sh/setup-uv` step like this (note: *Don't forget to replace* `path/to/pyproject.toml` with the actual path to your `pyproject.toml`):
+
+```yaml
+- uses: astral-sh/setup-uv@v5
+  with:
+    pyproject-file: "path/to/pyproject.toml"
+```
+
+You can learn more about pinning uv's version [here](https://github.com/astral-sh/setup-uv?tab=readme-ov-file#install-a-required-version).
+
+## Conclusion
+
+GitHub can securely and repeatably automate publishing your Python package, helping you focus on your projects without having to track how you publish everything.
+
+Please get in touch with me on Discord or my social media with any questions!
+
+![](https://cdn.hashnode.com/res/hashnode/image/upload/v1743284636565/3ea1ec42-63f1-49d1-b16e-af34c3973443.png align="left")
+
+\[XKCD 1172: Workflow\]([https://xkcd.com/1172/](https://xkcd.com/1172/))
+    ]]></content>
+    <published_at>2025-03-29T22:10:30+00:00</published_at>
+    <is_published>true</is_published>
+  </post>
+</posts>
