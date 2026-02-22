@@ -524,6 +524,30 @@ body {
   display: none;
 }
 
+/* Token usage — inline per-call */
+.tool-usage {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.7rem;
+  color: var(--zech-text-dim);
+  opacity: 0.5;
+  margin-left: 0.5rem;
+  white-space: nowrap;
+}
+
+/* Token usage — aggregate breakdown */
+.tool-usage-total {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  color: var(--zech-text-dim);
+  opacity: 0.6;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-top: 1px solid rgba(0, 229, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
 .pipeline-clarification {
   margin-top: 0.75rem;
   padding: 0.75rem;

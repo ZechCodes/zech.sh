@@ -14,7 +14,7 @@ import asyncio
 import io
 import logging
 import os
-from urllib.parse import urlparse
+import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -24,10 +24,13 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
+from genai_prices import calc_price
+from genai_prices import Usage as GenAIUsage
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
+from pydantic_ai.usage import RunUsage
 from pypdf import PdfReader
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -138,6 +141,7 @@ class ResearchDeps:
     db_session: AsyncSession
     redis_url: str = ""
     fetched_urls: set[str] = field(default_factory=set)
+    extraction_usage: RunUsage = field(default_factory=RunUsage)
 
 
 # ---------------------------------------------------------------------------
@@ -215,18 +219,18 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
     await queue.put(DetailEvent(type="research", payload={"topic": topic}))
 
     search_query = f"{topic} {context}".strip() if context else topic
-    await queue.put(DetailEvent(type="search", payload={"query": search_query}))
+    await queue.put(DetailEvent(type="search", payload={"topic": topic, "query": search_query}))
 
     try:
         results = await brave_search(search_query, api_key)
         await queue.put(DetailEvent(
             type="search_done",
-            payload={"query": search_query, "num_results": len(results)},
+            payload={"topic": topic, "query": search_query, "num_results": len(results)},
         ))
     except Exception:
         await queue.put(DetailEvent(
             type="search_done",
-            payload={"query": search_query, "num_results": 0},
+            payload={"topic": topic, "query": search_query, "num_results": 0},
         ))
         return f"Search failed for: {topic}"
 
@@ -238,23 +242,28 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
 
     fetched_urls_list: list[str] = []
     for url in urls:
-        await queue.put(DetailEvent(type="fetch", payload={"url": url}))
+        await queue.put(DetailEvent(type="fetch", payload={"topic": topic, "url": url}))
         try:
-            extracted = await fetch_and_extract(
+            result = await fetch_and_extract(
                 url, topic,
+                deps=ctx.deps,
                 db_session=ctx.deps.db_session,
                 redis_url=ctx.deps.redis_url,
             )
+            if isinstance(result, tuple):
+                extracted, usage_dict = result
+            else:
+                extracted, usage_dict = result, None
             ctx.deps.fetched_urls.add(url)
             fetched_urls_list.append(url)
             if extracted is not None:
                 findings.append(f"Source: {url}\n{extracted}")
-            await queue.put(DetailEvent(type="fetch_done", payload={
-                "url": url,
-                "content": (extracted or "")[:3000],
-            }))
+            payload: dict = {"topic": topic, "url": url, "content": (extracted or "")[:3000]}
+            if usage_dict:
+                payload["usage"] = usage_dict
+            await queue.put(DetailEvent(type="fetch_done", payload=payload))
         except Exception:
-            await queue.put(DetailEvent(type="fetch_done", payload={"url": url, "failed": True}))
+            await queue.put(DetailEvent(type="fetch_done", payload={"topic": topic, "url": url, "failed": True}))
 
     if not findings:
         await queue.put(DetailEvent(
@@ -300,22 +309,41 @@ def _pdf_to_text(data: bytes) -> str:
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
+_brave_lock: asyncio.Lock | None = None
+_brave_last_call: float = 0.0
+
+
+def _get_brave_lock() -> asyncio.Lock:
+    """Lazily create the Brave rate-limit lock inside the running event loop."""
+    global _brave_lock
+    if _brave_lock is None:
+        _brave_lock = asyncio.Lock()
+    return _brave_lock
+
+
 async def brave_search(query: str, api_key: str) -> list[SearchResultItem]:
-    """Execute a Brave web search and return structured results."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            "https://api.search.brave.com/res/v1/web/search",
-            headers={
-                "Accept": "application/json",
-                "Accept-Encoding": "gzip",
-                "User-Agent": USER_AGENT,
-                "X-Subscription-Token": api_key,
-            },
-            params={"q": query, "count": 5},
-            timeout=10.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    """Execute a Brave web search and return structured results (1 req/sec)."""
+    global _brave_last_call
+    lock = _get_brave_lock()
+    async with lock:
+        wait = 1.0 - (time.monotonic() - _brave_last_call)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                headers={
+                    "Accept": "application/json",
+                    "Accept-Encoding": "gzip",
+                    "User-Agent": USER_AGENT,
+                    "X-Subscription-Token": api_key,
+                },
+                params={"q": query, "count": 5},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        _brave_last_call = time.monotonic()
 
     return [
         SearchResultItem(
@@ -327,19 +355,33 @@ async def brave_search(query: str, api_key: str) -> list[SearchResultItem]:
     ]
 
 
+def _calc_cost(input_tokens: int, output_tokens: int, model_name: str) -> dict:
+    """Calculate cost for a model call and return a usage dict."""
+    usage = GenAIUsage(input_tokens=input_tokens, output_tokens=output_tokens)
+    price = calc_price(usage, model_name)
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "input_cost": f"{price.input_price:.4f}",
+        "output_cost": f"{price.output_price:.4f}",
+    }
+
+
 async def fetch_and_extract(
     url: str,
     query: str,
     *,
+    deps: ResearchDeps | None = None,
     db_session: AsyncSession | None = None,
     redis_url: str = "",
-) -> str | None:
+) -> str | tuple[str, dict] | None:
     """Fetch a URL and extract relevant content using the extraction agent.
 
     Checks robots.txt rules before fetching, rate-limits requests per domain,
     and caches responses in Redis when available.
 
     Returns None if the URL is disallowed by robots.txt.
+    When deps is provided, returns (output, usage_dict) tuple for cost tracking.
     """
     parsed_url = urlparse(url)
     domain = parsed_url.hostname or ""
@@ -362,6 +404,13 @@ async def fetch_and_extract(
             text = _html_to_text(text)
         prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
         result = await extraction_agent.run(prompt, model=gemini_flash_lite())
+        if deps is not None:
+            run_usage = result.usage()
+            deps.extraction_usage.incr(run_usage)
+            usage_dict = _calc_cost(
+                run_usage.input_tokens, run_usage.output_tokens, "gemini-2.5-flash-lite"
+            )
+            return result.output, usage_dict
         return result.output
 
     # --- Rate limit ---
@@ -409,6 +458,13 @@ async def fetch_and_extract(
         return f"Unsupported content type: {content_type}"
 
     result = await extraction_agent.run(prompt, model=gemini_flash_lite())
+    if deps is not None:
+        run_usage = result.usage()
+        deps.extraction_usage.incr(run_usage)
+        usage_dict = _calc_cost(
+            run_usage.input_tokens, run_usage.output_tokens, "gemini-2.5-flash-lite"
+        )
+        return result.output, usage_dict
     return result.output
 
 
@@ -469,6 +525,31 @@ async def run_research_pipeline(
             ) as stream:
                 async for text in stream.stream_text(delta=True):
                     await queue.put(TextEvent(text=text))
+
+                # Emit usage breakdown
+                research_usage = stream.usage()
+                research_cost = _calc_cost(
+                    research_usage.input_tokens,
+                    research_usage.output_tokens,
+                    "gemini-3-flash-preview",
+                )
+                ext = deps.extraction_usage
+                ext_cost = _calc_cost(
+                    ext.input_tokens, ext.output_tokens, "gemini-2.5-flash-lite"
+                )
+                total_in = research_usage.input_tokens + ext.input_tokens
+                total_out = research_usage.output_tokens + ext.output_tokens
+                await queue.put(DetailEvent(type="usage", payload={
+                    "research": research_cost,
+                    "extraction": ext_cost,
+                    "total": {
+                        "input_tokens": total_in,
+                        "output_tokens": total_out,
+                        "input_cost": f"{float(research_cost['input_cost']) + float(ext_cost['input_cost']):.4f}",
+                        "output_cost": f"{float(research_cost['output_cost']) + float(ext_cost['output_cost']):.4f}",
+                    },
+                }))
+
             await queue.put(DoneEvent())
         except _ClarificationNeeded:
             pass  # ClarificationEvent already in queue

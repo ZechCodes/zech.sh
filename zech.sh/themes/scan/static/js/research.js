@@ -16,9 +16,11 @@
 
   // Hierarchical state
   var toolGroups = [];
-  var currentGroup = null;
+  var groupsByTopic = {};
   var allFetchedUrls = [];
   var totalToolCalls = 0;
+
+  var usageData = null;
 
   var stageLabels = {
     researching: "RESEARCHING",
@@ -46,6 +48,15 @@
 
   function domainFromUrl(url) {
     try { return new URL(url).hostname; } catch (_) { return ""; }
+  }
+
+  function fmtNum(n) {
+    return Number(n).toLocaleString();
+  }
+
+  function fmtUsage(u) {
+    return fmtNum(u.input_tokens) + "/" + fmtNum(u.output_tokens) +
+      " ($" + u.input_cost + "/$" + u.output_cost + ")";
   }
 
   function createFaviconImg(url) {
@@ -145,6 +156,7 @@
     };
 
     toolGroups.push(groupObj);
+    groupsByTopic[topic] = groupObj;
     pipelineDetails.appendChild(group);
     return groupObj;
   }
@@ -251,6 +263,14 @@
       summaryEl.appendChild(srcCount);
     }
 
+    // Usage total inline in summary
+    if (usageData) {
+      var usageSummary = document.createElement("span");
+      usageSummary.className = "tool-usage";
+      usageSummary.textContent = fmtUsage(usageData.total);
+      summaryEl.appendChild(usageSummary);
+    }
+
     // Body that holds all tool groups
     var summaryBody = document.createElement("div");
     summaryBody.className = "tool-summary-body";
@@ -271,6 +291,17 @@
     pipelineDetails.innerHTML = "";
     pipelineDetails.appendChild(summaryEl);
     pipelineDetails.appendChild(summaryBody);
+
+    // Aggregate usage breakdown below summary
+    if (usageData) {
+      var usageTotal = document.createElement("div");
+      usageTotal.className = "tool-usage-total";
+      usageTotal.innerHTML =
+        '<div>Research agent: ' + fmtUsage(usageData.research) + '</div>' +
+        '<div>Extraction agent: ' + fmtUsage(usageData.extraction) + '</div>' +
+        '<div>Total: ' + fmtUsage(usageData.total) + '</div>';
+      summaryBody.appendChild(usageTotal);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -340,83 +371,108 @@
     // Pipeline detail items — hierarchical handling
     es.addEventListener("detail", function (e) {
       var data = JSON.parse(e.data);
+      var group = data.topic ? groupsByTopic[data.topic] : null;
 
       if (data.type === "research") {
         totalToolCalls++;
-        currentGroup = createToolGroup(data.topic);
+        createToolGroup(data.topic);
 
       } else if (data.type === "search") {
         totalToolCalls++;
-        if (currentGroup) {
+        if (group) {
           var html = '<span class="tool-spinner-sm"></span> Searching "' + escapeHtml(data.query) + '"';
-          var child = addChild(currentGroup, html, true);
+          var child = addChild(group, html, true);
           child._searchQuery = data.query;
-          updateSubline(currentGroup);
+          updateSubline(group);
         }
 
       } else if (data.type === "search_done") {
-        if (currentGroup) {
-          // Find the running search child
+        if (group) {
           var found = null;
-          currentGroup.runningChildren.forEach(function (c) {
+          group.runningChildren.forEach(function (c) {
             if (c._searchQuery === data.query) found = c;
           });
           if (found) {
             var doneHtml = '<span class="tool-icon-done">\u2713</span> Searched "' +
               escapeHtml(data.query) + '" \u2014 ' + data.num_results + ' result' +
               (data.num_results !== 1 ? 's' : '');
-            finishChild(currentGroup, found, doneHtml);
+            finishChild(group, found, doneHtml);
           }
         }
 
       } else if (data.type === "fetch") {
         totalToolCalls++;
-        if (currentGroup) {
+        if (group) {
           var fav = createFaviconImg(data.url);
           var favHtml = fav ? fav.outerHTML + " " : "";
           var html = '<span class="tool-spinner-sm"></span> ' + favHtml +
             "Reading " + escapeHtml(truncateUrl(data.url));
-          var child = addChild(currentGroup, html, true);
-          fetchChildren[data.url] = child;
-          updateSubline(currentGroup);
+          var child = addChild(group, html, true);
+          fetchChildren[data.url] = { child: child, group: group };
+          updateSubline(group);
         }
 
       } else if (data.type === "fetch_done") {
-        if (currentGroup) {
-          var child = fetchChildren[data.url];
-          if (child) {
-            var fav = createFaviconImg(data.url);
-            var favHtml = fav ? fav.outerHTML + " " : "";
-            var verb = data.failed ? "Failed" : "Read";
-            var doneHtml = '<span class="tool-icon-done">' + (data.failed ? "\u2717" : "\u2713") +
-              '</span> ' + favHtml + verb + " " + escapeHtml(truncateUrl(data.url));
-            finishChild(currentGroup, child, doneHtml);
-            if (!data.failed) {
-              currentGroup.fetchedUrls.push(data.url);
-              allFetchedUrls.push(data.url);
-              // Attach expandable content preview
-              if (data.content) {
-                child.classList.add("has-content");
-                var contentEl = document.createElement("div");
-                contentEl.className = "tool-child-content";
-                contentEl.hidden = true;
-                contentEl.textContent = data.content;
-                child.appendChild(contentEl);
-                child.addEventListener("click", function (ev) {
-                  ev.stopPropagation();
-                  contentEl.hidden = !contentEl.hidden;
-                  child.classList.toggle("is-expanded", !contentEl.hidden);
-                });
-              }
+        var entry = fetchChildren[data.url];
+        if (entry) {
+          var child = entry.child;
+          var g = entry.group;
+          var fav = createFaviconImg(data.url);
+          var favHtml = fav ? fav.outerHTML + " " : "";
+          var verb = data.failed ? "Failed" : "Read";
+          var doneHtml = '<span class="tool-icon-done">' + (data.failed ? "\u2717" : "\u2713") +
+            '</span> ' + favHtml + verb + " " + escapeHtml(truncateUrl(data.url));
+          finishChild(g, child, doneHtml);
+          if (!data.failed) {
+            g.fetchedUrls.push(data.url);
+            allFetchedUrls.push(data.url);
+            if (data.usage) {
+              var usageSpan = document.createElement("span");
+              usageSpan.className = "tool-usage";
+              usageSpan.textContent = fmtUsage(data.usage);
+              child.appendChild(usageSpan);
             }
-            delete fetchChildren[data.url];
+            if (data.content) {
+              child.classList.add("has-content");
+              var contentEl = document.createElement("div");
+              contentEl.className = "tool-child-content";
+              contentEl.hidden = true;
+              contentEl.textContent = data.content;
+              child.appendChild(contentEl);
+              child.addEventListener("click", function (ev) {
+                ev.stopPropagation();
+                contentEl.hidden = !contentEl.hidden;
+                child.classList.toggle("is-expanded", !contentEl.hidden);
+              });
+            }
           }
+          delete fetchChildren[data.url];
         }
 
       } else if (data.type === "result") {
-        if (currentGroup) {
-          collapseGroup(currentGroup, data.num_sources || 0);
-          currentGroup = null;
+        if (group) {
+          collapseGroup(group, data.num_sources || 0);
+        }
+
+      } else if (data.type === "usage") {
+        usageData = data;
+        var existingSummary = pipelineDetails.querySelector(".tool-summary");
+        if (existingSummary) {
+          var usageSpan = document.createElement("span");
+          usageSpan.className = "tool-usage";
+          usageSpan.textContent = fmtUsage(data.total);
+          existingSummary.appendChild(usageSpan);
+
+          var summaryBody = pipelineDetails.querySelector(".tool-summary-body");
+          if (summaryBody) {
+            var usageTotal = document.createElement("div");
+            usageTotal.className = "tool-usage-total";
+            usageTotal.innerHTML =
+              '<div>Research agent: ' + fmtUsage(data.research) + '</div>' +
+              '<div>Extraction agent: ' + fmtUsage(data.extraction) + '</div>' +
+              '<div>Total: ' + fmtUsage(data.total) + '</div>';
+            summaryBody.appendChild(usageTotal);
+          }
         }
       }
     });
@@ -460,11 +516,12 @@
       if (!receivedFirstText) {
         receivedFirstText = true;
         pipelineStatus.className = "pipeline-status";
-        // Collapse any still-running group
-        if (currentGroup) {
-          collapseGroup(currentGroup, currentGroup.fetchedUrls.length);
-          currentGroup = null;
-        }
+        // Collapse any still-running groups
+        toolGroups.forEach(function (g) {
+          if (g.el.classList.contains("is-running")) {
+            collapseGroup(g, g.fetchedUrls.length);
+          }
+        });
         // Build collapsed summary
         if (toolGroups.length > 0) {
           buildSummary();
