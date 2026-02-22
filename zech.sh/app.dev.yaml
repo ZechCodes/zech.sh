@@ -25,6 +25,7 @@ sites:
     subdomain: scan
     controllers:
       - controllers.scan:ScanController
+      - skrift.controllers.notifications:NotificationsController
     theme: scan
 
 db:

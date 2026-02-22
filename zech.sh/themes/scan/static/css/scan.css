@@ -198,20 +198,81 @@ body {
   50% { opacity: 0; }
 }
 
-.research-status {
+/* --------------------------------------------------------------------------
+   Research Pipeline
+   -------------------------------------------------------------------------- */
+
+.research-pipeline {
+  margin-bottom: 1.5rem;
+}
+
+.pipeline-status {
   font-family: 'Orbitron', sans-serif;
   font-size: 0.55rem;
   font-weight: 700;
   letter-spacing: 4px;
   text-transform: uppercase;
   color: var(--zech-primary);
-  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
   opacity: 0;
   transition: opacity 0.3s;
 }
 
-.research-status.visible {
+.pipeline-status.visible {
   opacity: 1;
+}
+
+.pipeline-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.pipeline-detail {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  color: var(--zech-text-dim);
+  padding: 0.3rem 0.6rem;
+  background: rgba(0, 229, 255, 0.03);
+  border-left: 2px solid rgba(0, 229, 255, 0.15);
+  opacity: 0;
+  animation: detail-fade-in 0.3s forwards;
+}
+
+.pipeline-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--zech-primary);
+  margin-right: 0.5rem;
+}
+
+@keyframes detail-fade-in {
+  to { opacity: 1; }
+}
+
+.pipeline-clarification {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  background: rgba(0, 229, 255, 0.03);
+}
+
+.clarification-question {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.95rem;
+  color: var(--zech-text);
+  margin-bottom: 0.5rem;
+}
+
+.clarification-form {
+  margin-top: 0.5rem;
+}
+
+.clarification-input {
+  font-size: 0.95rem !important;
+  padding: 0.6rem 1rem !important;
 }
 
 .research-followup {
