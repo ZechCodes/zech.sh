@@ -252,6 +252,278 @@ body {
   to { opacity: 1; }
 }
 
+/* --------------------------------------------------------------------------
+   Tool-Call Hierarchy
+   -------------------------------------------------------------------------- */
+
+.tool-group {
+  border-left: 2px solid rgba(0, 229, 255, 0.15);
+  padding: 0.4rem 0 0.4rem 0.6rem;
+  margin-bottom: 0.35rem;
+  opacity: 0;
+  animation: detail-fade-in 0.3s forwards;
+}
+
+.tool-group.is-running {
+  border-left-color: var(--zech-primary);
+}
+
+.tool-group.is-done {
+  border-left-color: rgba(0, 229, 255, 0.15);
+}
+
+.tool-group.is-done .tool-header {
+  cursor: pointer;
+}
+
+.tool-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.4rem;
+}
+
+.tool-chevron {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--zech-primary);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.tool-group.is-done:not(.is-collapsed) .tool-chevron,
+.tool-summary.is-expanded .tool-chevron {
+  transform: rotate(90deg);
+}
+
+.tool-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+  white-space: nowrap;
+}
+
+.tool-topic {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  color: var(--zech-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Spinner — cyan ring */
+.tool-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(0, 229, 255, 0.2);
+  border-top-color: var(--zech-primary);
+  border-radius: 50%;
+  animation: tool-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.tool-spinner-sm {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(0, 229, 255, 0.2);
+  border-top-color: var(--zech-primary);
+  border-radius: 50%;
+  animation: tool-spin 0.7s linear infinite;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+@keyframes tool-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Done icon — cyan checkmark */
+.tool-icon-done {
+  font-size: 0.7rem;
+  color: var(--zech-primary);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* Subline — shows currently running child */
+.tool-subline {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  color: var(--zech-text-dim);
+  padding-left: 1.3rem;
+  margin-top: 0.15rem;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-subline[hidden] {
+  display: none;
+}
+
+/* Sources strip — shown when done */
+.tool-sources {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding-left: 1.3rem;
+  margin-top: 0.2rem;
+}
+
+.tool-sources .tool-source-count {
+  margin-left: 0.4rem;
+}
+
+.tool-sources[hidden] {
+  display: none;
+}
+
+.tool-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  vertical-align: middle;
+  flex-shrink: 0;
+  position: relative;
+  transition: margin 0.15s ease;
+}
+
+/* Overlap favicons by ~1/3 in stacking containers */
+.tool-sources .tool-favicon + .tool-favicon,
+.tool-summary-favicons .tool-favicon + .tool-favicon {
+  margin-left: -5px;
+}
+
+.tool-sources .tool-favicon:hover,
+.tool-summary-favicons .tool-favicon:hover {
+  z-index: 1;
+}
+
+.tool-sources .tool-favicon:hover + .tool-favicon,
+.tool-summary-favicons .tool-favicon:hover + .tool-favicon {
+  margin-left: 1px;
+}
+
+.tool-source-count {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  color: var(--zech-text-dim);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* Body — collapsible children list */
+.tool-body {
+  padding-left: 1.3rem;
+  margin-top: 0.25rem;
+}
+
+.tool-group.is-collapsed .tool-body {
+  display: none;
+}
+
+.tool-children {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tool-child {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  color: var(--zech-text-dim);
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  opacity: 0;
+  animation: detail-fade-in 0.25s forwards;
+}
+
+.tool-child.is-done {
+  opacity: 0.7;
+}
+
+.tool-child.has-content {
+  cursor: pointer;
+}
+
+.tool-child.has-content:hover {
+  opacity: 1;
+}
+
+.tool-child-content {
+  width: 100%;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--zech-text-dim);
+  background: rgba(0, 229, 255, 0.03);
+  border: 1px solid rgba(0, 229, 255, 0.08);
+  border-radius: 2px;
+  padding: 0.5rem 0.6rem;
+  margin-top: 0.25rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tool-child-content[hidden] {
+  display: none;
+}
+
+/* Summary — collapsed overview of all tool groups */
+.tool-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-left: 2px solid rgba(0, 229, 255, 0.15);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.tool-summary:hover {
+  border-left-color: var(--zech-primary);
+}
+
+.tool-summary-count {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+  white-space: nowrap;
+}
+
+.tool-summary-favicons {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.tool-summary-body {
+  margin-top: 0.35rem;
+  padding-left: 0.6rem;
+}
+
+.tool-summary-body[hidden] {
+  display: none;
+}
+
 .pipeline-clarification {
   margin-top: 0.75rem;
   padding: 0.75rem;

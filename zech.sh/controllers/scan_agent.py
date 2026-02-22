@@ -14,6 +14,7 @@ import asyncio
 import io
 import logging
 import os
+from urllib.parse import urlparse
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -94,7 +95,7 @@ class StageEvent:
 
 @dataclass
 class DetailEvent:
-    type: str  # "research", "search", "fetch", "result"
+    type: str  # "research", "search", "search_done", "fetch", "fetch_done", "result"
     payload: dict
 
 
@@ -178,7 +179,9 @@ research_agent = Agent(
         "provide (personal preferences, specific constraints, etc.), call `ask_user` "
         "with clear, specific questions.\n\n"
         "After gathering enough information, write your final answer. Be thorough "
-        "but concise. Use markdown formatting and cite sources with URLs."
+        "but concise. Use markdown formatting. Only cite sources whose content was "
+        "successfully returned by the research tool — never cite URLs that failed "
+        "to load or that you only saw in search result snippets."
     ),
     deps_type=ResearchDeps,
 )
@@ -216,7 +219,15 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
 
     try:
         results = await brave_search(search_query, api_key)
+        await queue.put(DetailEvent(
+            type="search_done",
+            payload={"query": search_query, "num_results": len(results)},
+        ))
     except Exception:
+        await queue.put(DetailEvent(
+            type="search_done",
+            payload={"query": search_query, "num_results": 0},
+        ))
         return f"Search failed for: {topic}"
 
     if not results:
@@ -225,6 +236,7 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
     urls = _pick_top_urls(results, ctx.deps.fetched_urls)
     findings: list[str] = []
 
+    fetched_urls_list: list[str] = []
     for url in urls:
         await queue.put(DetailEvent(type="fetch", payload={"url": url}))
         try:
@@ -234,23 +246,26 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
                 redis_url=ctx.deps.redis_url,
             )
             ctx.deps.fetched_urls.add(url)
+            fetched_urls_list.append(url)
             if extracted is not None:
                 findings.append(f"Source: {url}\n{extracted}")
+            await queue.put(DetailEvent(type="fetch_done", payload={
+                "url": url,
+                "content": (extracted or "")[:3000],
+            }))
         except Exception:
-            pass
+            await queue.put(DetailEvent(type="fetch_done", payload={"url": url, "failed": True}))
 
     if not findings:
-        desc_parts = [f"- {r.title}: {r.description} ({r.url})" for r in results[:3]]
-        summary = "\n".join(desc_parts)
         await queue.put(DetailEvent(
             type="result",
-            payload={"summary": f"Found {len(results)} results for '{topic}'"},
+            payload={"topic": topic, "urls": fetched_urls_list, "num_sources": 0},
         ))
-        return f"Search results for '{topic}':\n{summary}"
+        return f"No sources could be loaded for: {topic}"
 
     await queue.put(DetailEvent(
         type="result",
-        payload={"summary": f"Extracted content from {len(findings)} sources for '{topic}'"},
+        payload={"topic": topic, "urls": fetched_urls_list, "num_sources": len(findings)},
     ))
     return "\n\n---\n\n".join(findings)
 
@@ -403,12 +418,17 @@ def _pick_top_urls(
     max_urls: int = 3,
 ) -> list[str]:
     """Pick the top URLs from search results that haven't been fetched yet."""
+    _SKIP_DOMAINS = {"youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com"}
     urls: list[str] = []
     for r in results:
-        if r.url and r.url not in already_fetched:
-            urls.append(r.url)
-            if len(urls) >= max_urls:
-                break
+        if not r.url or r.url in already_fetched:
+            continue
+        host = urlparse(r.url).hostname or ""
+        if host in _SKIP_DOMAINS:
+            continue
+        urls.append(r.url)
+        if len(urls) >= max_urls:
+            break
     return urls
 
 
