@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from skrift.auth.session_keys import SESSION_USER_ID
+from skrift.config import get_settings
 from skrift.db.models.user import User
 
 from controllers.scan_agent import (
@@ -95,7 +96,7 @@ class ScanController(Controller):
         return Redirect(path=url)
 
     @get("/research/stream")
-    async def research_stream(self, request: Request, q: str = "", context: str = "") -> ServerSentEvent | TemplateResponse:
+    async def research_stream(self, request: Request, db_session: AsyncSession, q: str = "", context: str = "") -> ServerSentEvent | TemplateResponse:
         user_id = request.session.get(SESSION_USER_ID)
         if not user_id:
             return TemplateResponse("unauthorized.html")
@@ -103,10 +104,16 @@ class ScanController(Controller):
             return ServerSentEvent(iter([]))
 
         brave_api_key = os.environ.get("BRAVE_API_KEY", "")
+        redis_url = get_settings().redis.url
 
         async def generate() -> AsyncGenerator[ServerSentEventMessage, None]:
             try:
-                async for event in run_research_pipeline(q, brave_api_key, additional_context=context):
+                async for event in run_research_pipeline(
+                    q, brave_api_key,
+                    db_session=db_session,
+                    redis_url=redis_url,
+                    additional_context=context,
+                ):
                     if isinstance(event, StageEvent):
                         yield ServerSentEventMessage(
                             data=json.dumps({"stage": event.stage}),

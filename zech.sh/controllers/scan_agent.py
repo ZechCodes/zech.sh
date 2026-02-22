@@ -4,17 +4,21 @@ A single tool-using agent autonomously researches topics by calling a
 `research` tool (Brave search -> fetch -> extract) and optionally asking
 the user for clarification via `ask_user`. An asyncio.Queue bridges
 tool-side events to the SSE generator.
+
+Respects robots.txt rules and rate-limits requests per domain.
 """
 
 from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import os
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -24,6 +28,16 @@ from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 from pypdf import PdfReader
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from controllers.domain_throttle import (
+    cache_response,
+    get_cached_response,
+    wait_for_rate_limit,
+)
+from controllers.robots import USER_AGENT, check_url_allowed
+
+logger = logging.getLogger(__name__)
 
 # Maximum characters of document text to send to the extraction model.
 _MAX_DOC_CHARS = 200_000
@@ -120,6 +134,8 @@ class _ClarificationNeeded(Exception):
 class ResearchDeps:
     brave_api_key: str
     event_queue: asyncio.Queue
+    db_session: AsyncSession
+    redis_url: str = ""
     fetched_urls: set[str] = field(default_factory=set)
 
 
@@ -212,9 +228,14 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
     for url in urls:
         await queue.put(DetailEvent(type="fetch", payload={"url": url}))
         try:
-            extracted = await fetch_and_extract(url, topic)
+            extracted = await fetch_and_extract(
+                url, topic,
+                db_session=ctx.deps.db_session,
+                redis_url=ctx.deps.redis_url,
+            )
             ctx.deps.fetched_urls.add(url)
-            findings.append(f"Source: {url}\n{extracted}")
+            if extracted is not None:
+                findings.append(f"Source: {url}\n{extracted}")
         except Exception:
             pass
 
@@ -272,6 +293,7 @@ async def brave_search(query: str, api_key: str) -> list[SearchResultItem]:
             headers={
                 "Accept": "application/json",
                 "Accept-Encoding": "gzip",
+                "User-Agent": USER_AGENT,
                 "X-Subscription-Token": api_key,
             },
             params={"q": query, "count": 5},
@@ -290,11 +312,54 @@ async def brave_search(query: str, api_key: str) -> list[SearchResultItem]:
     ]
 
 
-async def fetch_and_extract(url: str, query: str) -> str:
-    """Fetch a URL and extract relevant content using the extraction agent."""
+async def fetch_and_extract(
+    url: str,
+    query: str,
+    *,
+    db_session: AsyncSession | None = None,
+    redis_url: str = "",
+) -> str | None:
+    """Fetch a URL and extract relevant content using the extraction agent.
+
+    Checks robots.txt rules before fetching, rate-limits requests per domain,
+    and caches responses in Redis when available.
+
+    Returns None if the URL is disallowed by robots.txt.
+    """
+    parsed_url = urlparse(url)
+    domain = parsed_url.hostname or ""
+
+    # --- robots.txt check ---
+    if db_session is not None:
+        allowed, crawl_delay = await check_url_allowed(url, db_session)
+        if not allowed:
+            logger.info("Blocked by robots.txt: %s", url)
+            return None
+    else:
+        crawl_delay = 10.0
+
+    # --- Check response cache ---
+    cached = await get_cached_response(url, redis_url=redis_url)
+    if cached is not None:
+        content_type = cached.get("content_type", "")
+        text = cached.get("text", "")
+        if "html" in content_type:
+            text = _html_to_text(text)
+        prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
+        result = await extraction_agent.run(prompt, model=gemini_flash_lite())
+        return result.output
+
+    # --- Rate limit ---
+    await wait_for_rate_limit(domain, delay_seconds=crawl_delay, redis_url=redis_url)
+
+    # --- Fetch ---
     async with httpx.AsyncClient(follow_redirects=True) as client:
         try:
-            resp = await client.get(url, timeout=30.0)
+            resp = await client.get(
+                url,
+                headers={"User-Agent": USER_AGENT},
+                timeout=30.0,
+            )
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             return f"Could not fetch {url}: HTTP {exc.response.status_code}"
@@ -302,6 +367,17 @@ async def fetch_and_extract(url: str, query: str) -> str:
             return f"Could not fetch {url}: {exc}"
 
     content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+
+    # --- Cache the response ---
+    if "html" in content_type or content_type.startswith("text/"):
+        await cache_response(
+            url,
+            status_code=resp.status_code,
+            headers=dict(resp.headers),
+            text=resp.text,
+            content_type=content_type,
+            redis_url=redis_url,
+        )
 
     if content_type == "application/pdf":
         text = _pdf_to_text(resp.content)
@@ -344,6 +420,9 @@ def _pick_top_urls(
 async def run_research_pipeline(
     query: str,
     brave_api_key: str,
+    *,
+    db_session: AsyncSession,
+    redis_url: str = "",
     additional_context: str = "",
 ) -> AsyncGenerator[PipelineEvent, None]:
     """Run the research agent, yielding SSE-ready events via a queue."""
@@ -354,7 +433,12 @@ async def run_research_pipeline(
     )
 
     queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
-    deps = ResearchDeps(brave_api_key=brave_api_key, event_queue=queue)
+    deps = ResearchDeps(
+        brave_api_key=brave_api_key,
+        event_queue=queue,
+        db_session=db_session,
+        redis_url=redis_url,
+    )
 
     yield StageEvent(stage="researching")
 
