@@ -21,6 +21,11 @@ sites:
     controllers:
       - controllers.dump:DumpController
     theme: dump
+  scan:
+    subdomain: scan
+    controllers:
+      - controllers.scan:ScanController
+    theme: scan
 
 db:
   url: sqlite+aiosqlite:///./app.db

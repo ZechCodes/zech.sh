@@ -19,6 +19,32 @@
 
 <nav class="zech-topnav">
     <a href="/" class="logo" data-text="SCAN.ZECH.SH">SCAN.ZECH.SH</a>
+    <button class="zech-nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
+        <span></span><span></span><span></span>
+    </button>
+    <div class="zech-topnav-right">
+        <div class="zech-topnav-links">
+            <a href="https://zech.sh">// ZECH.SH</a>
+        </div>
+        {% if user %}
+        <div class="zech-user-menu">
+            <button class="zech-user-toggle" type="button" aria-label="User menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+            </button>
+            <div class="zech-user-dropdown">
+                <div class="zech-user-dropdown-header">
+                    <span class="zech-user-dropdown-label">USR.SESSION</span>
+                    <span class="zech-user-dropdown-status"><span class="zech-status-dot zech-status-connecting"></span>CONNECTING</span>
+                </div>
+                <a href="https://zech.sh/admin" class="zech-user-dropdown-item">// DASHBOARD</a>
+                <a href="https://zech.sh/auth/logout" class="zech-user-dropdown-item zech-user-dropdown-logout">// DISCONNECT</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
 </nav>
 
 <main class="scan-main">
@@ -30,7 +56,9 @@
 </footer>
 
 <script src="{{ static_url('fusion/js/particles.js') }}"></script>
+<script src="{{ static_url('fusion/js/interactions.js') }}"></script>
 <script src="{{ static_url('skrift/js/notifications.js') }}"></script>
+<script src="{{ theme_url('js/scan.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

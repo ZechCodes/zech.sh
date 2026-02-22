@@ -29,6 +29,7 @@ spec:
       containers:
         - name: zech-sh
           image: zzmmrmn/zech-sh:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           envFrom:
