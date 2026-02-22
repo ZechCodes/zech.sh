@@ -500,13 +500,29 @@ async def run_research_pipeline(
     db_session: AsyncSession,
     redis_url: str = "",
     additional_context: str = "",
+    conversation_history: list[dict] | None = None,
 ) -> AsyncGenerator[PipelineEvent, None]:
-    """Run the research agent, yielding SSE-ready events via a queue."""
-    full_query = (
-        f"{query}\n\nAdditional context from user: {additional_context}"
-        if additional_context
-        else query
-    )
+    """Run the research agent, yielding SSE-ready events via a queue.
+
+    Args:
+        conversation_history: List of {"role": "user"|"assistant", "content": str}
+            representing prior turns in the conversation.
+    """
+    parts: list[str] = []
+    if conversation_history:
+        parts.append("Previous conversation:")
+        for msg in conversation_history:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            parts.append(f"{role}: {msg['content']}")
+        parts.append("")
+        parts.append(f"Current question: {query}")
+        if additional_context:
+            parts.append(f"\nAdditional context from user: {additional_context}")
+        full_query = "\n".join(parts)
+    elif additional_context:
+        full_query = f"{query}\n\nAdditional context from user: {additional_context}"
+    else:
+        full_query = query
 
     queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
     deps = ResearchDeps(

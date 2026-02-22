@@ -19,6 +19,133 @@ body {
 }
 
 /* --------------------------------------------------------------------------
+   Sidebar
+   -------------------------------------------------------------------------- */
+
+.sidebar-toggle {
+  background: none;
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  color: var(--zech-text-dim);
+  cursor: pointer;
+  padding: 0.4rem;
+  margin-left: 0.75rem;
+  display: flex;
+  align-items: center;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.sidebar-toggle:hover {
+  border-color: var(--zech-primary);
+  color: var(--zech-primary);
+}
+
+.scan-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 260px;
+  background: rgba(8, 12, 20, 0.97);
+  border-right: 1px solid rgba(0, 229, 255, 0.1);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 4.5rem 0 1rem;
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+}
+
+.scan-sidebar.is-open {
+  transform: translateX(0);
+}
+
+.sidebar-new-chat {
+  display: block;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+  text-decoration: none;
+  padding: 0.75rem 1.25rem;
+  margin: 0 0.75rem 0.5rem;
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  text-align: center;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.sidebar-new-chat:hover {
+  background: rgba(0, 229, 255, 0.06);
+  border-color: var(--zech-primary);
+}
+
+.sidebar-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  padding: 0.75rem 1.25rem 0.4rem;
+  opacity: 0.6;
+}
+
+.sidebar-chats {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0.5rem;
+}
+
+.sidebar-chat-item {
+  display: block;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  padding: 0.5rem 0.75rem;
+  border-left: 2px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.sidebar-chat-item:hover {
+  color: var(--zech-text);
+  border-left-color: var(--zech-primary);
+  background: rgba(0, 229, 255, 0.03);
+}
+
+.sidebar-empty {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  color: var(--zech-text-dim);
+  opacity: 0.5;
+  padding: 0.75rem 1.25rem;
+}
+
+.sidebar-history-link {
+  display: block;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid rgba(0, 229, 255, 0.08);
+  text-align: center;
+  transition: color 0.2s;
+}
+
+.sidebar-history-link:hover {
+  color: var(--zech-primary);
+}
+
+/* --------------------------------------------------------------------------
    Search Section
    -------------------------------------------------------------------------- */
 
@@ -92,7 +219,123 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   Research Section
+   Chat Section
+   -------------------------------------------------------------------------- */
+
+.chat-section {
+  width: 100%;
+  max-width: 760px;
+  align-self: flex-start;
+  padding-top: 2rem;
+}
+
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.chat-turn {
+  margin-bottom: 1.5rem;
+}
+
+.chat-user-query {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--zech-text);
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+}
+
+.chat-assistant-events {
+  margin-bottom: 0.75rem;
+}
+
+.chat-assistant-response {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--zech-text-dim);
+  line-height: 1.7;
+}
+
+.chat-assistant-response p {
+  margin: 0 0 1em;
+}
+
+.chat-assistant-response h2,
+.chat-assistant-response h3,
+.chat-assistant-response h4 {
+  font-family: 'Orbitron', sans-serif;
+  color: var(--zech-text);
+  margin: 1.5em 0 0.5em;
+}
+
+.chat-assistant-response h2 { font-size: 1.1rem; letter-spacing: 2px; }
+.chat-assistant-response h3 { font-size: 0.95rem; letter-spacing: 1.5px; }
+.chat-assistant-response h4 { font-size: 0.85rem; letter-spacing: 1px; }
+
+.chat-assistant-response strong {
+  color: var(--zech-text);
+  font-weight: 600;
+}
+
+.chat-assistant-response a {
+  color: var(--zech-primary);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+  transition: border-color 0.2s;
+}
+
+.chat-assistant-response a:hover {
+  border-color: var(--zech-primary);
+}
+
+.chat-assistant-response code {
+  font-family: monospace;
+  font-size: 0.9em;
+  background: rgba(0, 229, 255, 0.06);
+  padding: 0.15em 0.4em;
+  border: 1px solid rgba(0, 229, 255, 0.1);
+}
+
+.chat-assistant-response pre.research-code {
+  background: rgba(0, 229, 255, 0.03);
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.chat-assistant-response pre.research-code code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.chat-assistant-response ul {
+  padding-left: 1.5em;
+  margin: 0.5em 0 1em;
+}
+
+.chat-assistant-response li {
+  margin-bottom: 0.3em;
+}
+
+.chat-active-turn[hidden] {
+  display: none;
+}
+
+.chat-followup {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(0, 229, 255, 0.1);
+}
+
+/* --------------------------------------------------------------------------
+   Research Section (legacy)
    -------------------------------------------------------------------------- */
 
 .research-section {
@@ -582,6 +825,106 @@ body {
 }
 
 /* --------------------------------------------------------------------------
+   History Page
+   -------------------------------------------------------------------------- */
+
+.history-section {
+  width: 100%;
+  max-width: 760px;
+  align-self: flex-start;
+  padding-top: 2rem;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 1rem;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  font-family: 'Rajdhani', sans-serif;
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.history-item:hover {
+  color: var(--zech-text);
+  border-left-color: var(--zech-primary);
+  background: rgba(0, 229, 255, 0.03);
+}
+
+.history-item-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item-date {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(0, 229, 255, 0.08);
+}
+
+.history-page-link {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--zech-primary);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.history-page-link:hover {
+  opacity: 0.8;
+}
+
+.history-page-disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.history-page-info {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--zech-text-dim);
+}
+
+.history-empty {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+  color: var(--zech-text-dim);
+  opacity: 0.5;
+  text-align: center;
+  padding: 3rem 0;
+}
+
+/* --------------------------------------------------------------------------
    Responsive
    -------------------------------------------------------------------------- */
 
@@ -596,6 +939,14 @@ body {
   }
 
   .research-response {
+    font-size: 1rem;
+  }
+
+  .chat-user-query {
+    font-size: 1.1rem;
+  }
+
+  .chat-assistant-response {
     font-size: 1rem;
   }
 }

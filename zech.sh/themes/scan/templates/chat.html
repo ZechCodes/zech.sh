@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}SCAN.ZECH.SH — {{ chat.title[:60] }}{% endblock %}
+
+{% block head %}
+<link rel="search" type="application/opensearchdescription+xml" title="Scan" href="/opensearch.xml">
+{% endblock %}
+
+{% block content %}
+<section class="chat-section">
+    <div class="scan-label">RESEARCH.CHAT</div>
+
+    <div class="chat-messages" id="chatMessages">
+        {% for msg in messages %}
+        {% if msg.role == 'user' %}
+        <div class="chat-turn">
+            <div class="chat-user-query">{{ msg.content }}</div>
+        </div>
+        {% elif msg.role == 'assistant' and msg.content %}
+        <div class="chat-turn">
+            <div class="chat-assistant-events" data-events="{{ msg.events_json | e }}"></div>
+            <div class="chat-assistant-response">{{ msg.content }}</div>
+            {% if msg.usage_json and msg.usage_json != '{}' %}
+            <div class="chat-assistant-usage" data-usage="{{ msg.usage_json | e }}"></div>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="chat-active-turn" id="activeTurn" {% if not needs_stream %}hidden{% endif %}>
+        <div class="research-pipeline" id="researchPipeline">
+            <div class="pipeline-status" id="pipelineStatus"></div>
+            <div class="pipeline-details" id="pipelineDetails"></div>
+        </div>
+        <div class="research-response" id="researchResponse">
+            <div class="research-cursor" id="researchCursor"></div>
+        </div>
+    </div>
+
+    <form class="scan-form chat-followup" id="chatFollowup" autocomplete="off">
+        <input
+            class="scan-input"
+            type="text"
+            name="q"
+            placeholder="Ask a follow-up..."
+            autofocus
+        >
+    </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script
+    src="{{ theme_url('js/chat.js') }}"
+    data-chat-id="{{ chat.id }}"
+    data-needs-stream="{{ 'true' if needs_stream else 'false' }}"
+></script>
+{% endblock %}

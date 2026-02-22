@@ -19,6 +19,13 @@
 
 <nav class="zech-topnav">
     <a href="/" class="logo" data-text="SCAN.ZECH.SH">SCAN.ZECH.SH</a>
+    {% if user %}
+    <button class="sidebar-toggle" type="button" aria-label="Toggle sidebar" aria-expanded="false">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+    </button>
+    {% endif %}
     <button class="zech-nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
         <span></span><span></span><span></span>
     </button>
@@ -46,6 +53,24 @@
         {% endif %}
     </div>
 </nav>
+
+{% if user and recent_chats is defined %}
+<aside class="scan-sidebar" id="scanSidebar">
+    <a href="/" class="sidebar-new-chat">+ NEW CHAT</a>
+    <div class="sidebar-label">RECENT</div>
+    <div class="sidebar-chats">
+        {% for chat in recent_chats %}
+        <a href="/chat/{{ chat.id }}" class="sidebar-chat-item" title="{{ chat.title }}">
+            {{ chat.title[:50] }}{% if chat.title | length > 50 %}&hellip;{% endif %}
+        </a>
+        {% endfor %}
+        {% if not recent_chats %}
+        <div class="sidebar-empty">No chats yet</div>
+        {% endif %}
+    </div>
+    <a href="/history" class="sidebar-history-link">VIEW ALL HISTORY</a>
+</aside>
+{% endif %}
 
 <main class="scan-main">
     {% block content %}{% endblock %}

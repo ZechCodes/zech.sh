@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}SCAN.ZECH.SH — History{% endblock %}
+
+{% block content %}
+<section class="history-section">
+    <div class="scan-label">CHAT.HISTORY</div>
+
+    {% if chats %}
+    <div class="history-list">
+        {% for chat in chats %}
+        <a href="/chat/{{ chat.id }}" class="history-item">
+            <span class="history-item-title">{{ chat.title[:80] }}{% if chat.title | length > 80 %}&hellip;{% endif %}</span>
+            <span class="history-item-date">{{ chat.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div class="history-pagination">
+        {% if page > 1 %}
+        <a href="/history?page={{ page - 1 }}" class="history-page-link">&laquo; PREV</a>
+        {% else %}
+        <span class="history-page-link history-page-disabled">&laquo; PREV</span>
+        {% endif %}
+
+        <span class="history-page-info">PAGE {{ page }} / {{ total_pages }}</span>
+
+        {% if page < total_pages %}
+        <a href="/history?page={{ page + 1 }}" class="history-page-link">NEXT &raquo;</a>
+        {% else %}
+        <span class="history-page-link history-page-disabled">NEXT &raquo;</span>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="history-empty">No research chats yet.</div>
+    {% endif %}
+</section>
+{% endblock %}

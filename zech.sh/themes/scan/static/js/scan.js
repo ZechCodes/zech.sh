@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Search form — fetch classification then navigate via JS to avoid CSP form-action restriction
-    var form = document.querySelector('.scan-form');
+    var form = document.querySelector('.scan-form:not(#chatFollowup)');
     if (form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
@@ -16,15 +16,34 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(function(data) {
                 if (data.type === 'research') {
-                    window.location.href = '/search?q=' + encodeURIComponent(q);
+                    // Server now returns /chat/{id} URL
+                    window.location.href = data.url;
                 } else {
                     window.location.href = data.url;
                 }
             })
             .catch(function() {
-                // Fallback: navigate directly
                 window.location.href = '/search?q=' + encodeURIComponent(q);
             });
+        });
+    }
+
+    // Sidebar toggle
+    var sidebarToggle = document.querySelector('.sidebar-toggle');
+    var sidebar = document.getElementById('scanSidebar');
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', function() {
+            var expanded = sidebar.classList.toggle('is-open');
+            sidebarToggle.setAttribute('aria-expanded', expanded);
+        });
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(e) {
+            if (sidebar.classList.contains('is-open') &&
+                !sidebar.contains(e.target) &&
+                !sidebarToggle.contains(e.target)) {
+                sidebar.classList.remove('is-open');
+                sidebarToggle.setAttribute('aria-expanded', 'false');
+            }
         });
     }
 });
