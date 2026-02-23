@@ -4,8 +4,11 @@
 
   var scriptEl = document.currentScript;
   var chatId = scriptEl && scriptEl.getAttribute("data-chat-id");
+  var chatMode = scriptEl && scriptEl.getAttribute("data-chat-mode");
   var needsStream = scriptEl && scriptEl.getAttribute("data-needs-stream") === "true";
   if (!chatId) return;
+
+  var isDeep = chatMode === "deep_research";
 
   var chatMessages = document.getElementById("chatMessages");
   var activeTurn = document.getElementById("activeTurn");
@@ -27,7 +30,9 @@
   var usageData = null;
 
   var stageLabels = {
+    planning: "PLANNING",
     researching: "RESEARCHING",
+    evaluating: "EVALUATING",
     responding: "GENERATING",
   };
 
@@ -131,6 +136,8 @@
     var pastToolCalls = 0;
     var pastUrls = [];
     var pastUsage = null;
+    var pastIterations = [];   // { iteration, max_iterations }
+    var pastEvaluations = [];  // { confidence, num_findings, num_gaps, ... }
     var groups = {};       // topic -> { topic, searches: [], fetches: [], urls: [], numSources: 0 }
     var groupOrder = [];   // topic strings in order of appearance
     var lastTopic = "";
@@ -178,6 +185,10 @@
         }
       } else if (dt === "result") {
         if (groups[topic]) groups[topic].numSources = ev.num_sources || 0;
+      } else if (dt === "iteration") {
+        pastIterations.push({ iteration: ev.iteration, max_iterations: ev.max_iterations });
+      } else if (dt === "evaluation") {
+        pastEvaluations.push(ev);
       } else if (dt === "usage") {
         pastUsage = ev;
       } else if (dt === "message") {
@@ -201,7 +212,11 @@
 
     var count = document.createElement("span");
     count.className = "tool-summary-count";
-    count.textContent = pastToolCalls + " tool call" + (pastToolCalls !== 1 ? "s" : "");
+    var summaryLabel = pastToolCalls + " tool call" + (pastToolCalls !== 1 ? "s" : "");
+    if (pastIterations.length > 1) {
+      summaryLabel += " \u2022 " + pastIterations.length + " iteration" + (pastIterations.length !== 1 ? "s" : "");
+    }
+    count.textContent = summaryLabel;
     summary.appendChild(count);
 
     if (pastUrls.length > 0) {
@@ -344,6 +359,25 @@
       });
 
       summaryBody.appendChild(groupEl);
+    });
+
+    // Add evaluation summaries for deep research
+    pastEvaluations.forEach(function (evalData) {
+      var evalEl = document.createElement("div");
+      evalEl.className = "deep-evaluation";
+      var conf = Math.round((evalData.confidence || 0) * 100);
+      var evalParts = [];
+      evalParts.push((evalData.num_findings || 0) + " findings");
+      if (evalData.num_gaps > 0) evalParts.push(evalData.num_gaps + " gaps");
+      if (evalData.num_contradictions > 0) evalParts.push(evalData.num_contradictions + " contradictions");
+      var suffIcon = evalData.sufficient ? "\u2713" : "\u2192";
+      var suffText = evalData.sufficient ? "Sufficient" : "Continued";
+      evalEl.innerHTML =
+        '<span class="deep-eval-icon">' + suffIcon + '</span>' +
+        '<span class="deep-eval-confidence">' + conf + '% confidence</span>' +
+        '<span class="deep-eval-detail">' + evalParts.join(" \u2022 ") + '</span>' +
+        '<span class="deep-eval-status">' + suffText + '</span>';
+      summaryBody.appendChild(evalEl);
     });
 
     if (pastUsage) {
@@ -763,6 +797,30 @@
         if (group) {
           collapseGroup(group, data.num_sources || 0);
         }
+
+      } else if (data.type === "iteration") {
+        var iterEl = document.createElement("div");
+        iterEl.className = "deep-iteration";
+        iterEl.innerHTML = '<span class="deep-iteration-label">ITERATION ' +
+          data.iteration + '/' + data.max_iterations + '</span>';
+        pipelineDetails.appendChild(iterEl);
+
+      } else if (data.type === "evaluation") {
+        var evalEl = document.createElement("div");
+        evalEl.className = "deep-evaluation";
+        var conf = Math.round((data.confidence || 0) * 100);
+        var parts = [];
+        parts.push(data.num_findings + ' finding' + (data.num_findings !== 1 ? 's' : ''));
+        if (data.num_gaps > 0) parts.push(data.num_gaps + ' gap' + (data.num_gaps !== 1 ? 's' : ''));
+        if (data.num_contradictions > 0) parts.push(data.num_contradictions + ' contradiction' + (data.num_contradictions !== 1 ? 's' : ''));
+        var suffIcon = data.sufficient ? '\u2713' : '\u2192';
+        var suffText = data.sufficient ? 'Sufficient' : 'Needs more research';
+        evalEl.innerHTML =
+          '<span class="deep-eval-icon">' + suffIcon + '</span>' +
+          '<span class="deep-eval-confidence">' + conf + '% confidence</span>' +
+          '<span class="deep-eval-detail">' + parts.join(' \u2022 ') + '</span>' +
+          '<span class="deep-eval-status">' + suffText + '</span>';
+        pipelineDetails.appendChild(evalEl);
 
       } else if (data.type === "message") {
         var msgEl = document.createElement("div");

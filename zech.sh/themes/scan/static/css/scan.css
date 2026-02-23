@@ -1098,6 +1098,71 @@ textarea.scan-input-auto {
 }
 
 /* --------------------------------------------------------------------------
+   Deep Research — Iteration & Evaluation indicators
+   -------------------------------------------------------------------------- */
+
+.deep-iteration {
+  padding: 0.4rem 0.6rem;
+  margin: 0.5rem 0 0.25rem;
+  border-left: 2px solid rgba(0, 229, 255, 0.3);
+  opacity: 0;
+  animation: detail-fade-in 0.3s forwards;
+}
+
+.deep-iteration-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+  opacity: 0.7;
+}
+
+.deep-evaluation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  margin: 0.25rem 0 0.5rem;
+  border-left: 2px solid rgba(0, 229, 255, 0.15);
+  background: rgba(0, 229, 255, 0.02);
+  opacity: 0;
+  animation: detail-fade-in 0.3s forwards;
+}
+
+.deep-eval-icon {
+  font-size: 0.75rem;
+  color: var(--zech-primary);
+  flex-shrink: 0;
+}
+
+.deep-eval-confidence {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--zech-primary);
+  white-space: nowrap;
+}
+
+.deep-eval-detail {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  color: var(--zech-text-dim);
+  opacity: 0.7;
+}
+
+.deep-eval-status {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--zech-text-dim);
+  margin-left: auto;
+}
+
+/* --------------------------------------------------------------------------
    History Page
    -------------------------------------------------------------------------- */
 

@@ -18,6 +18,14 @@ from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
 
+from controllers.deep_research_agent import (
+    DetailEvent as DeepDetailEvent,
+    DoneEvent as DeepDoneEvent,
+    ErrorEvent as DeepErrorEvent,
+    StageEvent as DeepStageEvent,
+    TextEvent as DeepTextEvent,
+    run_deep_research_pipeline,
+)
 from controllers.scan_agent import (
     ClarificationEvent,
     DetailEvent,
@@ -118,7 +126,9 @@ class ScanController(Controller):
             if not q.strip():
                 return Redirect(path="/")
 
-            if mode == "discover":
+            if mode == "deep":
+                classification = "DEEP_RESEARCH"
+            elif mode == "discover":
                 classification = "RESEARCH"
             elif mode == "search":
                 classification = "SEARCH"
@@ -127,9 +137,10 @@ class ScanController(Controller):
             accept = request.headers.get("accept", "")
             is_json = "application/json" in accept
 
-            if classification == "RESEARCH":
+            if classification in ("RESEARCH", "DEEP_RESEARCH"):
+                chat_mode = "deep_research" if classification == "DEEP_RESEARCH" else "research"
                 title = await generate_chat_title(q.strip())
-                chat = ChatSession(user_id=user.id, title=title)
+                chat = ChatSession(user_id=user.id, title=title, mode=chat_mode)
                 db_session.add(chat)
                 await db_session.flush()
 
@@ -142,7 +153,7 @@ class ScanController(Controller):
                 chat_url = f"/chat/{chat.id}"
                 if is_json:
                     return Response(
-                        content={"url": chat_url, "type": "research"},
+                        content={"url": chat_url, "type": chat_mode},
                         status_code=200,
                     )
                 return Redirect(path=chat_url)
@@ -261,6 +272,7 @@ class ScanController(Controller):
 
         brave_api_key = os.environ.get("BRAVE_API_KEY", "")
         redis_url = get_settings().redis.url
+        is_deep = chat.mode == "deep_research"
 
         async def generate() -> AsyncGenerator[ServerSentEventMessage, None]:
             accumulated_text = ""
@@ -268,69 +280,125 @@ class ScanController(Controller):
             usage_data: dict = {}
 
             try:
-                async for event in run_research_pipeline(
-                    query,
-                    brave_api_key,
-                    db_session=db_session,
-                    redis_url=redis_url,
-                    additional_context=context,
-                    conversation_history=history if history else None,
-                    user_timezone=tz,
-                ):
-                    if isinstance(event, StageEvent):
-                        accumulated_events.append(
-                            {"type": "stage", "stage": event.stage}
-                        )
-                        yield ServerSentEventMessage(
-                            data=json.dumps({"stage": event.stage}),
-                            event="stage",
-                        )
-                    elif isinstance(event, DetailEvent):
-                        accumulated_events.append(
-                            {"type": "detail", "detail_type": event.type, **event.payload}
-                        )
-                        yield ServerSentEventMessage(
-                            data=json.dumps({"type": event.type, **event.payload}),
-                            event="detail",
-                        )
-                        if event.type == "usage":
-                            usage_data = event.payload
-                    elif isinstance(event, TextEvent):
-                        accumulated_text += event.text
-                        yield ServerSentEventMessage(
-                            data=json.dumps({"text": event.text}),
-                            event="text",
-                        )
-                    elif isinstance(event, DoneEvent):
-                        assistant_msg = ChatMessage(
-                            chat_id=chat_id,
-                            role="assistant",
-                            content=accumulated_text,
-                            events_json=json.dumps(accumulated_events),
-                            usage_json=json.dumps(usage_data),
-                        )
-                        db_session.add(assistant_msg)
-                        await db_session.commit()
-                        yield ServerSentEventMessage(
-                            data="",
-                            event="done",
-                        )
-                    elif isinstance(event, ClarificationEvent):
-                        accumulated_events.append(
-                            {"type": "clarification", "questions": event.questions}
-                        )
-                        yield ServerSentEventMessage(
-                            data=json.dumps({"questions": event.questions}),
-                            event="clarification",
-                        )
-                    elif isinstance(event, ErrorEvent):
-                        accumulated_events.append(
-                            {"type": "error", "error": event.error}
-                        )
-                        yield ServerSentEventMessage(
-                            data=json.dumps({"error": event.error}),
-                            event="error",
-                        )
+                if is_deep:
+                    async for event in run_deep_research_pipeline(
+                        query,
+                        brave_api_key,
+                        db_session=db_session,
+                        redis_url=redis_url,
+                        research_mode="standard",
+                        user_timezone=tz,
+                    ):
+                        if isinstance(event, DeepStageEvent):
+                            accumulated_events.append(
+                                {"type": "stage", "stage": event.stage}
+                            )
+                            yield ServerSentEventMessage(
+                                data=json.dumps({"stage": event.stage}),
+                                event="stage",
+                            )
+                        elif isinstance(event, DeepDetailEvent):
+                            accumulated_events.append(
+                                {"type": "detail", "detail_type": event.type, **event.payload}
+                            )
+                            yield ServerSentEventMessage(
+                                data=json.dumps({"type": event.type, **event.payload}),
+                                event="detail",
+                            )
+                            if event.type == "usage":
+                                usage_data = event.payload
+                        elif isinstance(event, DeepTextEvent):
+                            accumulated_text += event.text
+                            yield ServerSentEventMessage(
+                                data=json.dumps({"text": event.text}),
+                                event="text",
+                            )
+                        elif isinstance(event, DeepDoneEvent):
+                            assistant_msg = ChatMessage(
+                                chat_id=chat_id,
+                                role="assistant",
+                                content=accumulated_text,
+                                events_json=json.dumps(accumulated_events),
+                                usage_json=json.dumps(usage_data),
+                            )
+                            db_session.add(assistant_msg)
+                            await db_session.commit()
+                            yield ServerSentEventMessage(
+                                data="",
+                                event="done",
+                            )
+                        elif isinstance(event, DeepErrorEvent):
+                            accumulated_events.append(
+                                {"type": "error", "error": event.error}
+                            )
+                            yield ServerSentEventMessage(
+                                data=json.dumps({"error": event.error}),
+                                event="error",
+                            )
+                else:
+                    async for event in run_research_pipeline(
+                        query,
+                        brave_api_key,
+                        db_session=db_session,
+                        redis_url=redis_url,
+                        additional_context=context,
+                        conversation_history=history if history else None,
+                        user_timezone=tz,
+                    ):
+                        if isinstance(event, StageEvent):
+                            accumulated_events.append(
+                                {"type": "stage", "stage": event.stage}
+                            )
+                            yield ServerSentEventMessage(
+                                data=json.dumps({"stage": event.stage}),
+                                event="stage",
+                            )
+                        elif isinstance(event, DetailEvent):
+                            accumulated_events.append(
+                                {"type": "detail", "detail_type": event.type, **event.payload}
+                            )
+                            yield ServerSentEventMessage(
+                                data=json.dumps({"type": event.type, **event.payload}),
+                                event="detail",
+                            )
+                            if event.type == "usage":
+                                usage_data = event.payload
+                        elif isinstance(event, TextEvent):
+                            accumulated_text += event.text
+                            yield ServerSentEventMessage(
+                                data=json.dumps({"text": event.text}),
+                                event="text",
+                            )
+                        elif isinstance(event, DoneEvent):
+                            assistant_msg = ChatMessage(
+                                chat_id=chat_id,
+                                role="assistant",
+                                content=accumulated_text,
+                                events_json=json.dumps(accumulated_events),
+                                usage_json=json.dumps(usage_data),
+                            )
+                            db_session.add(assistant_msg)
+                            await db_session.commit()
+                            yield ServerSentEventMessage(
+                                data="",
+                                event="done",
+                            )
+                        elif isinstance(event, ClarificationEvent):
+                            accumulated_events.append(
+                                {"type": "clarification", "questions": event.questions}
+                            )
+                            yield ServerSentEventMessage(
+                                data=json.dumps({"questions": event.questions}),
+                                event="clarification",
+                            )
+                        elif isinstance(event, ErrorEvent):
+                            accumulated_events.append(
+                                {"type": "error", "error": event.error}
+                            )
+                            yield ServerSentEventMessage(
+                                data=json.dumps({"error": event.error}),
+                                event="error",
+                            )
             except Exception as exc:
                 yield ServerSentEventMessage(
                     data=json.dumps({"error": str(exc)}),

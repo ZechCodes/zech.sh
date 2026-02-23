@@ -8,7 +8,7 @@
 
 {% block content %}
 <section class="chat-section">
-    <div class="scan-label">RESEARCH.CHAT</div>
+    <div class="scan-label">{% if chat.mode == 'deep_research' %}DEEP.RESEARCH{% else %}RESEARCH.CHAT{% endif %}</div>
 
     <div class="chat-messages" id="chatMessages">
         {% for msg in messages %}
@@ -53,6 +53,7 @@
 <script
     src="{{ theme_url('js/chat.js') }}"
     data-chat-id="{{ chat.id }}"
+    data-chat-mode="{{ chat.mode }}"
     data-needs-stream="{{ 'true' if needs_stream else 'false' }}"
 ></script>
 {% endblock %}
