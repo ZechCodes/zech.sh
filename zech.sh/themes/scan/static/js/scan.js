@@ -15,6 +15,59 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Mode dropdown
+    var modeLabels = { launch: 'LAUNCH', discover: 'DISCOVER', search: 'SEARCH' };
+    var currentMode = localStorage.getItem('scanMode') || 'launch';
+    if (!modeLabels[currentMode]) currentMode = 'launch';
+
+    var modeSplit = document.querySelector('.scan-mode-split');
+    var modeLabel = document.querySelector('.scan-mode-label');
+    var modeToggle = document.querySelector('.scan-mode-toggle');
+    var modeMenu = document.querySelector('.scan-mode-menu');
+
+    function setMode(mode) {
+        currentMode = mode;
+        localStorage.setItem('scanMode', mode);
+        if (modeLabel) modeLabel.textContent = modeLabels[mode] || 'LAUNCH';
+        if (modeMenu) {
+            modeMenu.querySelectorAll('.scan-mode-option').forEach(function(opt) {
+                opt.classList.toggle('active', opt.dataset.mode === mode);
+            });
+        }
+    }
+
+    setMode(currentMode);
+
+    if (modeToggle && modeMenu && modeSplit) {
+        modeToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var isHidden = modeMenu.hidden;
+            modeMenu.hidden = !isHidden;
+            modeSplit.classList.toggle('is-open', isHidden);
+        });
+
+        modeMenu.querySelectorAll('.scan-mode-option').forEach(function(opt) {
+            opt.addEventListener('click', function(e) {
+                e.stopPropagation();
+                setMode(this.dataset.mode);
+                modeMenu.hidden = true;
+                modeSplit.classList.remove('is-open');
+            });
+        });
+
+        document.addEventListener('click', function() {
+            modeMenu.hidden = true;
+            modeSplit.classList.remove('is-open');
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !modeMenu.hidden) {
+                modeMenu.hidden = true;
+                modeSplit.classList.remove('is-open');
+            }
+        });
+    }
+
     // Search form — fetch classification then navigate via JS to avoid CSP form-action restriction
     var form = document.querySelector('.scan-form:not(#chatFollowup)');
     if (form) {
@@ -22,7 +75,11 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             var q = this.querySelector('[name=q]').value.trim();
             if (!q) return;
-            fetch('/search?q=' + encodeURIComponent(q), {
+            var url = '/search?q=' + encodeURIComponent(q);
+            if (currentMode && currentMode !== 'launch') {
+                url += '&mode=' + currentMode;
+            }
+            fetch(url, {
                 headers: { 'Accept': 'application/json' },
                 credentials: 'same-origin'
             })
@@ -31,12 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return r.json();
             })
             .then(function(data) {
-                if (data.type === 'research') {
-                    // Server now returns /chat/{id} URL
-                    window.location.href = data.url;
-                } else {
-                    window.location.href = data.url;
-                }
+                window.location.href = data.url;
             })
             .catch(function() {
                 window.location.href = '/search?q=' + encodeURIComponent(q);
