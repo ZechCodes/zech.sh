@@ -270,6 +270,159 @@ body:has(.scan-sidebar) .zech-footer {
   width: 100%;
 }
 
+/* --------------------------------------------------------------------------
+   Mode Split Button
+   -------------------------------------------------------------------------- */
+
+.scan-form-row {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  background: rgba(0, 229, 255, 0.03);
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.scan-form-row:focus-within {
+  border-color: var(--zech-primary);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.1), inset 0 0 20px rgba(0, 229, 255, 0.03);
+}
+
+.scan-form-row .scan-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+}
+
+.scan-form-row .scan-input:focus {
+  border: none;
+  box-shadow: none;
+}
+
+.scan-mode-split {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.scan-mode-submit {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+  background: transparent;
+  border: none;
+  padding: 0 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.scan-mode-submit:hover {
+  background: rgba(0, 229, 255, 0.06);
+}
+
+.scan-mode-divider {
+  width: 1px;
+  background: rgba(0, 229, 255, 0.15);
+  align-self: stretch;
+}
+
+.scan-form-row:focus-within .scan-mode-divider {
+  background: var(--zech-primary);
+}
+
+.scan-mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  background: transparent;
+  border: none;
+  color: var(--zech-primary);
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.scan-mode-toggle:hover {
+  background: rgba(0, 229, 255, 0.06);
+}
+
+.scan-mode-toggle svg {
+  transition: transform 0.2s;
+}
+
+.scan-mode-split.is-open .scan-mode-toggle svg {
+  transform: rotate(180deg);
+}
+
+.scan-mode-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  background: rgba(8, 12, 20, 0.97);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  min-width: 200px;
+  z-index: 100;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 229, 255, 0.05);
+}
+
+.scan-mode-menu[hidden] {
+  display: none;
+}
+
+.scan-mode-option {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.06);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.scan-mode-option:last-child {
+  border-bottom: none;
+}
+
+.scan-mode-option:hover {
+  background: rgba(0, 229, 255, 0.06);
+}
+
+.scan-mode-option.active {
+  background: rgba(0, 229, 255, 0.08);
+  border-left-color: var(--zech-primary);
+}
+
+.scan-mode-option-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+}
+
+.scan-mode-option.active .scan-mode-option-name {
+  color: var(--zech-text);
+}
+
+.scan-mode-option-desc {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.78rem;
+  color: var(--zech-text-dim);
+  margin-top: 0.1rem;
+  opacity: 0.7;
+}
+
 .scan-input {
   width: 100%;
   padding: 1rem 1.5rem;
@@ -1065,6 +1218,16 @@ textarea.scan-input-auto {
   .scan-input {
     font-size: 1rem;
     padding: 0.85rem 1.25rem;
+  }
+
+  .scan-mode-submit {
+    padding: 0 0.6rem;
+    font-size: 0.45rem;
+    letter-spacing: 2px;
+  }
+
+  .scan-mode-toggle {
+    width: 1.6rem;
   }
 
   .research-query {

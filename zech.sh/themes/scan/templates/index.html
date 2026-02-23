@@ -10,14 +10,39 @@
 <section class="scan-search-section">
     <div class="scan-label">QUERY.RELAY</div>
     <form class="scan-form" autocomplete="off">
-        <textarea
-            class="scan-input scan-input-auto"
-            name="q"
-            placeholder="Search, navigate, or ask..."
-            autofocus
-            required
-            rows="1"
-        ></textarea>
+        <div class="scan-form-row">
+            <textarea
+                class="scan-input scan-input-auto"
+                name="q"
+                placeholder="Search, navigate, or ask..."
+                autofocus
+                required
+                rows="1"
+            ></textarea>
+            <div class="scan-mode-split">
+                <button type="submit" class="scan-mode-submit">
+                    <span class="scan-mode-label">LAUNCH</span>
+                </button>
+                <div class="scan-mode-divider"></div>
+                <button type="button" class="scan-mode-toggle">
+                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div class="scan-mode-menu" hidden>
+                    <button type="button" class="scan-mode-option active" data-mode="launch">
+                        <span class="scan-mode-option-name">LAUNCH</span>
+                        <span class="scan-mode-option-desc">Smart query router</span>
+                    </button>
+                    <button type="button" class="scan-mode-option" data-mode="discover">
+                        <span class="scan-mode-option-name">DISCOVER</span>
+                        <span class="scan-mode-option-desc">Research agent</span>
+                    </button>
+                    <button type="button" class="scan-mode-option" data-mode="search">
+                        <span class="scan-mode-option-name">SEARCH</span>
+                        <span class="scan-mode-option-desc">Google search</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </form>
     {% if recent_chats is defined and recent_chats %}
     <div class="scan-recents">

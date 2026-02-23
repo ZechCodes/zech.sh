@@ -109,7 +109,7 @@ class ScanController(Controller):
 
     @get("/search")
     async def search(
-        self, request: Request, db_session: AsyncSession, q: str = ""
+        self, request: Request, db_session: AsyncSession, q: str = "", mode: str = ""
     ) -> Response | Redirect | TemplateResponse:
         try:
             user = await _get_user(request, db_session)
@@ -118,7 +118,12 @@ class ScanController(Controller):
             if not q.strip():
                 return Redirect(path="/")
 
-            classification = await classify_query(q)
+            if mode == "discover":
+                classification = "RESEARCH"
+            elif mode == "search":
+                classification = "SEARCH"
+            else:
+                classification = await classify_query(q)
             accept = request.headers.get("accept", "")
             is_json = "application/json" in accept
 
