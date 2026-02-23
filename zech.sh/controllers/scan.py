@@ -25,6 +25,7 @@ from controllers.scan_agent import (
     StageEvent,
     TextEvent,
     classify_query,
+    generate_chat_title,
     run_research_pipeline,
 )
 from models.chat import ChatMessage, ChatSession
@@ -96,7 +97,7 @@ class ScanController(Controller):
             return TemplateResponse("unauthorized.html")
         recent_chats = await _get_recent_chats(user.id, db_session)
         return TemplateResponse(
-            "index.html", context={"user": user, "recent_chats": recent_chats}
+            "index.html", context={"user": user, "recent_chats": recent_chats, "hide_sidebar": True}
         )
 
     @get("/search")
@@ -114,7 +115,8 @@ class ScanController(Controller):
         is_json = "application/json" in accept
 
         if classification == "RESEARCH":
-            chat = ChatSession(user_id=user.id, title=q.strip()[:500])
+            title = await generate_chat_title(q.strip())
+            chat = ChatSession(user_id=user.id, title=title)
             db_session.add(chat)
             await db_session.flush()
 
@@ -209,6 +211,7 @@ class ScanController(Controller):
         db_session: AsyncSession,
         chat_id: UUID,
         context: str = "",
+        tz: str = "",
     ) -> ServerSentEvent | TemplateResponse:
         user_id = request.session.get(SESSION_USER_ID)
         if not user_id:
@@ -252,6 +255,7 @@ class ScanController(Controller):
                     redis_url=redis_url,
                     additional_context=context,
                     conversation_history=history if history else None,
+                    user_timezone=tz,
                 ):
                     if isinstance(event, StageEvent):
                         accumulated_events.append(
@@ -287,7 +291,10 @@ class ScanController(Controller):
                         )
                         db_session.add(assistant_msg)
                         await db_session.commit()
-                        yield ServerSentEventMessage(data="", event="done")
+                        yield ServerSentEventMessage(
+                            data="",
+                            event="done",
+                        )
                     elif isinstance(event, ClarificationEvent):
                         accumulated_events.append(
                             {"type": "clarification", "questions": event.questions}
@@ -342,6 +349,45 @@ class ScanController(Controller):
         )
         chats = list(result.scalars().all())
 
+        # Aggregate events/usage per chat for the history list
+        chat_meta: dict[UUID, dict] = {}
+        if chats:
+            chat_ids = [c.id for c in chats]
+            msg_result = await db_session.execute(
+                select(
+                    ChatMessage.chat_id,
+                    ChatMessage.events_json,
+                    ChatMessage.usage_json,
+                )
+                .where(
+                    ChatMessage.chat_id.in_(chat_ids),
+                    ChatMessage.role == "assistant",
+                )
+            )
+            for chat_id, events_json, usage_json in msg_result:
+                meta = chat_meta.setdefault(chat_id, {"urls": [], "usage": None, "tool_calls": 0})
+                try:
+                    events = json.loads(events_json) if events_json else []
+                except (json.JSONDecodeError, TypeError):
+                    events = []
+                for ev in events:
+                    if ev.get("type") != "detail":
+                        continue
+                    dt = ev.get("detail_type")
+                    if dt in ("research", "search", "fetch"):
+                        meta["tool_calls"] += 1
+                    if dt == "fetch_done" and ev.get("url") and not ev.get("failed"):
+                        meta["urls"].append(ev["url"])
+                    if dt == "usage" and ev.get("total"):
+                        meta["usage"] = ev
+                if not meta["usage"]:
+                    try:
+                        usage = json.loads(usage_json) if usage_json else {}
+                    except (json.JSONDecodeError, TypeError):
+                        usage = {}
+                    if usage.get("total"):
+                        meta["usage"] = usage
+
         recent_chats = await _get_recent_chats(user.id, db_session)
 
         return TemplateResponse(
@@ -349,6 +395,7 @@ class ScanController(Controller):
             context={
                 "user": user,
                 "chats": chats,
+                "chat_meta": chat_meta,
                 "page": page,
                 "total_pages": total_pages,
                 "total": total,

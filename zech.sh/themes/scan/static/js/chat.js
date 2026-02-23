@@ -127,22 +127,71 @@
     var events;
     try { events = JSON.parse(raw); } catch (_) { return; }
 
-    // Count tool calls and collect URLs from past events
+    // Count tool calls, collect URLs, and rebuild tool groups from past events
     var pastToolCalls = 0;
     var pastUrls = [];
     var pastUsage = null;
+    var groups = {};       // topic -> { topic, searches: [], fetches: [], urls: [], numSources: 0 }
+    var groupOrder = [];   // topic strings in order of appearance
+    var lastTopic = "";
 
     events.forEach(function (ev) {
-      if (ev.type === "detail") {
-        var dt = ev.detail_type;
-        if (dt === "research" || dt === "search" || dt === "fetch") pastToolCalls++;
-        if (dt === "fetch_done" && ev.url && !ev.failed) pastUrls.push(ev.url);
-        if (dt === "usage") pastUsage = ev;
+      if (ev.type !== "detail") return;
+      var dt = ev.detail_type;
+      var topic = ev.topic || "";
+
+      if (dt === "research") {
+        lastTopic = topic;
+        pastToolCalls++;
+        if (topic && !groups[topic]) {
+          groups[topic] = { topic: topic, searches: [], fetches: [], urls: [], numSources: 0 };
+          groupOrder.push(topic);
+        }
+      } else if (dt === "search") {
+        pastToolCalls++;
+        if (groups[topic]) groups[topic].searches.push({ query: ev.query, numResults: null });
+      } else if (dt === "search_done") {
+        if (groups[topic]) {
+          var s = groups[topic].searches;
+          for (var i = s.length - 1; i >= 0; i--) {
+            if (s[i].query === ev.query) { s[i].numResults = ev.num_results; break; }
+          }
+        }
+      } else if (dt === "fetch") {
+        pastToolCalls++;
+        if (groups[topic]) groups[topic].fetches.push({ url: ev.url, failed: false, content: null, usage: null });
+      } else if (dt === "fetch_done") {
+        if (groups[topic]) {
+          var f = groups[topic].fetches;
+          for (var i = f.length - 1; i >= 0; i--) {
+            if (f[i].url === ev.url) {
+              f[i].failed = !!ev.failed;
+              f[i].content = ev.content || null;
+              f[i].usage = ev.usage || null;
+              break;
+            }
+          }
+          if (!ev.failed && ev.url) {
+            groups[topic].urls.push(ev.url);
+            pastUrls.push(ev.url);
+          }
+        }
+      } else if (dt === "result") {
+        if (groups[topic]) groups[topic].numSources = ev.num_sources || 0;
+      } else if (dt === "usage") {
+        pastUsage = ev;
+      } else if (dt === "message") {
+        var msgTopic = topic || lastTopic;
+        if (msgTopic && groups[msgTopic]) {
+          if (!groups[msgTopic].messages) groups[msgTopic].messages = [];
+          groups[msgTopic].messages.push(ev.text || "");
+        }
       }
     });
 
     if (pastToolCalls === 0) return;
 
+    // Build summary header
     var summary = document.createElement("div");
     summary.className = "tool-summary";
 
@@ -185,11 +234,136 @@
       summary.appendChild(usageSpan);
     }
 
+    // Build collapsible body with reconstructed tool groups
+    var summaryBody = document.createElement("div");
+    summaryBody.className = "tool-summary-body";
+    summaryBody.hidden = true;
+
+    groupOrder.forEach(function (topic) {
+      var g = groups[topic];
+
+      var groupEl = document.createElement("div");
+      groupEl.className = "tool-group is-done is-collapsed";
+
+      var header = document.createElement("div");
+      header.className = "tool-header";
+
+      var gChevron = document.createElement("span");
+      gChevron.className = "tool-chevron";
+      var icon = document.createElement("span");
+      icon.className = "tool-icon-done";
+      icon.textContent = "\u2713";
+      var label = document.createElement("span");
+      label.className = "tool-label";
+      label.textContent = "Researched";
+      var topicEl = document.createElement("span");
+      topicEl.className = "tool-topic";
+      topicEl.textContent = g.topic;
+
+      header.appendChild(gChevron);
+      header.appendChild(icon);
+      header.appendChild(label);
+      header.appendChild(topicEl);
+      groupEl.appendChild(header);
+
+      // Sources strip
+      if (g.urls.length > 0) {
+        var sources = document.createElement("div");
+        sources.className = "tool-sources";
+        g.urls.slice(0, 6).forEach(function (u) {
+          var img = createFaviconImg(u);
+          if (img) sources.appendChild(img);
+        });
+        var sc = document.createElement("span");
+        sc.className = "tool-source-count";
+        sc.textContent = "Read " + g.numSources + " source" + (g.numSources !== 1 ? "s" : "");
+        sources.appendChild(sc);
+        groupEl.appendChild(sources);
+      }
+
+      // Children (searches + fetches)
+      var body = document.createElement("div");
+      body.className = "tool-body";
+      var childrenEl = document.createElement("div");
+      childrenEl.className = "tool-children";
+
+      g.searches.forEach(function (s) {
+        var child = document.createElement("div");
+        child.className = "tool-child is-done";
+        child.innerHTML = '<span class="tool-icon-done">\u2713</span> Searched "' +
+          escapeHtml(s.query) + '"' +
+          (s.numResults !== null ? " \u2014 " + s.numResults + " result" + (s.numResults !== 1 ? "s" : "") : "");
+        childrenEl.appendChild(child);
+      });
+
+      g.fetches.forEach(function (f) {
+        var child = document.createElement("div");
+        child.className = "tool-child is-done";
+        var fav = createFaviconImg(f.url);
+        var favHtml = fav ? fav.outerHTML + " " : "";
+        var verb = f.failed ? "Failed" : "Read";
+        var iconChar = f.failed ? "\u2717" : "\u2713";
+        child.innerHTML = '<span class="tool-icon-done">' + iconChar + '</span> ' +
+          favHtml + verb + " " + escapeHtml(truncateUrl(f.url));
+        if (f.usage) {
+          var uSpan = document.createElement("span");
+          uSpan.className = "tool-usage";
+          uSpan.textContent = fmtUsage(f.usage);
+          child.appendChild(uSpan);
+        }
+        if (f.content) {
+          child.classList.add("has-content");
+          var contentEl = document.createElement("div");
+          contentEl.className = "tool-child-content";
+          contentEl.hidden = true;
+          contentEl.textContent = f.content;
+          child.appendChild(contentEl);
+          child.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            contentEl.hidden = !contentEl.hidden;
+            child.classList.toggle("is-expanded", !contentEl.hidden);
+          });
+        }
+        childrenEl.appendChild(child);
+      });
+
+      if (g.messages) {
+        g.messages.forEach(function (text) {
+          var msgEl = document.createElement("div");
+          msgEl.className = "tool-message";
+          msgEl.innerHTML = renderMarkdown(text);
+          childrenEl.appendChild(msgEl);
+        });
+      }
+
+      body.appendChild(childrenEl);
+      groupEl.appendChild(body);
+
+      header.addEventListener("click", function () {
+        groupEl.classList.toggle("is-collapsed");
+      });
+
+      summaryBody.appendChild(groupEl);
+    });
+
+    if (pastUsage) {
+      var usageTotal = document.createElement("div");
+      usageTotal.className = "tool-usage-total";
+      var parts = [];
+      if (pastUsage.research) parts.push("Research agent: " + fmtUsage(pastUsage.research));
+      if (pastUsage.extraction) parts.push("Extraction agent: " + fmtUsage(pastUsage.extraction));
+      if (pastUsage.total) parts.push("Total: " + fmtUsage(pastUsage.total));
+      usageTotal.innerHTML = parts.map(function (p) { return "<div>" + p + "</div>"; }).join("");
+      summaryBody.appendChild(usageTotal);
+    }
+
     summary.addEventListener("click", function () {
-      summary.classList.toggle("is-expanded");
+      summaryBody.hidden = !summaryBody.hidden;
+      summary.classList.toggle("is-expanded", !summaryBody.hidden);
     });
 
     container.appendChild(summary);
+    container.appendChild(summaryBody);
   }
 
   function renderPastResponse(container) {
@@ -489,9 +663,11 @@
     resetStreamState();
 
     var streamUrl = "/chat/" + chatId + "/stream";
-    if (extraContext) {
-      streamUrl += "?context=" + encodeURIComponent(extraContext);
-    }
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    var params = [];
+    if (extraContext) params.push("context=" + encodeURIComponent(extraContext));
+    if (tz) params.push("tz=" + encodeURIComponent(tz));
+    if (params.length) streamUrl += "?" + params.join("&");
     var es = new EventSource(streamUrl);
 
     var fetchChildren = {};
@@ -588,6 +764,17 @@
           collapseGroup(group, data.num_sources || 0);
         }
 
+      } else if (data.type === "message") {
+        var msgEl = document.createElement("div");
+        msgEl.className = "tool-message";
+        msgEl.innerHTML = renderMarkdown(data.text || "");
+        var msgGroup = group || (toolGroups.length > 0 ? toolGroups[toolGroups.length - 1] : null);
+        if (msgGroup) {
+          msgGroup.childrenEl.appendChild(msgEl);
+        } else {
+          pipelineDetails.appendChild(msgEl);
+        }
+
       } else if (data.type === "usage") {
         usageData = data;
         var existingSummary = pipelineDetails.querySelector(".tool-summary");
@@ -668,7 +855,7 @@
       es.close();
       cursorEl.remove();
       finalizeCurrentTurn();
-      if (followupInput) followupInput.focus();
+      // Don't autofocus — it scrolls viewport away from the response
     });
 
     es.addEventListener("error", function (e) {
@@ -738,13 +925,28 @@
   // Start initial stream if needed
   // ---------------------------------------------------------------------------
 
+  // Scroll to the most recent message, offset for fixed nav
+  var lastTurn = chatMessages.querySelector(".chat-turn:last-child");
+  if (lastTurn) {
+    var nav = document.querySelector(".zech-topnav");
+    var offset = nav ? nav.offsetHeight + 16 : 0;
+    var top = lastTurn.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top: top, behavior: "smooth" });
+  }
+
   if (needsStream) {
-    // Scroll to the last user message
-    var lastQuery = chatMessages.querySelector(".chat-turn:last-child .chat-user-query");
-    if (lastQuery) lastQuery.scrollIntoView({ behavior: "smooth", block: "start" });
     connectStream();
-  } else {
-    // Scroll to bottom of existing conversation
-    window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  // Focus the input when the user starts typing
+  if (followupInput) {
+    document.addEventListener("keydown", function (e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (document.activeElement === followupInput) return;
+      if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+      if (e.key.length === 1) {
+        followupInput.focus();
+      }
+    });
   }
 })();

@@ -1,4 +1,20 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Auto-grow textareas — fallback for browsers without field-sizing: content
+    document.querySelectorAll('textarea.scan-input-auto').forEach(function(ta) {
+        function resize() {
+            ta.style.height = 'auto';
+            ta.style.height = ta.scrollHeight + 'px';
+        }
+        ta.addEventListener('input', resize);
+        // Enter submits, Shift+Enter inserts newline
+        ta.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                ta.closest('form').requestSubmit();
+            }
+        });
+    });
+
     // Search form — fetch classification then navigate via JS to avoid CSP form-action restriction
     var form = document.querySelector('.scan-form:not(#chatFollowup)');
     if (form) {
@@ -28,22 +44,4 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Sidebar toggle
-    var sidebarToggle = document.querySelector('.sidebar-toggle');
-    var sidebar = document.getElementById('scanSidebar');
-    if (sidebarToggle && sidebar) {
-        sidebarToggle.addEventListener('click', function() {
-            var expanded = sidebar.classList.toggle('is-open');
-            sidebarToggle.setAttribute('aria-expanded', expanded);
-        });
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(e) {
-            if (sidebar.classList.contains('is-open') &&
-                !sidebar.contains(e.target) &&
-                !sidebarToggle.contains(e.target)) {
-                sidebar.classList.remove('is-open');
-                sidebarToggle.setAttribute('aria-expanded', 'false');
-            }
-        });
-    }
 });

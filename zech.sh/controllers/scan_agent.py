@@ -17,7 +17,9 @@ import os
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from functools import lru_cache
+from zoneinfo import ZoneInfo
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -57,14 +59,20 @@ def _google_provider() -> GoogleProvider:
 
 
 @lru_cache(maxsize=1)
+def gemini_pro() -> GoogleModel:
+    """Gemini 3 Pro — research agent, title generation."""
+    return GoogleModel("gemini-3-pro-preview", provider=_google_provider())
+
+
+@lru_cache(maxsize=1)
 def gemini_flash() -> GoogleModel:
-    """Build a Gemini Flash model using the existing GOOGLE_API_KEY env var."""
+    """Gemini 3 Flash — extraction and evaluation."""
     return GoogleModel("gemini-3-flash-preview", provider=_google_provider())
 
 
 @lru_cache(maxsize=1)
 def gemini_flash_lite() -> GoogleModel:
-    """Cheap/fast model for planning, extraction, and evaluation."""
+    """Gemini 2.5 Flash Lite — fast classification."""
     return GoogleModel("gemini-2.5-flash-lite", provider=_google_provider())
 
 
@@ -172,6 +180,16 @@ classify_agent = Agent(
     ),
 )
 
+title_agent = Agent(
+    system_prompt=(
+        "Generate a short, descriptive title for a research chat based on the "
+        "user's query. The title should be concise (under 60 characters), "
+        "capture the core topic, and read naturally. Do not use quotes or "
+        "punctuation at the start/end. Just output the title, nothing else."
+    ),
+)
+
+
 research_agent = Agent(
     system_prompt=(
         "You are a research assistant. Your job is to thoroughly answer the user's "
@@ -179,6 +197,9 @@ research_agent = Agent(
         "For each aspect you need to investigate, call the `research` tool with a "
         "focused topic string. You can call it multiple times for different aspects "
         "of the question.\n\n"
+        "Use `send_message` to briefly narrate your progress — one short sentence "
+        "explaining what you're about to do or what you just learned. Keep messages "
+        "succinct; the user sees them inline with tool activity.\n\n"
         "If the question is ambiguous or requires information only the user can "
         "provide (personal preferences, specific constraints, etc.), call `ask_user` "
         "with clear, specific questions.\n\n"
@@ -193,11 +214,20 @@ research_agent = Agent(
 
 async def classify_query(query: str) -> str:
     """Classify a query using Pydantic AI + Gemini Flash."""
-    result = await classify_agent.run(query, model=gemini_flash())
+    result = await classify_agent.run(query, model=gemini_flash_lite())
     text = result.output.strip().upper()
     if text not in ("URL", "SEARCH", "RESEARCH"):
         return "SEARCH"
     return text
+
+
+async def generate_chat_title(query: str) -> str:
+    """Generate a concise chat title from a user query."""
+    try:
+        result = await title_agent.run(query, model=gemini_pro())
+        return result.output.strip()[:500]
+    except Exception:
+        return query[:500]
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +307,13 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
         payload={"topic": topic, "urls": fetched_urls_list, "num_sources": len(findings)},
     ))
     return "\n\n---\n\n".join(findings)
+
+
+@research_agent.tool
+async def send_message(ctx: RunContext[ResearchDeps], message: str) -> str:
+    """Send a message to the user explaining your thought process."""
+    await ctx.deps.event_queue.put(DetailEvent(type="message", payload={"text": message}))
+    return "Message sent."
 
 
 @research_agent.tool
@@ -403,12 +440,12 @@ async def fetch_and_extract(
         if "html" in content_type:
             text = _html_to_text(text)
         prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
-        result = await extraction_agent.run(prompt, model=gemini_flash_lite())
+        result = await extraction_agent.run(prompt, model=gemini_flash())
         if deps is not None:
             run_usage = result.usage()
             deps.extraction_usage.incr(run_usage)
             usage_dict = _calc_cost(
-                run_usage.input_tokens, run_usage.output_tokens, "gemini-2.5-flash-lite"
+                run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview"
             )
             return result.output, usage_dict
         return result.output
@@ -457,12 +494,12 @@ async def fetch_and_extract(
     else:
         return f"Unsupported content type: {content_type}"
 
-    result = await extraction_agent.run(prompt, model=gemini_flash_lite())
+    result = await extraction_agent.run(prompt, model=gemini_flash())
     if deps is not None:
         run_usage = result.usage()
         deps.extraction_usage.incr(run_usage)
         usage_dict = _calc_cost(
-            run_usage.input_tokens, run_usage.output_tokens, "gemini-2.5-flash-lite"
+            run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview"
         )
         return result.output, usage_dict
     return result.output
@@ -501,14 +538,25 @@ async def run_research_pipeline(
     redis_url: str = "",
     additional_context: str = "",
     conversation_history: list[dict] | None = None,
+    user_timezone: str = "",
 ) -> AsyncGenerator[PipelineEvent, None]:
     """Run the research agent, yielding SSE-ready events via a queue.
 
     Args:
         conversation_history: List of {"role": "user"|"assistant", "content": str}
             representing prior turns in the conversation.
+        user_timezone: IANA timezone string from the client (e.g. "America/New_York").
     """
-    parts: list[str] = []
+    try:
+        tz = ZoneInfo(user_timezone) if user_timezone else timezone.utc
+    except (KeyError, ValueError):
+        tz = timezone.utc
+    now = datetime.now(tz)
+    preamble = (
+        f"Current date/time: {now.strftime('%A, %B %d, %Y %H:%M')} ({user_timezone or 'UTC'})\n\n"
+    )
+
+    parts: list[str] = [preamble]
     if conversation_history:
         parts.append("Previous conversation:")
         for msg in conversation_history:
@@ -537,7 +585,7 @@ async def run_research_pipeline(
     async def _agent_task() -> None:
         try:
             async with research_agent.run_stream(
-                full_query, model=gemini_flash(), deps=deps
+                full_query, model=gemini_pro(), deps=deps
             ) as stream:
                 async for text in stream.stream_text(delta=True):
                     await queue.put(TextEvent(text=text))
@@ -547,11 +595,11 @@ async def run_research_pipeline(
                 research_cost = _calc_cost(
                     research_usage.input_tokens,
                     research_usage.output_tokens,
-                    "gemini-3-flash-preview",
+                    "gemini-3-pro-preview",
                 )
                 ext = deps.extraction_usage
                 ext_cost = _calc_cost(
-                    ext.input_tokens, ext.output_tokens, "gemini-2.5-flash-lite"
+                    ext.input_tokens, ext.output_tokens, "gemini-3-flash-preview"
                 )
                 total_in = research_usage.input_tokens + ext.input_tokens
                 total_out = research_usage.output_tokens + ext.output_tokens

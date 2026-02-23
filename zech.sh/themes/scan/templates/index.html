@@ -10,15 +10,23 @@
 <section class="scan-search-section">
     <div class="scan-label">QUERY.RELAY</div>
     <form class="scan-form" autocomplete="off">
-        <input
-            class="scan-input"
-            type="text"
+        <textarea
+            class="scan-input scan-input-auto"
             name="q"
             placeholder="Search, navigate, or ask..."
             autofocus
             required
-        >
+            rows="1"
+        ></textarea>
     </form>
+    {% if recent_chats is defined and recent_chats %}
+    <div class="scan-recents">
+        {% for chat in recent_chats[:3] %}
+        <a href="/chat/{{ chat.id }}" class="scan-recent-item">{{ chat.title[:60] }}{% if chat.title | length > 60 %}&hellip;{% endif %}</a>
+        {% endfor %}
+        <a href="/history" class="scan-recents-viewall">VIEW ALL HISTORY</a>
+    </div>
+    {% endif %}
 </section>
 {% endblock %}
 

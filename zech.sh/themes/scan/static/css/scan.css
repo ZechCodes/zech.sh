@@ -22,41 +22,22 @@ body {
    Sidebar
    -------------------------------------------------------------------------- */
 
-.sidebar-toggle {
-  background: none;
-  border: 1px solid rgba(0, 229, 255, 0.15);
-  color: var(--zech-text-dim);
-  cursor: pointer;
-  padding: 0.4rem;
-  margin-left: 0.75rem;
-  display: flex;
-  align-items: center;
-  transition: border-color 0.2s, color 0.2s;
-}
-
-.sidebar-toggle:hover {
-  border-color: var(--zech-primary);
-  color: var(--zech-primary);
-}
+/* --------------------------------------------------------------------------
+   Sidebar — persistent on desktop, hidden on mobile
+   -------------------------------------------------------------------------- */
 
 .scan-sidebar {
   position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
-  width: 260px;
+  width: 240px;
   background: rgba(8, 12, 20, 0.97);
   border-right: 1px solid rgba(0, 229, 255, 0.1);
-  z-index: 100;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   padding: 4.5rem 0 1rem;
-  transform: translateX(-100%);
-  transition: transform 0.25s ease;
-}
-
-.scan-sidebar.is-open {
-  transform: translateX(0);
 }
 
 .sidebar-new-chat {
@@ -145,6 +126,126 @@ body {
   color: var(--zech-primary);
 }
 
+/* Offset main content for sidebar on desktop */
+body:has(.scan-sidebar) .scan-main {
+  margin-left: 240px;
+}
+
+body:has(.scan-sidebar) .zech-footer {
+  margin-left: 240px;
+}
+
+/* Nav Recent Chats — for mobile nav menu only */
+
+.nav-recent-divider {
+  height: 1px;
+  background: rgba(0, 229, 255, 0.08);
+  margin: 0.25rem 0;
+}
+
+.nav-recent-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  opacity: 0.6;
+}
+
+.nav-recent-item {
+  font-family: 'Rajdhani', sans-serif !important;
+  font-size: 0.85rem !important;
+  font-weight: 500;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-history-link {
+  font-family: 'Orbitron', sans-serif !important;
+  font-size: 0.55rem !important;
+  letter-spacing: 2px !important;
+  text-transform: uppercase !important;
+  opacity: 0.6;
+}
+
+.nav-history-link:hover {
+  opacity: 1;
+}
+
+/* Desktop: hide nav recents (sidebar is visible) */
+@media (min-width: 769px) {
+  .nav-recent-divider,
+  .nav-recent-label,
+  .nav-recent-item {
+    display: none;
+  }
+}
+
+/* Mobile: hide sidebar (nav menu has recents instead) */
+@media (max-width: 768px) {
+  .scan-sidebar {
+    display: none;
+  }
+
+  body:has(.scan-sidebar) .scan-main,
+  body:has(.scan-sidebar) .zech-footer {
+    margin-left: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Home Page Recent Searches
+   -------------------------------------------------------------------------- */
+
+.scan-recents {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.scan-recent-item {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.06);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s;
+}
+
+.scan-recent-item:hover {
+  color: var(--zech-text);
+}
+
+.scan-recents-viewall {
+  display: block;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
+  opacity: 0.6;
+  transition: color 0.2s, opacity 0.2s;
+}
+
+.scan-recents-viewall:hover {
+  color: var(--zech-primary);
+  opacity: 1;
+}
+
 /* --------------------------------------------------------------------------
    Search Section
    -------------------------------------------------------------------------- */
@@ -191,6 +292,14 @@ body {
 .scan-input:focus {
   border-color: var(--zech-primary);
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.1), inset 0 0 20px rgba(0, 229, 255, 0.03);
+}
+
+textarea.scan-input-auto {
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
+  min-height: calc(1.2em + 2rem);
+  line-height: 1.4;
 }
 
 /* --------------------------------------------------------------------------
@@ -727,6 +836,17 @@ body {
   display: none;
 }
 
+/* Agent message — reasoning shown inside tool groups */
+.tool-message {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--zech-text-dim);
+  opacity: 0.7;
+  padding: 0.3rem 0;
+  animation: detail-fade-in 0.25s forwards;
+}
+
 /* Summary — collapsed overview of all tool groups */
 .tool-summary {
   display: flex;
@@ -844,9 +964,9 @@ body {
 
 .history-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
   padding: 0.75rem 1rem;
   font-family: 'Rajdhani', sans-serif;
   color: var(--zech-text-dim);
@@ -877,6 +997,19 @@ body {
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+.history-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.history-item-meta .tool-sources {
+  padding-left: 0;
+  margin-top: 0;
+}
+
 
 .history-pagination {
   display: flex;
