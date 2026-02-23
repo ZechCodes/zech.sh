@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 from collections.abc import AsyncGenerator
@@ -29,6 +30,8 @@ from controllers.scan_agent import (
     run_research_pipeline,
 )
 from models.chat import ChatMessage, ChatSession
+
+logger = logging.getLogger(__name__)
 
 _RECENT_CHATS_LIMIT = 10
 _HISTORY_PAGE_SIZE = 20
@@ -92,85 +95,97 @@ class ScanController(Controller):
     async def index(
         self, request: Request, db_session: AsyncSession
     ) -> TemplateResponse:
-        user = await _get_user(request, db_session)
-        if not user:
-            return TemplateResponse("unauthorized.html")
-        recent_chats = await _get_recent_chats(user.id, db_session)
-        return TemplateResponse(
-            "index.html", context={"user": user, "recent_chats": recent_chats, "hide_sidebar": True}
-        )
+        try:
+            user = await _get_user(request, db_session)
+            if not user:
+                return TemplateResponse("unauthorized.html")
+            recent_chats = await _get_recent_chats(user.id, db_session)
+            return TemplateResponse(
+                "index.html", context={"user": user, "recent_chats": recent_chats, "hide_sidebar": True}
+            )
+        except Exception:
+            logger.exception("Error in index")
+            raise
 
     @get("/search")
     async def search(
         self, request: Request, db_session: AsyncSession, q: str = ""
     ) -> Response | Redirect | TemplateResponse:
-        user = await _get_user(request, db_session)
-        if not user:
-            return TemplateResponse("unauthorized.html")
-        if not q.strip():
-            return Redirect(path="/")
+        try:
+            user = await _get_user(request, db_session)
+            if not user:
+                return TemplateResponse("unauthorized.html")
+            if not q.strip():
+                return Redirect(path="/")
 
-        classification = await classify_query(q)
-        accept = request.headers.get("accept", "")
-        is_json = "application/json" in accept
+            classification = await classify_query(q)
+            accept = request.headers.get("accept", "")
+            is_json = "application/json" in accept
 
-        if classification == "RESEARCH":
-            title = await generate_chat_title(q.strip())
-            chat = ChatSession(user_id=user.id, title=title)
-            db_session.add(chat)
-            await db_session.flush()
+            if classification == "RESEARCH":
+                title = await generate_chat_title(q.strip())
+                chat = ChatSession(user_id=user.id, title=title)
+                db_session.add(chat)
+                await db_session.flush()
 
-            user_msg = ChatMessage(
-                chat_id=chat.id, role="user", content=q.strip()
-            )
-            db_session.add(user_msg)
-            await db_session.commit()
-
-            chat_url = f"/chat/{chat.id}"
-            if is_json:
-                return Response(
-                    content={"url": chat_url, "type": "research"},
-                    status_code=200,
+                user_msg = ChatMessage(
+                    chat_id=chat.id, role="user", content=q.strip()
                 )
-            return Redirect(path=chat_url)
+                db_session.add(user_msg)
+                await db_session.commit()
 
-        url = build_redirect_url(classification, q)
-        if is_json:
-            return Response(content={"url": url}, status_code=200)
-        return Redirect(path=url)
+                chat_url = f"/chat/{chat.id}"
+                if is_json:
+                    return Response(
+                        content={"url": chat_url, "type": "research"},
+                        status_code=200,
+                    )
+                return Redirect(path=chat_url)
+
+            url = build_redirect_url(classification, q)
+            if is_json:
+                return Response(content={"url": url}, status_code=200)
+            return Redirect(path=url)
+        except Exception:
+            logger.exception("Error in search")
+            raise
 
     @get("/chat/{chat_id:uuid}")
     async def chat_view(
         self, request: Request, db_session: AsyncSession, chat_id: UUID
     ) -> TemplateResponse | Redirect:
-        user = await _get_user(request, db_session)
-        if not user:
-            return TemplateResponse("unauthorized.html")
+        try:
+            user = await _get_user(request, db_session)
+            if not user:
+                return TemplateResponse("unauthorized.html")
 
-        result = await db_session.execute(
-            select(ChatSession).where(
-                ChatSession.id == chat_id, ChatSession.user_id == user.id
+            result = await db_session.execute(
+                select(ChatSession).where(
+                    ChatSession.id == chat_id, ChatSession.user_id == user.id
+                )
             )
-        )
-        chat = result.scalar_one_or_none()
-        if not chat:
-            return Redirect(path="/")
+            chat = result.scalar_one_or_none()
+            if not chat:
+                return Redirect(path="/")
 
-        messages = await _get_chat_messages(chat_id, db_session)
-        recent_chats = await _get_recent_chats(user.id, db_session)
+            messages = await _get_chat_messages(chat_id, db_session)
+            recent_chats = await _get_recent_chats(user.id, db_session)
 
-        needs_stream = bool(messages) and messages[-1].role == "user"
+            needs_stream = bool(messages) and messages[-1].role == "user"
 
-        return TemplateResponse(
-            "chat.html",
-            context={
-                "user": user,
-                "chat": chat,
-                "messages": messages,
-                "needs_stream": needs_stream,
-                "recent_chats": recent_chats,
-            },
-        )
+            return TemplateResponse(
+                "chat.html",
+                context={
+                    "user": user,
+                    "chat": chat,
+                    "messages": messages,
+                    "needs_stream": needs_stream,
+                    "recent_chats": recent_chats,
+                },
+            )
+        except Exception:
+            logger.exception("Error in chat_view")
+            raise
 
     @post("/chat/{chat_id:uuid}/message")
     async def add_message(
@@ -323,85 +338,89 @@ class ScanController(Controller):
     async def history(
         self, request: Request, db_session: AsyncSession, page: int = 1
     ) -> TemplateResponse:
-        user = await _get_user(request, db_session)
-        if not user:
-            return TemplateResponse("unauthorized.html")
+        try:
+            user = await _get_user(request, db_session)
+            if not user:
+                return TemplateResponse("unauthorized.html")
 
-        if page < 1:
-            page = 1
+            if page < 1:
+                page = 1
 
-        offset = (page - 1) * _HISTORY_PAGE_SIZE
+            offset = (page - 1) * _HISTORY_PAGE_SIZE
 
-        count_result = await db_session.execute(
-            select(func.count(ChatSession.id)).where(
-                ChatSession.user_id == user.id
-            )
-        )
-        total = count_result.scalar() or 0
-        total_pages = max(1, (total + _HISTORY_PAGE_SIZE - 1) // _HISTORY_PAGE_SIZE)
-
-        result = await db_session.execute(
-            select(ChatSession)
-            .where(ChatSession.user_id == user.id)
-            .order_by(ChatSession.updated_at.desc())
-            .offset(offset)
-            .limit(_HISTORY_PAGE_SIZE)
-        )
-        chats = list(result.scalars().all())
-
-        # Aggregate events/usage per chat for the history list
-        chat_meta: dict[UUID, dict] = {}
-        if chats:
-            chat_ids = [c.id for c in chats]
-            msg_result = await db_session.execute(
-                select(
-                    ChatMessage.chat_id,
-                    ChatMessage.events_json,
-                    ChatMessage.usage_json,
-                )
-                .where(
-                    ChatMessage.chat_id.in_(chat_ids),
-                    ChatMessage.role == "assistant",
+            count_result = await db_session.execute(
+                select(func.count(ChatSession.id)).where(
+                    ChatSession.user_id == user.id
                 )
             )
-            for chat_id, events_json, usage_json in msg_result:
-                meta = chat_meta.setdefault(chat_id, {"urls": [], "usage": None, "tool_calls": 0})
-                try:
-                    events = json.loads(events_json) if events_json else []
-                except (json.JSONDecodeError, TypeError):
-                    events = []
-                for ev in events:
-                    if ev.get("type") != "detail":
-                        continue
-                    dt = ev.get("detail_type")
-                    if dt in ("research", "search", "fetch"):
-                        meta["tool_calls"] += 1
-                    if dt == "fetch_done" and ev.get("url") and not ev.get("failed"):
-                        meta["urls"].append(ev["url"])
-                    if dt == "usage" and ev.get("total"):
-                        meta["usage"] = ev
-                if not meta["usage"]:
+            total = count_result.scalar() or 0
+            total_pages = max(1, (total + _HISTORY_PAGE_SIZE - 1) // _HISTORY_PAGE_SIZE)
+
+            result = await db_session.execute(
+                select(ChatSession)
+                .where(ChatSession.user_id == user.id)
+                .order_by(ChatSession.updated_at.desc())
+                .offset(offset)
+                .limit(_HISTORY_PAGE_SIZE)
+            )
+            chats = list(result.scalars().all())
+
+            # Aggregate events/usage per chat for the history list
+            chat_meta: dict[UUID, dict] = {}
+            if chats:
+                chat_ids = [c.id for c in chats]
+                msg_result = await db_session.execute(
+                    select(
+                        ChatMessage.chat_id,
+                        ChatMessage.events_json,
+                        ChatMessage.usage_json,
+                    )
+                    .where(
+                        ChatMessage.chat_id.in_(chat_ids),
+                        ChatMessage.role == "assistant",
+                    )
+                )
+                for chat_id, events_json, usage_json in msg_result:
+                    meta = chat_meta.setdefault(chat_id, {"urls": [], "usage": None, "tool_calls": 0})
                     try:
-                        usage = json.loads(usage_json) if usage_json else {}
+                        events = json.loads(events_json) if events_json else []
                     except (json.JSONDecodeError, TypeError):
-                        usage = {}
-                    if usage.get("total"):
-                        meta["usage"] = usage
+                        events = []
+                    for ev in events:
+                        if ev.get("type") != "detail":
+                            continue
+                        dt = ev.get("detail_type")
+                        if dt in ("research", "search", "fetch"):
+                            meta["tool_calls"] += 1
+                        if dt == "fetch_done" and ev.get("url") and not ev.get("failed"):
+                            meta["urls"].append(ev["url"])
+                        if dt == "usage" and ev.get("total"):
+                            meta["usage"] = ev
+                    if not meta["usage"]:
+                        try:
+                            usage = json.loads(usage_json) if usage_json else {}
+                        except (json.JSONDecodeError, TypeError):
+                            usage = {}
+                        if usage.get("total"):
+                            meta["usage"] = usage
 
-        recent_chats = await _get_recent_chats(user.id, db_session)
+            recent_chats = await _get_recent_chats(user.id, db_session)
 
-        return TemplateResponse(
-            "history.html",
-            context={
-                "user": user,
-                "chats": chats,
-                "chat_meta": chat_meta,
-                "page": page,
-                "total_pages": total_pages,
-                "total": total,
-                "recent_chats": recent_chats,
-            },
-        )
+            return TemplateResponse(
+                "history.html",
+                context={
+                    "user": user,
+                    "chats": chats,
+                    "chat_meta": chat_meta,
+                    "page": page,
+                    "total_pages": total_pages,
+                    "total": total,
+                    "recent_chats": recent_chats,
+                },
+            )
+        except Exception:
+            logger.exception("Error in history")
+            raise
 
     @get("/opensearch.xml")
     async def opensearch(self) -> Response:
