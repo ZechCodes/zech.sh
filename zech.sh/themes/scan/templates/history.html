@@ -9,9 +9,34 @@
     {% if chats %}
     <div class="history-list">
         {% for chat in chats %}
+        {% set meta = chat_meta.get(chat.id, {}) %}
         <a href="/chat/{{ chat.id }}" class="history-item">
             <span class="history-item-title">{{ chat.title[:80] }}{% if chat.title | length > 80 %}&hellip;{% endif %}</span>
             <span class="history-item-date">{{ chat.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+            {% if meta.get('urls') or meta.get('usage') or meta.get('tool_calls') %}
+            <span class="history-item-meta">
+                {% if meta.get('tool_calls') %}
+                <span class="tool-summary-count">{{ meta['tool_calls'] }} tool call{{ 's' if meta['tool_calls'] != 1 else '' }}</span>
+                {% endif %}
+                {% if meta.get('urls') %}
+                <span class="tool-sources">
+                    {% set seen_hosts = [] %}
+                    {% for url in meta['urls'] %}
+                        {% set host = url.split('//')[1].split('/')[0] if '//' in url else '' %}
+                        {% if host and host not in seen_hosts and seen_hosts | length < 8 %}
+                            {% if seen_hosts.append(host) %}{% endif %}
+                            <img class="tool-favicon" src="https://www.google.com/s2/favicons?domain={{ host }}&amp;sz=16" alt="" width="16" height="16" title="{{ host }}">
+                        {% endif %}
+                    {% endfor %}
+                    <span class="tool-source-count">{{ meta['urls'] | length }} source{{ 's' if meta['urls'] | length != 1 else '' }}</span>
+                </span>
+                {% endif %}
+                {% if meta.get('usage') and meta['usage'].get('total') %}
+                {% set t = meta['usage']['total'] %}
+                <span class="tool-usage">{{ '{:,}'.format(t['input_tokens']) }}/{{ '{:,}'.format(t['output_tokens']) }} (${{ t['input_cost'] }}/${{ t['output_cost'] }})</span>
+                {% endif %}
+            </span>
+            {% endif %}
         </a>
         {% endfor %}
     </div>
