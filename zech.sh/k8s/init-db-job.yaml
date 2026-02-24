@@ -16,6 +16,7 @@ spec:
       containers:
         - name: init-db
           image: zzmmrmn/zech-sh:latest
+          imagePullPolicy: Always
           command: ["uv", "run", "skrift", "db", "upgrade", "heads"]
           envFrom:
             - configMapRef:
