@@ -30,11 +30,18 @@
   var usageData = null;
 
   var stageLabels = {
-    planning: "PLANNING",
+    reasoning: "THINKING",
     researching: "RESEARCHING",
-    evaluating: "EVALUATING",
     responding: "GENERATING",
   };
+
+  // Reasoning block state (streamed thinking text)
+  var reasoningBuffer = "";
+  var reasoningBlock = null;
+
+  // Ordered list of pipeline detail elements (reasoning divs + tool group els)
+  // so buildSummary() can preserve interleaving
+  var pipelineItems = [];
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -136,10 +143,10 @@
     var pastToolCalls = 0;
     var pastUrls = [];
     var pastUsage = null;
-    var pastIterations = [];   // { iteration, max_iterations }
-    var pastEvaluations = [];  // { confidence, num_findings, num_gaps, ... }
+    var currentReasoningText = "";
     var groups = {};       // topic -> { topic, searches: [], fetches: [], urls: [], numSources: 0 }
-    var groupOrder = [];   // topic strings in order of appearance
+    // Ordered items: { type: "reasoning", text } or { type: "research", topic }
+    var itemOrder = [];
     var lastTopic = "";
 
     events.forEach(function (ev) {
@@ -147,12 +154,19 @@
       var dt = ev.detail_type;
       var topic = ev.topic || "";
 
-      if (dt === "research") {
+      if (dt === "reasoning") {
+        currentReasoningText += ev.text || "";
+      } else if (dt === "research") {
+        // A new research group means reasoning for this block ended
+        if (currentReasoningText) {
+          itemOrder.push({ type: "reasoning", text: currentReasoningText });
+          currentReasoningText = "";
+        }
         lastTopic = topic;
+        itemOrder.push({ type: "research", topic: topic });
         pastToolCalls++;
         if (topic && !groups[topic]) {
           groups[topic] = { topic: topic, searches: [], fetches: [], urls: [], numSources: 0 };
-          groupOrder.push(topic);
         }
       } else if (dt === "search") {
         pastToolCalls++;
@@ -185,11 +199,12 @@
         }
       } else if (dt === "result") {
         if (groups[topic]) groups[topic].numSources = ev.num_sources || 0;
-      } else if (dt === "iteration") {
-        pastIterations.push({ iteration: ev.iteration, max_iterations: ev.max_iterations });
-      } else if (dt === "evaluation") {
-        pastEvaluations.push(ev);
       } else if (dt === "usage") {
+        // Flush any final reasoning text
+        if (currentReasoningText) {
+          itemOrder.push({ type: "reasoning", text: currentReasoningText });
+          currentReasoningText = "";
+        }
         pastUsage = ev;
       } else if (dt === "message") {
         var msgTopic = topic || lastTopic;
@@ -212,11 +227,7 @@
 
     var count = document.createElement("span");
     count.className = "tool-summary-count";
-    var summaryLabel = pastToolCalls + " tool call" + (pastToolCalls !== 1 ? "s" : "");
-    if (pastIterations.length > 1) {
-      summaryLabel += " \u2022 " + pastIterations.length + " iteration" + (pastIterations.length !== 1 ? "s" : "");
-    }
-    count.textContent = summaryLabel;
+    count.textContent = pastToolCalls + " tool call" + (pastToolCalls !== 1 ? "s" : "");
     summary.appendChild(count);
 
     if (pastUrls.length > 0) {
@@ -254,8 +265,18 @@
     summaryBody.className = "tool-summary-body";
     summaryBody.hidden = true;
 
-    groupOrder.forEach(function (topic) {
-      var g = groups[topic];
+    itemOrder.forEach(function (item) {
+      if (item.type === "reasoning") {
+        var reasonEl = document.createElement("div");
+        reasonEl.className = "deep-reasoning is-complete";
+        reasonEl.innerHTML = renderMarkdown(item.text);
+        summaryBody.appendChild(reasonEl);
+        return;
+      }
+
+      // item.type === "research"
+      var g = groups[item.topic];
+      if (!g) return;
 
       var groupEl = document.createElement("div");
       groupEl.className = "tool-group is-done is-collapsed";
@@ -359,25 +380,6 @@
       });
 
       summaryBody.appendChild(groupEl);
-    });
-
-    // Add evaluation summaries for deep research
-    pastEvaluations.forEach(function (evalData) {
-      var evalEl = document.createElement("div");
-      evalEl.className = "deep-evaluation";
-      var conf = Math.round((evalData.confidence || 0) * 100);
-      var evalParts = [];
-      evalParts.push((evalData.num_findings || 0) + " findings");
-      if (evalData.num_gaps > 0) evalParts.push(evalData.num_gaps + " gaps");
-      if (evalData.num_contradictions > 0) evalParts.push(evalData.num_contradictions + " contradictions");
-      var suffIcon = evalData.sufficient ? "\u2713" : "\u2192";
-      var suffText = evalData.sufficient ? "Sufficient" : "Continued";
-      evalEl.innerHTML =
-        '<span class="deep-eval-icon">' + suffIcon + '</span>' +
-        '<span class="deep-eval-confidence">' + conf + '% confidence</span>' +
-        '<span class="deep-eval-detail">' + evalParts.join(" \u2022 ") + '</span>' +
-        '<span class="deep-eval-status">' + suffText + '</span>';
-      summaryBody.appendChild(evalEl);
     });
 
     if (pastUsage) {
@@ -497,6 +499,7 @@
     toolGroups.push(groupObj);
     groupsByTopic[topic] = groupObj;
     pipelineDetails.appendChild(group);
+    pipelineItems.push(group);
     return groupObj;
   }
 
@@ -605,8 +608,9 @@
     summaryBody.className = "tool-summary-body";
     summaryBody.hidden = true;
 
-    toolGroups.forEach(function (g) {
-      summaryBody.appendChild(g.el);
+    pipelineItems.forEach(function (item) {
+      // item is either a DOM element (reasoning block) or a tool group object
+      summaryBody.appendChild(item.el || item);
     });
 
     summaryEl.addEventListener("click", function () {
@@ -649,6 +653,9 @@
     allFetchedUrls = [];
     totalToolCalls = 0;
     usageData = null;
+    reasoningBuffer = "";
+    reasoningBlock = null;
+    pipelineItems = [];
 
     pipelineStatus.textContent = "";
     pipelineStatus.className = "pipeline-status";
@@ -711,13 +718,36 @@
       var label = stageLabels[data.stage] || data.stage.toUpperCase();
       pipelineStatus.textContent = label;
       pipelineStatus.className = "pipeline-status visible";
+
+      // Finalize reasoning block when leaving reasoning stage
+      if (data.stage !== "reasoning" && reasoningBlock) {
+        reasoningBlock.classList.add("is-complete");
+        reasoningBlock = null;
+        reasoningBuffer = "";
+      }
     });
 
     es.addEventListener("detail", function (e) {
       var data = JSON.parse(e.data);
       var group = data.topic ? groupsByTopic[data.topic] : null;
 
-      if (data.type === "research") {
+      if (data.type === "reasoning") {
+        if (!reasoningBlock) {
+          reasoningBlock = document.createElement("div");
+          reasoningBlock.className = "deep-reasoning";
+          pipelineDetails.appendChild(reasoningBlock);
+          pipelineItems.push(reasoningBlock);
+        }
+        reasoningBuffer += data.text;
+        reasoningBlock.innerHTML = renderMarkdown(reasoningBuffer);
+
+      } else if (data.type === "research") {
+        // Finalize current reasoning block before starting research
+        if (reasoningBlock) {
+          reasoningBlock.classList.add("is-complete");
+          reasoningBlock = null;
+          reasoningBuffer = "";
+        }
         totalToolCalls++;
         createToolGroup(data.topic);
 
@@ -798,30 +828,6 @@
           collapseGroup(group, data.num_sources || 0);
         }
 
-      } else if (data.type === "iteration") {
-        var iterEl = document.createElement("div");
-        iterEl.className = "deep-iteration";
-        iterEl.innerHTML = '<span class="deep-iteration-label">ITERATION ' +
-          data.iteration + '/' + data.max_iterations + '</span>';
-        pipelineDetails.appendChild(iterEl);
-
-      } else if (data.type === "evaluation") {
-        var evalEl = document.createElement("div");
-        evalEl.className = "deep-evaluation";
-        var conf = Math.round((data.confidence || 0) * 100);
-        var parts = [];
-        parts.push(data.num_findings + ' finding' + (data.num_findings !== 1 ? 's' : ''));
-        if (data.num_gaps > 0) parts.push(data.num_gaps + ' gap' + (data.num_gaps !== 1 ? 's' : ''));
-        if (data.num_contradictions > 0) parts.push(data.num_contradictions + ' contradiction' + (data.num_contradictions !== 1 ? 's' : ''));
-        var suffIcon = data.sufficient ? '\u2713' : '\u2192';
-        var suffText = data.sufficient ? 'Sufficient' : 'Needs more research';
-        evalEl.innerHTML =
-          '<span class="deep-eval-icon">' + suffIcon + '</span>' +
-          '<span class="deep-eval-confidence">' + conf + '% confidence</span>' +
-          '<span class="deep-eval-detail">' + parts.join(' \u2022 ') + '</span>' +
-          '<span class="deep-eval-status">' + suffText + '</span>';
-        pipelineDetails.appendChild(evalEl);
-
       } else if (data.type === "message") {
         var msgEl = document.createElement("div");
         msgEl.className = "tool-message";
@@ -893,12 +899,18 @@
       if (!receivedFirstText) {
         receivedFirstText = true;
         pipelineStatus.className = "pipeline-status";
+        // Finalize any open reasoning block
+        if (reasoningBlock) {
+          reasoningBlock.classList.add("is-complete");
+          reasoningBlock = null;
+          reasoningBuffer = "";
+        }
         toolGroups.forEach(function (g) {
           if (g.el.classList.contains("is-running")) {
             collapseGroup(g, g.fetchedUrls.length);
           }
         });
-        if (toolGroups.length > 0) {
+        if (pipelineItems.length > 0) {
           buildSummary();
         }
       }
