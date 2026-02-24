@@ -59,6 +59,18 @@ logfire:
   service_name: zech-sh
   environment: production
 
+storage:
+  backend: local
+  local:
+    directory: ./uploads
+  s3:
+    bucket: $S3_BUCKET
+    prefix: uploads/
+    region: $AWS_REGION
+    endpoint_url: $S3_ENDPOINT_URL
+    access_key_id: $AWS_ACCESS_KEY_ID
+    secret_access_key: $AWS_SECRET_ACCESS_KEY
+
 auth:
   redirect_base_url: https://zech.sh
   allowed_redirect_domains:

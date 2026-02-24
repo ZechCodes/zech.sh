@@ -39,6 +39,11 @@ db:
   pool_pre_ping: true
   echo: false
 
+storage:
+  backend: local
+  local:
+    directory: ./uploads
+
 auth:
   redirect_base_url: http://localhost:8888
   allowed_redirect_domains:
