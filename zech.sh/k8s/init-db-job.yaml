@@ -41,6 +41,12 @@ spec:
                 secretKeyRef:
                   name: zech-sh-secrets
                   key: google-oauth-client-secret
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: zech-sh-secrets
+                  key: redis-url
+                  optional: true
           resources:
             requests:
               memory: "128Mi"
