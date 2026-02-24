@@ -286,7 +286,6 @@ class ScanController(Controller):
                         brave_api_key,
                         db_session=db_session,
                         redis_url=redis_url,
-                        research_mode="standard",
                         user_timezone=tz,
                     ):
                         if isinstance(event, DeepStageEvent):
