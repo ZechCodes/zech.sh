@@ -1098,6 +1098,54 @@ textarea.scan-input-auto {
 }
 
 /* --------------------------------------------------------------------------
+   Response Actions (copy / download)
+   -------------------------------------------------------------------------- */
+
+.response-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(0, 229, 255, 0.08);
+}
+
+.response-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  color: var(--zech-text-dim);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.response-action-btn:hover {
+  color: var(--zech-primary);
+  border-color: var(--zech-primary);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.15);
+}
+
+.response-actions-feedback {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  color: var(--zech-primary);
+  margin-left: 0.35rem;
+  animation: response-feedback-fade 1.5s ease forwards;
+}
+
+@keyframes response-feedback-fade {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* --------------------------------------------------------------------------
    Deep Research — Iteration & Evaluation indicators
    -------------------------------------------------------------------------- */
 

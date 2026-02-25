@@ -1,8 +1,9 @@
+import asyncio
 import json
 import logging
 import os
 import re
-from collections.abc import AsyncGenerator
+import time
 from datetime import datetime, timezone
 from urllib.parse import quote_plus
 from uuid import UUID
@@ -10,13 +11,13 @@ from uuid import UUID
 from litestar import Controller, Request, get, post
 from litestar.response import Redirect, Response
 from litestar.response import Template as TemplateResponse
-from litestar.response.sse import ServerSentEvent, ServerSentEventMessage
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
+from skrift.lib.notifications import NotificationMode, notify_user
 
 from controllers.deep_research_agent import (
     DetailEvent as DeepDetailEvent,
@@ -43,6 +44,184 @@ logger = logging.getLogger(__name__)
 
 _RECENT_CHATS_LIMIT = 10
 _HISTORY_PAGE_SIZE = 20
+
+# ---------------------------------------------------------------------------
+# Background task infrastructure
+# ---------------------------------------------------------------------------
+
+_session_factory: async_sessionmaker | None = None
+
+
+def _get_session_factory() -> async_sessionmaker:
+    global _session_factory
+    if _session_factory is None:
+        engine = create_async_engine(get_settings().db.url)
+        _session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    return _session_factory
+
+
+_active_research: dict[UUID, asyncio.Task] = {}
+
+_NM = NotificationMode.TIMESERIES
+
+
+async def _run_pipeline_bg(
+    user_id: UUID,
+    chat_id: UUID,
+    chat_mode: str,
+    context: str = "",
+    tz: str = "",
+) -> None:
+    """Run the research pipeline as a background task, pushing notifications."""
+    try:
+        async with _get_session_factory()() as db_session:
+            # Load messages for query + history
+            result = await db_session.execute(
+                select(ChatMessage)
+                .where(ChatMessage.chat_id == chat_id)
+                .order_by(ChatMessage.created_at.asc())
+            )
+            messages = list(result.scalars().all())
+            if not messages or messages[-1].role != "user":
+                return
+
+            query = messages[-1].content
+            history = []
+            for msg in messages[:-1]:
+                if msg.content:
+                    history.append({"role": msg.role, "content": msg.content})
+
+            brave_api_key = os.environ.get("BRAVE_API_KEY", "")
+            redis_url = get_settings().redis.url
+            is_deep = chat_mode == "deep_research"
+            uid = str(user_id)
+            cid = str(chat_id)
+
+            accumulated_text = ""
+            accumulated_events: list[dict] = []
+            usage_data: dict = {}
+
+            async def _notify(ntype: str, **payload: object) -> None:
+                payload["chat_id"] = cid
+                await notify_user(uid, ntype, mode=_NM, **payload)
+
+            try:
+                if is_deep:
+                    async for event in run_deep_research_pipeline(
+                        query,
+                        brave_api_key,
+                        db_session=db_session,
+                        redis_url=redis_url,
+                        user_timezone=tz,
+                        conversation_history=history if history else None,
+                    ):
+                        if isinstance(event, DeepStageEvent):
+                            accumulated_events.append(
+                                {"type": "stage", "stage": event.stage}
+                            )
+                            await _notify("scan:stage", stage=event.stage)
+                        elif isinstance(event, DeepDetailEvent):
+                            accumulated_events.append(
+                                {"type": "detail", "detail_type": event.type, **event.payload}
+                            )
+                            await _notify("scan:detail", detail_type=event.type, **event.payload)
+                            if event.type == "usage":
+                                usage_data = event.payload
+                        elif isinstance(event, DeepTextEvent):
+                            accumulated_text += event.text
+                            await _notify("scan:text", text=event.text)
+                        elif isinstance(event, DeepDoneEvent):
+                            assistant_msg = ChatMessage(
+                                chat_id=chat_id,
+                                role="assistant",
+                                content=accumulated_text,
+                                events_json=json.dumps(accumulated_events),
+                                usage_json=json.dumps(usage_data),
+                            )
+                            db_session.add(assistant_msg)
+                            # Update last_notification_at for replay cursor
+                            chat_result = await db_session.execute(
+                                select(ChatSession).where(ChatSession.id == chat_id)
+                            )
+                            chat_obj = chat_result.scalar_one_or_none()
+                            if chat_obj:
+                                chat_obj.last_notification_at = time.time()
+                            await db_session.commit()
+                            await _notify("scan:done")
+                        elif isinstance(event, DeepErrorEvent):
+                            accumulated_events.append(
+                                {"type": "error", "error": event.error}
+                            )
+                            await _notify("scan:error", error=event.error)
+                else:
+                    async for event in run_research_pipeline(
+                        query,
+                        brave_api_key,
+                        db_session=db_session,
+                        redis_url=redis_url,
+                        additional_context=context,
+                        conversation_history=history if history else None,
+                        user_timezone=tz,
+                    ):
+                        if isinstance(event, StageEvent):
+                            accumulated_events.append(
+                                {"type": "stage", "stage": event.stage}
+                            )
+                            await _notify("scan:stage", stage=event.stage)
+                        elif isinstance(event, DetailEvent):
+                            accumulated_events.append(
+                                {"type": "detail", "detail_type": event.type, **event.payload}
+                            )
+                            await _notify("scan:detail", detail_type=event.type, **event.payload)
+                            if event.type == "usage":
+                                usage_data = event.payload
+                        elif isinstance(event, TextEvent):
+                            accumulated_text += event.text
+                            await _notify("scan:text", text=event.text)
+                        elif isinstance(event, DoneEvent):
+                            assistant_msg = ChatMessage(
+                                chat_id=chat_id,
+                                role="assistant",
+                                content=accumulated_text,
+                                events_json=json.dumps(accumulated_events),
+                                usage_json=json.dumps(usage_data),
+                            )
+                            db_session.add(assistant_msg)
+                            chat_result = await db_session.execute(
+                                select(ChatSession).where(ChatSession.id == chat_id)
+                            )
+                            chat_obj = chat_result.scalar_one_or_none()
+                            if chat_obj:
+                                chat_obj.last_notification_at = time.time()
+                            await db_session.commit()
+                            await _notify("scan:done")
+                        elif isinstance(event, ClarificationEvent):
+                            accumulated_events.append(
+                                {"type": "clarification", "questions": event.questions}
+                            )
+                            await _notify("scan:clarification", questions=event.questions)
+                        elif isinstance(event, ErrorEvent):
+                            accumulated_events.append(
+                                {"type": "error", "error": event.error}
+                            )
+                            await _notify("scan:error", error=event.error)
+            except Exception as exc:
+                logger.exception("Pipeline error for chat %s", chat_id)
+                await _notify("scan:error", error=str(exc))
+    except Exception:
+        logger.exception("Background task setup error for chat %s", chat_id)
+    finally:
+        _active_research.pop(chat_id, None)
+
+
+def _start_pipeline_task(
+    user_id: UUID, chat_id: UUID, chat_mode: str, context: str = "", tz: str = ""
+) -> None:
+    """Create and register a background pipeline task."""
+    if chat_id in _active_research:
+        return
+    task = asyncio.create_task(_run_pipeline_bg(user_id, chat_id, chat_mode, context, tz))
+    _active_research[chat_id] = task
 
 
 def build_redirect_url(classification: str, query: str) -> str:
@@ -189,6 +368,10 @@ class ScanController(Controller):
 
             needs_stream = bool(messages) and messages[-1].role == "user"
 
+            # Crash recovery: needs_stream but no active task → restart pipeline
+            if needs_stream and chat_id not in _active_research:
+                _start_pipeline_task(user.id, chat_id, chat.mode)
+
             return TemplateResponse(
                 "chat.html",
                 context={
@@ -197,6 +380,7 @@ class ScanController(Controller):
                     "messages": messages,
                     "needs_stream": needs_stream,
                     "recent_chats": recent_chats,
+                    "last_notification_at": chat.last_notification_at,
                 },
             )
         except Exception:
@@ -230,181 +414,13 @@ class ScanController(Controller):
         chat.updated_at = datetime.now(timezone.utc)
         await db_session.commit()
 
+        tz = body.get("tz", "")
+        _start_pipeline_task(user.id, chat_id, chat.mode, tz=tz)
+
         return Response(
-            content={"id": str(msg.id), "content": content},
+            content={"id": str(msg.id), "content": content, "started": True},
             status_code=201,
         )
-
-    @get("/chat/{chat_id:uuid}/stream")
-    async def chat_stream(
-        self,
-        request: Request,
-        db_session: AsyncSession,
-        chat_id: UUID,
-        context: str = "",
-        tz: str = "",
-    ) -> ServerSentEvent | TemplateResponse:
-        user_id = request.session.get(SESSION_USER_ID)
-        if not user_id:
-            return TemplateResponse("unauthorized.html")
-
-        result = await db_session.execute(
-            select(ChatSession).where(
-                ChatSession.id == chat_id,
-                ChatSession.user_id == UUID(user_id),
-            )
-        )
-        chat = result.scalar_one_or_none()
-        if not chat:
-            return ServerSentEvent(iter([]))
-
-        messages = await _get_chat_messages(chat_id, db_session)
-        if not messages or messages[-1].role != "user":
-            return ServerSentEvent(iter([]))
-
-        latest_user_msg = messages[-1]
-        query = latest_user_msg.content
-
-        history = []
-        for msg in messages[:-1]:
-            if msg.content:
-                history.append({"role": msg.role, "content": msg.content})
-
-        brave_api_key = os.environ.get("BRAVE_API_KEY", "")
-        redis_url = get_settings().redis.url
-        is_deep = chat.mode == "deep_research"
-
-        async def generate() -> AsyncGenerator[ServerSentEventMessage, None]:
-            accumulated_text = ""
-            accumulated_events: list[dict] = []
-            usage_data: dict = {}
-
-            try:
-                if is_deep:
-                    async for event in run_deep_research_pipeline(
-                        query,
-                        brave_api_key,
-                        db_session=db_session,
-                        redis_url=redis_url,
-                        user_timezone=tz,
-                    ):
-                        if isinstance(event, DeepStageEvent):
-                            accumulated_events.append(
-                                {"type": "stage", "stage": event.stage}
-                            )
-                            yield ServerSentEventMessage(
-                                data=json.dumps({"stage": event.stage}),
-                                event="stage",
-                            )
-                        elif isinstance(event, DeepDetailEvent):
-                            accumulated_events.append(
-                                {"type": "detail", "detail_type": event.type, **event.payload}
-                            )
-                            yield ServerSentEventMessage(
-                                data=json.dumps({"type": event.type, **event.payload}),
-                                event="detail",
-                            )
-                            if event.type == "usage":
-                                usage_data = event.payload
-                        elif isinstance(event, DeepTextEvent):
-                            accumulated_text += event.text
-                            yield ServerSentEventMessage(
-                                data=json.dumps({"text": event.text}),
-                                event="text",
-                            )
-                        elif isinstance(event, DeepDoneEvent):
-                            assistant_msg = ChatMessage(
-                                chat_id=chat_id,
-                                role="assistant",
-                                content=accumulated_text,
-                                events_json=json.dumps(accumulated_events),
-                                usage_json=json.dumps(usage_data),
-                            )
-                            db_session.add(assistant_msg)
-                            await db_session.commit()
-                            yield ServerSentEventMessage(
-                                data="",
-                                event="done",
-                            )
-                        elif isinstance(event, DeepErrorEvent):
-                            accumulated_events.append(
-                                {"type": "error", "error": event.error}
-                            )
-                            yield ServerSentEventMessage(
-                                data=json.dumps({"error": event.error}),
-                                event="error",
-                            )
-                else:
-                    async for event in run_research_pipeline(
-                        query,
-                        brave_api_key,
-                        db_session=db_session,
-                        redis_url=redis_url,
-                        additional_context=context,
-                        conversation_history=history if history else None,
-                        user_timezone=tz,
-                    ):
-                        if isinstance(event, StageEvent):
-                            accumulated_events.append(
-                                {"type": "stage", "stage": event.stage}
-                            )
-                            yield ServerSentEventMessage(
-                                data=json.dumps({"stage": event.stage}),
-                                event="stage",
-                            )
-                        elif isinstance(event, DetailEvent):
-                            accumulated_events.append(
-                                {"type": "detail", "detail_type": event.type, **event.payload}
-                            )
-                            yield ServerSentEventMessage(
-                                data=json.dumps({"type": event.type, **event.payload}),
-                                event="detail",
-                            )
-                            if event.type == "usage":
-                                usage_data = event.payload
-                        elif isinstance(event, TextEvent):
-                            accumulated_text += event.text
-                            yield ServerSentEventMessage(
-                                data=json.dumps({"text": event.text}),
-                                event="text",
-                            )
-                        elif isinstance(event, DoneEvent):
-                            assistant_msg = ChatMessage(
-                                chat_id=chat_id,
-                                role="assistant",
-                                content=accumulated_text,
-                                events_json=json.dumps(accumulated_events),
-                                usage_json=json.dumps(usage_data),
-                            )
-                            db_session.add(assistant_msg)
-                            await db_session.commit()
-                            yield ServerSentEventMessage(
-                                data="",
-                                event="done",
-                            )
-                        elif isinstance(event, ClarificationEvent):
-                            accumulated_events.append(
-                                {"type": "clarification", "questions": event.questions}
-                            )
-                            yield ServerSentEventMessage(
-                                data=json.dumps({"questions": event.questions}),
-                                event="clarification",
-                            )
-                        elif isinstance(event, ErrorEvent):
-                            accumulated_events.append(
-                                {"type": "error", "error": event.error}
-                            )
-                            yield ServerSentEventMessage(
-                                data=json.dumps({"error": event.error}),
-                                event="error",
-                            )
-            except Exception as exc:
-                yield ServerSentEventMessage(
-                    data=json.dumps({"error": str(exc)}),
-                    event="error",
-                )
-
-        return ServerSentEvent(generate())
 
     @get("/history")
     async def history(

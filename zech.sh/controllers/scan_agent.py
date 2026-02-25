@@ -13,33 +13,35 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-import os
-import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from functools import lru_cache
-from zoneinfo import ZoneInfo
 from typing import Literal
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import httpx
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
-from genai_prices import calc_price
-from genai_prices import Usage as GenAIUsage
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
-from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.usage import RunUsage
 from pypdf import PdfReader
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from controllers.domain_throttle import (
-    cache_response,
-    get_cached_response,
-    wait_for_rate_limit,
+from controllers.brave_search import brave_search as _brave_search_raw
+from controllers.domain_throttle import wait_for_rate_limit
+from controllers.llm import (
+    calc_usage_cost,
+    gemini_flash,
+    gemini_flash_lite,
+    gemini_pro,
+)
+from controllers.deep_research_agent import (
+    LIGHT_CONFIG,
+    LIGHT_PLANNING_PROMPT,
+    _jina_fetch,
+    run_deep_research_pipeline,
 )
 from controllers.robots import USER_AGENT, check_url_allowed
 
@@ -47,34 +49,6 @@ logger = logging.getLogger(__name__)
 
 # Maximum characters of document text to send to the extraction model.
 _MAX_DOC_CHARS = 200_000
-
-# ---------------------------------------------------------------------------
-# Google / Gemini model helpers
-# ---------------------------------------------------------------------------
-
-
-@lru_cache(maxsize=1)
-def _google_provider() -> GoogleProvider:
-    return GoogleProvider(api_key=os.environ["GOOGLE_API_KEY"])
-
-
-@lru_cache(maxsize=1)
-def gemini_pro() -> GoogleModel:
-    """Gemini 3 Pro — research agent, title generation."""
-    return GoogleModel("gemini-3-pro-preview", provider=_google_provider())
-
-
-@lru_cache(maxsize=1)
-def gemini_flash() -> GoogleModel:
-    """Gemini 3 Flash — extraction and evaluation."""
-    return GoogleModel("gemini-3-flash-preview", provider=_google_provider())
-
-
-@lru_cache(maxsize=1)
-def gemini_flash_lite() -> GoogleModel:
-    """Gemini 2.5 Flash Lite — fast classification."""
-    return GoogleModel("gemini-2.5-flash-lite", provider=_google_provider())
-
 
 # ---------------------------------------------------------------------------
 # Pydantic models for pipeline data
@@ -96,7 +70,7 @@ class FetchedResource(BaseModel):
 # Pipeline SSE event types
 # ---------------------------------------------------------------------------
 
-StageName = Literal["researching", "responding"]
+StageName = Literal["reasoning", "researching", "responding"]
 
 
 @dataclass
@@ -268,6 +242,7 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
         return f"No search results found for: {topic}"
 
     urls = _pick_top_urls(results, ctx.deps.fetched_urls)
+    logger.info("Picked %d URLs for topic %r: %s", len(urls), topic, urls)
     findings: list[str] = []
 
     fetched_urls_list: list[str] = []
@@ -280,19 +255,18 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
                 db_session=ctx.deps.db_session,
                 redis_url=ctx.deps.redis_url,
             )
-            if isinstance(result, tuple):
-                extracted, usage_dict = result
-            else:
-                extracted, usage_dict = result, None
+            if result.output is None:
+                await queue.put(DetailEvent(type="fetch_done", payload={"topic": topic, "url": url, "failed": True}))
+                continue
             ctx.deps.fetched_urls.add(url)
             fetched_urls_list.append(url)
-            if extracted is not None:
-                findings.append(f"Source: {url}\n{extracted}")
-            payload: dict = {"topic": topic, "url": url, "content": (extracted or "")[:3000]}
-            if usage_dict:
-                payload["usage"] = usage_dict
+            findings.append(f"Source: {url}\n{result.output}")
+            payload: dict = {"topic": topic, "url": url, "content": result.output[:3000]}
+            if result.usage:
+                payload["usage"] = result.usage
             await queue.put(DetailEvent(type="fetch_done", payload=payload))
         except Exception:
+            logger.exception("fetch_and_extract crashed for %s", url)
             await queue.put(DetailEvent(type="fetch_done", payload={"topic": topic, "url": url, "failed": True}))
 
     if not findings:
@@ -346,62 +320,24 @@ def _pdf_to_text(data: bytes) -> str:
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
-_brave_lock: asyncio.Lock | None = None
-_brave_last_call: float = 0.0
-
-
-def _get_brave_lock() -> asyncio.Lock:
-    """Lazily create the Brave rate-limit lock inside the running event loop."""
-    global _brave_lock
-    if _brave_lock is None:
-        _brave_lock = asyncio.Lock()
-    return _brave_lock
-
-
 async def brave_search(query: str, api_key: str) -> list[SearchResultItem]:
     """Execute a Brave web search and return structured results (1 req/sec)."""
-    global _brave_last_call
-    lock = _get_brave_lock()
-    async with lock:
-        wait = 1.0 - (time.monotonic() - _brave_last_call)
-        if wait > 0:
-            await asyncio.sleep(wait)
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                "https://api.search.brave.com/res/v1/web/search",
-                headers={
-                    "Accept": "application/json",
-                    "Accept-Encoding": "gzip",
-                    "User-Agent": USER_AGENT,
-                    "X-Subscription-Token": api_key,
-                },
-                params={"q": query, "count": 5},
-                timeout=10.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        _brave_last_call = time.monotonic()
-
+    raw_results = await _brave_search_raw(query, api_key)
     return [
         SearchResultItem(
             title=item.get("title", ""),
             url=item.get("url", ""),
             description=item.get("description", ""),
         )
-        for item in data.get("web", {}).get("results", [])
+        for item in raw_results
     ]
 
 
-def _calc_cost(input_tokens: int, output_tokens: int, model_name: str) -> dict:
-    """Calculate cost for a model call and return a usage dict."""
-    usage = GenAIUsage(input_tokens=input_tokens, output_tokens=output_tokens)
-    price = calc_price(usage, model_name)
-    return {
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "input_cost": f"{price.input_price:.4f}",
-        "output_cost": f"{price.output_price:.4f}",
-    }
+@dataclass
+class ExtractionResult:
+    """Return value from fetch_and_extract."""
+    output: str | None = None
+    usage: dict | None = None
 
 
 async def fetch_and_extract(
@@ -411,49 +347,46 @@ async def fetch_and_extract(
     deps: ResearchDeps | None = None,
     db_session: AsyncSession | None = None,
     redis_url: str = "",
-) -> str | tuple[str, dict] | None:
+) -> ExtractionResult:
     """Fetch a URL and extract relevant content using the extraction agent.
 
-    Checks robots.txt rules before fetching, rate-limits requests per domain,
-    and caches responses in Redis when available.
+    Tries Jina Reader first for clean markdown. Falls back to direct fetch
+    for PDFs, images, or when Jina fails. Checks robots.txt rules before
+    fetching and caches responses in Redis.
 
-    Returns None if the URL is disallowed by robots.txt.
-    When deps is provided, returns (output, usage_dict) tuple for cost tracking.
+    Returns ExtractionResult with output=None if blocked by robots.txt.
     """
-    parsed_url = urlparse(url)
-    domain = parsed_url.hostname or ""
-
     # --- robots.txt check ---
+    crawl_delay = 10.0
     if db_session is not None:
         allowed, crawl_delay = await check_url_allowed(url, db_session)
         if not allowed:
             logger.info("Blocked by robots.txt: %s", url)
+            return ExtractionResult()
+
+    def _track(run_result) -> dict | None:
+        """Accumulate extraction usage on *deps* and return a cost dict."""
+        if deps is None:
             return None
-    else:
-        crawl_delay = 10.0
+        run_usage = run_result.usage()
+        deps.extraction_usage.incr(run_usage)
+        return calc_usage_cost(
+            run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview",
+        )
 
-    # --- Check response cache ---
-    cached = await get_cached_response(url, redis_url=redis_url)
-    if cached is not None:
-        content_type = cached.get("content_type", "")
-        text = cached.get("text", "")
-        if "html" in content_type:
-            text = _html_to_text(text)
-        prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
+    # --- Try Jina Reader first (handles HTML → markdown, has Redis cache) ---
+    jina_text = await _jina_fetch(url, redis_url=redis_url)
+    logger.info("Jina fetch for %s: %s", url, f"{len(jina_text)} chars" if jina_text else "None")
+    if jina_text:
+        prompt = f"Query: {query}\n\nDocument:\n{jina_text[:_MAX_DOC_CHARS]}"
         result = await extraction_agent.run(prompt, model=gemini_flash())
-        if deps is not None:
-            run_usage = result.usage()
-            deps.extraction_usage.incr(run_usage)
-            usage_dict = _calc_cost(
-                run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview"
-            )
-            return result.output, usage_dict
-        return result.output
+        return ExtractionResult(output=result.output, usage=_track(result))
 
-    # --- Rate limit ---
+    # --- Jina failed — fall back to direct fetch (PDFs, images, etc.) ---
+    parsed_url = urlparse(url)
+    domain = parsed_url.hostname or ""
     await wait_for_rate_limit(domain, delay_seconds=crawl_delay, redis_url=redis_url)
 
-    # --- Fetch ---
     async with httpx.AsyncClient(follow_redirects=True) as client:
         try:
             resp = await client.get(
@@ -463,22 +396,11 @@ async def fetch_and_extract(
             )
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            return f"Could not fetch {url}: HTTP {exc.response.status_code}"
+            return ExtractionResult(output=f"Could not fetch {url}: HTTP {exc.response.status_code}")
         except httpx.RequestError as exc:
-            return f"Could not fetch {url}: {exc}"
+            return ExtractionResult(output=f"Could not fetch {url}: {exc}")
 
     content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
-
-    # --- Cache the response ---
-    if "html" in content_type or content_type.startswith("text/"):
-        await cache_response(
-            url,
-            status_code=resp.status_code,
-            headers=dict(resp.headers),
-            text=resp.text,
-            content_type=content_type,
-            redis_url=redis_url,
-        )
 
     if content_type == "application/pdf":
         text = _pdf_to_text(resp.content)
@@ -492,17 +414,10 @@ async def fetch_and_extract(
         text = _html_to_text(resp.text) if "html" in content_type else resp.text
         prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
     else:
-        return f"Unsupported content type: {content_type}"
+        return ExtractionResult(output=f"Unsupported content type: {content_type}")
 
     result = await extraction_agent.run(prompt, model=gemini_flash())
-    if deps is not None:
-        run_usage = result.usage()
-        deps.extraction_usage.incr(run_usage)
-        usage_dict = _calc_cost(
-            run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview"
-        )
-        return result.output, usage_dict
-    return result.output
+    return ExtractionResult(output=result.output, usage=_track(result))
 
 
 def _pick_top_urls(
@@ -540,96 +455,41 @@ async def run_research_pipeline(
     conversation_history: list[dict] | None = None,
     user_timezone: str = "",
 ) -> AsyncGenerator[PipelineEvent, None]:
-    """Run the research agent, yielding SSE-ready events via a queue.
+    """Run the light research pipeline using the deep research architecture.
 
-    Args:
-        conversation_history: List of {"role": "user"|"assistant", "content": str}
-            representing prior turns in the conversation.
-        user_timezone: IANA timezone string from the client (e.g. "America/New_York").
+    Uses Flash/Flash Lite models, fewer topics, and fewer reads per topic
+    for a fast but comprehensive answer.
     """
-    try:
-        tz = ZoneInfo(user_timezone) if user_timezone else timezone.utc
-    except (KeyError, ValueError):
-        tz = timezone.utc
-    now = datetime.now(tz)
-    preamble = (
-        f"Current date/time: {now.strftime('%A, %B %d, %Y %H:%M')} ({user_timezone or 'UTC'})\n\n"
+    from controllers.deep_research_agent import (
+        DetailEvent as DeepDetailEvent,
+        DoneEvent as DeepDoneEvent,
+        ErrorEvent as DeepErrorEvent,
+        StageEvent as DeepStageEvent,
+        TextEvent as DeepTextEvent,
     )
 
-    parts: list[str] = [preamble]
-    if conversation_history:
-        parts.append("Previous conversation:")
-        for msg in conversation_history:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            parts.append(f"{role}: {msg['content']}")
-        parts.append("")
-        parts.append(f"Current question: {query}")
-        if additional_context:
-            parts.append(f"\nAdditional context from user: {additional_context}")
-        full_query = "\n".join(parts)
-    elif additional_context:
-        full_query = f"{query}\n\nAdditional context from user: {additional_context}"
-    else:
-        full_query = query
+    combined_query = query
+    if additional_context:
+        combined_query = f"{query}\n\nAdditional context: {additional_context}"
 
-    queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
-    deps = ResearchDeps(
-        brave_api_key=brave_api_key,
-        event_queue=queue,
+    async for event in run_deep_research_pipeline(
+        combined_query,
+        brave_api_key,
         db_session=db_session,
         redis_url=redis_url,
-    )
-
-    yield StageEvent(stage="researching")
-
-    async def _agent_task() -> None:
-        try:
-            async with research_agent.run_stream(
-                full_query, model=gemini_pro(), deps=deps
-            ) as stream:
-                async for text in stream.stream_text(delta=True):
-                    await queue.put(TextEvent(text=text))
-
-                # Emit usage breakdown
-                research_usage = stream.usage()
-                research_cost = _calc_cost(
-                    research_usage.input_tokens,
-                    research_usage.output_tokens,
-                    "gemini-3-pro-preview",
-                )
-                ext = deps.extraction_usage
-                ext_cost = _calc_cost(
-                    ext.input_tokens, ext.output_tokens, "gemini-3-flash-preview"
-                )
-                total_in = research_usage.input_tokens + ext.input_tokens
-                total_out = research_usage.output_tokens + ext.output_tokens
-                await queue.put(DetailEvent(type="usage", payload={
-                    "research": research_cost,
-                    "extraction": ext_cost,
-                    "total": {
-                        "input_tokens": total_in,
-                        "output_tokens": total_out,
-                        "input_cost": f"{float(research_cost['input_cost']) + float(ext_cost['input_cost']):.4f}",
-                        "output_cost": f"{float(research_cost['output_cost']) + float(ext_cost['output_cost']):.4f}",
-                    },
-                }))
-
-            await queue.put(DoneEvent())
-        except _ClarificationNeeded:
-            pass  # ClarificationEvent already in queue
-        except Exception as exc:
-            await queue.put(ErrorEvent(error=str(exc)))
-
-    task = asyncio.create_task(_agent_task())
-
-    sent_responding = False
-    while True:
-        event = await queue.get()
-        if isinstance(event, TextEvent) and not sent_responding:
-            sent_responding = True
-            yield StageEvent(stage="responding")
-        yield event
-        if isinstance(event, (DoneEvent, ErrorEvent, ClarificationEvent)):
-            break
-
-    await task
+        user_timezone=user_timezone,
+        conversation_history=conversation_history,
+        config_override=LIGHT_CONFIG,
+        planning_prompt_override=LIGHT_PLANNING_PROMPT,
+    ):
+        # Re-wrap deep events as scan_agent events for compatibility
+        if isinstance(event, DeepStageEvent):
+            yield StageEvent(stage=event.stage)
+        elif isinstance(event, DeepDetailEvent):
+            yield DetailEvent(type=event.type, payload=event.payload)
+        elif isinstance(event, DeepTextEvent):
+            yield TextEvent(text=event.text)
+        elif isinstance(event, DeepDoneEvent):
+            yield DoneEvent()
+        elif isinstance(event, DeepErrorEvent):
+            yield ErrorEvent(error=event.error)

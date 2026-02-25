@@ -25,6 +25,33 @@ logger = logging.getLogger(__name__)
 _DEFAULT_RATE_LIMIT_SECONDS = 10.0
 _DEFAULT_CACHE_TTL_SECONDS = 86400  # 24 hours
 
+# ---------------------------------------------------------------------------
+# In-memory cache fallback (when Redis is unavailable)
+# ---------------------------------------------------------------------------
+
+_mem_cache: dict[str, tuple[float, dict]] = {}  # key -> (expires_at, data)
+
+
+def _mem_get(key: str) -> dict | None:
+    entry = _mem_cache.get(key)
+    if entry is None:
+        return None
+    expires_at, data = entry
+    if time.monotonic() > expires_at:
+        del _mem_cache[key]
+        return None
+    return data
+
+
+def _mem_set(key: str, data: dict, ttl: int) -> None:
+    # Evict expired entries when cache gets large
+    if len(_mem_cache) > 500:
+        now = time.monotonic()
+        expired = [k for k, (exp, _) in _mem_cache.items() if now > exp]
+        for k in expired:
+            del _mem_cache[k]
+    _mem_cache[key] = (time.monotonic() + ttl, data)
+
 
 # ---------------------------------------------------------------------------
 # Redis connection management
@@ -85,13 +112,16 @@ async def wait_for_rate_limit(
         await _wait_memory(domain, delay_seconds)
 
 
+_MAX_RATE_LIMIT_ATTEMPTS = 10
+
+
 async def _wait_redis(
     r: redis.Redis, domain: str, delay_seconds: float
 ) -> None:
     """Rate limit using Redis with a simple key-expiry approach."""
     key = f"scan:ratelimit:{domain}"
 
-    while True:
+    for _attempt in range(_MAX_RATE_LIMIT_ATTEMPTS):
         # Try to set key with NX (only if not exists) and expiry
         ttl_ms = int(delay_seconds * 1000)
         acquired = await r.set(key, "1", nx=True, px=ttl_ms)
@@ -106,6 +136,11 @@ async def _wait_redis(
 
         wait_time = remaining_ms / 1000.0
         await asyncio.sleep(wait_time)
+
+    logger.warning(
+        "Rate limit wait exceeded %d attempts for domain %s, proceeding",
+        _MAX_RATE_LIMIT_ATTEMPTS, domain,
+    )
 
 
 async def _wait_memory(domain: str, delay_seconds: float) -> None:
@@ -180,24 +215,25 @@ def _parse_cache_ttl(headers: dict[str, str]) -> int:
 async def get_cached_response(
     url: str, redis_url: str = ""
 ) -> dict | None:
-    """Get a cached response for a URL from Redis.
+    """Get a cached response for a URL.
 
-    Returns a dict with 'status_code', 'headers', 'content', 'content_type'
+    Tries Redis first, falls back to in-memory cache.
+    Returns a dict with 'status_code', 'content', 'content_type'
     if cached, or None if not found.
     """
-    r = await get_redis(redis_url)
-    if r is None:
-        return None
-
     key = _cache_key(url)
-    try:
-        data = await r.get(key)
-        if data is not None:
-            return json.loads(data)
-    except (redis.RedisError, json.JSONDecodeError):
-        pass
 
-    return None
+    r = await get_redis(redis_url)
+    if r is not None:
+        try:
+            data = await r.get(key)
+            if data is not None:
+                return json.loads(data)
+        except (redis.RedisError, json.JSONDecodeError):
+            pass
+
+    # Fall back to in-memory cache
+    return _mem_get(key)
 
 
 async def cache_response(
@@ -208,27 +244,30 @@ async def cache_response(
     content_type: str,
     redis_url: str = "",
 ) -> None:
-    """Cache an HTTP response in Redis.
+    """Cache an HTTP response.
 
+    Tries Redis first, falls back to in-memory cache.
     TTL is determined from the response's cache headers, defaulting
     to 24 hours.
     """
-    r = await get_redis(redis_url)
-    if r is None:
-        return
-
     ttl = _parse_cache_ttl(headers)
     if ttl <= 0:
         return
 
     key = _cache_key(url)
-    data = json.dumps({
+    cached = {
         "status_code": status_code,
         "content_type": content_type,
         "text": text[:500_000],  # Cap cached content size
-    })
+    }
 
-    try:
-        await r.set(key, data, ex=ttl)
-    except redis.RedisError:
-        logger.warning("Failed to cache response for %s", url, exc_info=True)
+    r = await get_redis(redis_url)
+    if r is not None:
+        try:
+            await r.set(key, json.dumps(cached), ex=ttl)
+            return
+        except redis.RedisError:
+            pass
+
+    # Fall back to in-memory cache
+    _mem_set(key, cached, ttl)

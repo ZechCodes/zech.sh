@@ -1,131 +1,88 @@
-// SCAN: Multi-turn chat with hierarchical tool-call UI + streamed AI response via SSE
+// SCAN: Multi-turn chat with hierarchical tool-call UI + notification-driven pipeline
+// Depends on scan-pipeline.js (loaded before this script).
 (function () {
   "use strict";
 
+  var SP = window.ScanPipeline;
   var scriptEl = document.currentScript;
   var chatId = scriptEl && scriptEl.getAttribute("data-chat-id");
   var chatMode = scriptEl && scriptEl.getAttribute("data-chat-mode");
+  var chatTitle = scriptEl && scriptEl.getAttribute("data-chat-title");
   var needsStream = scriptEl && scriptEl.getAttribute("data-needs-stream") === "true";
+  var lastNotificationAt = scriptEl && scriptEl.getAttribute("data-last-notification-at");
   if (!chatId) return;
 
-  var isDeep = chatMode === "deep_research";
+  // Prevent premature notification replay — Skrift auto-connects and would
+  // dispatch queued sk:notification events before our listener is attached.
+  // We disconnect now and reconnect inside connectStream() after the listener is ready.
+  if (needsStream && window.__skriftNotifications) {
+    window.__skriftNotifications._disconnect();
+  }
 
   var chatMessages = document.getElementById("chatMessages");
   var activeTurn = document.getElementById("activeTurn");
   var responseEl = document.getElementById("researchResponse");
   var cursorEl = document.getElementById("researchCursor");
-  var pipelineEl = document.getElementById("researchPipeline");
   var pipelineStatus = document.getElementById("pipelineStatus");
   var pipelineDetails = document.getElementById("pipelineDetails");
   var followupForm = document.getElementById("chatFollowup");
   var followupInput = followupForm ? followupForm.querySelector("[name=q]") : null;
 
-  // Current stream state
-  var buffer = "";
-  var receivedFirstText = false;
-  var toolGroups = [];
-  var groupsByTopic = {};
-  var allFetchedUrls = [];
-  var totalToolCalls = 0;
-  var usageData = null;
-
-  var stageLabels = {
-    reasoning: "THINKING",
-    researching: "RESEARCHING",
-    responding: "GENERATING",
-  };
-
-  // Reasoning block state (streamed thinking text)
-  var reasoningBuffer = "";
-  var reasoningBlock = null;
-
-  // Ordered list of pipeline detail elements (reasoning divs + tool group els)
-  // so buildSummary() can preserve interleaving
-  var pipelineItems = [];
+  var pipeline = SP.createPipeline({
+    pipelineDetails: pipelineDetails,
+    pipelineStatus: pipelineStatus,
+    responseEl: responseEl,
+    cursorEl: cursorEl,
+  });
 
   // ---------------------------------------------------------------------------
-  // Helpers
+  // Response action helpers (copy / download)
   // ---------------------------------------------------------------------------
 
-  function escapeHtml(text) {
-    var div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+  function slugify(text) {
+    return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   }
 
-  function faviconUrl(url) {
-    try {
-      var host = new URL(url).hostname;
-      return "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(host) + "&sz=16";
-    } catch (_) {
-      return "";
-    }
-  }
+  function createResponseActions(markdown) {
+    var row = document.createElement("div");
+    row.className = "response-actions";
 
-  function domainFromUrl(url) {
-    try { return new URL(url).hostname; } catch (_) { return ""; }
-  }
-
-  function fmtNum(n) {
-    return Number(n).toLocaleString();
-  }
-
-  function fmtUsage(u) {
-    return fmtNum(u.input_tokens) + "/" + fmtNum(u.output_tokens) +
-      " ($" + u.input_cost + "/$" + u.output_cost + ")";
-  }
-
-  function createFaviconImg(url) {
-    var src = faviconUrl(url);
-    if (!src) return null;
-    var img = document.createElement("img");
-    img.className = "tool-favicon";
-    img.src = src;
-    img.alt = "";
-    img.title = domainFromUrl(url);
-    img.width = 16;
-    img.height = 16;
-    return img;
-  }
-
-  function truncateUrl(url) {
-    try {
-      var u = new URL(url);
-      var path = u.pathname.length > 30 ? u.pathname.slice(0, 30) + "\u2026" : u.pathname;
-      return u.hostname + path;
-    } catch (_) {
-      return url.length > 60 ? url.slice(0, 60) + "\u2026" : url;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Markdown renderer
-  // ---------------------------------------------------------------------------
-
-  function renderMarkdown(md) {
-    var html = md
-      .replace(/```(\w*)\n([\s\S]*?)```/g, function (_, lang, code) {
-        return '<pre class="research-code"><code>' + escapeHtml(code.trim()) + "</code></pre>";
-      })
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      .replace(/^### (.+)$/gm, "<h4>$1</h4>")
-      .replace(/^## (.+)$/gm, "<h3>$1</h3>")
-      .replace(/^# (.+)$/gm, "<h2>$1</h2>")
-      .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-      .replace(/^[-*] (.+)$/gm, "<li>$1</li>")
-      .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
-      .replace(/\n\n+/g, "</p><p>")
-      .replace(/\n/g, "<br>");
-
-    html = html.replace(/((?:<li>.*?<\/li>(?:<br>)?)+)/g, "<ul>$1</ul>");
-    html = html.replace(/<ul>([\s\S]*?)<\/ul>/g, function (_, inner) {
-      return "<ul>" + inner.replace(/<br>/g, "") + "</ul>";
+    // Copy button
+    var copyBtn = document.createElement("button");
+    copyBtn.className = "response-action-btn";
+    copyBtn.title = "Copy as Markdown";
+    copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    copyBtn.addEventListener("click", function () {
+      navigator.clipboard.writeText(markdown).then(function () {
+        var fb = document.createElement("span");
+        fb.className = "response-actions-feedback";
+        fb.textContent = "Copied!";
+        row.appendChild(fb);
+        setTimeout(function () { fb.remove(); }, 1500);
+      });
     });
+    row.appendChild(copyBtn);
 
-    return "<p>" + html + "</p>";
+    // Download button
+    var dlBtn = document.createElement("button");
+    dlBtn.className = "response-action-btn";
+    dlBtn.title = "Download as Markdown";
+    dlBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+    dlBtn.addEventListener("click", function () {
+      var filename = (chatTitle ? slugify(chatTitle) : "research") + ".md";
+      var blob = new Blob([markdown], { type: "text/markdown" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+    row.appendChild(dlBtn);
+
+    return row;
   }
 
   // ---------------------------------------------------------------------------
@@ -139,13 +96,11 @@
     var events;
     try { events = JSON.parse(raw); } catch (_) { return; }
 
-    // Count tool calls, collect URLs, and rebuild tool groups from past events
     var pastToolCalls = 0;
     var pastUrls = [];
     var pastUsage = null;
     var currentReasoningText = "";
-    var groups = {};       // topic -> { topic, searches: [], fetches: [], urls: [], numSources: 0 }
-    // Ordered items: { type: "reasoning", text } or { type: "research", topic }
+    var groups = {};
     var itemOrder = [];
     var lastTopic = "";
 
@@ -157,7 +112,6 @@
       if (dt === "reasoning") {
         currentReasoningText += ev.text || "";
       } else if (dt === "research") {
-        // A new research group means reasoning for this block ended
         if (currentReasoningText) {
           itemOrder.push({ type: "reasoning", text: currentReasoningText });
           currentReasoningText = "";
@@ -200,7 +154,6 @@
       } else if (dt === "result") {
         if (groups[topic]) groups[topic].numSources = ev.num_sources || 0;
       } else if (dt === "usage") {
-        // Flush any final reasoning text
         if (currentReasoningText) {
           itemOrder.push({ type: "reasoning", text: currentReasoningText });
           currentReasoningText = "";
@@ -241,7 +194,7 @@
           if (seen[host] || fCount >= 10) return;
           seen[host] = true;
           fCount++;
-          var img = createFaviconImg(u);
+          var img = SP.createFaviconImg(u);
           if (img) favicons.appendChild(img);
         } catch (_) {}
       });
@@ -256,11 +209,11 @@
     if (pastUsage && pastUsage.total) {
       var usageSpan = document.createElement("span");
       usageSpan.className = "tool-usage";
-      usageSpan.textContent = fmtUsage(pastUsage.total);
+      usageSpan.textContent = SP.fmtUsage(pastUsage.total);
       summary.appendChild(usageSpan);
     }
 
-    // Build collapsible body with reconstructed tool groups
+    // Build collapsible body
     var summaryBody = document.createElement("div");
     summaryBody.className = "tool-summary-body";
     summaryBody.hidden = true;
@@ -269,12 +222,11 @@
       if (item.type === "reasoning") {
         var reasonEl = document.createElement("div");
         reasonEl.className = "deep-reasoning is-complete";
-        reasonEl.innerHTML = renderMarkdown(item.text);
+        reasonEl.innerHTML = SP.renderMarkdown(item.text);
         summaryBody.appendChild(reasonEl);
         return;
       }
 
-      // item.type === "research"
       var g = groups[item.topic];
       if (!g) return;
 
@@ -283,7 +235,6 @@
 
       var header = document.createElement("div");
       header.className = "tool-header";
-
       var gChevron = document.createElement("span");
       gChevron.className = "tool-chevron";
       var icon = document.createElement("span");
@@ -302,12 +253,11 @@
       header.appendChild(topicEl);
       groupEl.appendChild(header);
 
-      // Sources strip
       if (g.urls.length > 0) {
         var sources = document.createElement("div");
         sources.className = "tool-sources";
         g.urls.slice(0, 6).forEach(function (u) {
-          var img = createFaviconImg(u);
+          var img = SP.createFaviconImg(u);
           if (img) sources.appendChild(img);
         });
         var sc = document.createElement("span");
@@ -317,7 +267,6 @@
         groupEl.appendChild(sources);
       }
 
-      // Children (searches + fetches)
       var body = document.createElement("div");
       body.className = "tool-body";
       var childrenEl = document.createElement("div");
@@ -327,7 +276,7 @@
         var child = document.createElement("div");
         child.className = "tool-child is-done";
         child.innerHTML = '<span class="tool-icon-done">\u2713</span> Searched "' +
-          escapeHtml(s.query) + '"' +
+          SP.escapeHtml(s.query) + '"' +
           (s.numResults !== null ? " \u2014 " + s.numResults + " result" + (s.numResults !== 1 ? "s" : "") : "");
         childrenEl.appendChild(child);
       });
@@ -335,16 +284,16 @@
       g.fetches.forEach(function (f) {
         var child = document.createElement("div");
         child.className = "tool-child is-done";
-        var fav = createFaviconImg(f.url);
+        var fav = SP.createFaviconImg(f.url);
         var favHtml = fav ? fav.outerHTML + " " : "";
         var verb = f.failed ? "Failed" : "Read";
         var iconChar = f.failed ? "\u2717" : "\u2713";
         child.innerHTML = '<span class="tool-icon-done">' + iconChar + '</span> ' +
-          favHtml + verb + " " + escapeHtml(truncateUrl(f.url));
+          favHtml + verb + " " + SP.escapeHtml(SP.truncateUrl(f.url));
         if (f.usage) {
           var uSpan = document.createElement("span");
           uSpan.className = "tool-usage";
-          uSpan.textContent = fmtUsage(f.usage);
+          uSpan.textContent = SP.fmtUsage(f.usage);
           child.appendChild(uSpan);
         }
         if (f.content) {
@@ -367,7 +316,7 @@
         g.messages.forEach(function (text) {
           var msgEl = document.createElement("div");
           msgEl.className = "tool-message";
-          msgEl.innerHTML = renderMarkdown(text);
+          msgEl.innerHTML = SP.renderMarkdown(text);
           childrenEl.appendChild(msgEl);
         });
       }
@@ -386,9 +335,9 @@
       var usageTotal = document.createElement("div");
       usageTotal.className = "tool-usage-total";
       var parts = [];
-      if (pastUsage.research) parts.push("Research agent: " + fmtUsage(pastUsage.research));
-      if (pastUsage.extraction) parts.push("Extraction agent: " + fmtUsage(pastUsage.extraction));
-      if (pastUsage.total) parts.push("Total: " + fmtUsage(pastUsage.total));
+      if (pastUsage.research) parts.push("Research agent: " + SP.fmtUsage(pastUsage.research));
+      if (pastUsage.extraction) parts.push("Extraction agent: " + SP.fmtUsage(pastUsage.extraction));
+      if (pastUsage.total) parts.push("Total: " + SP.fmtUsage(pastUsage.total));
       usageTotal.innerHTML = parts.map(function (p) { return "<div>" + p + "</div>"; }).join("");
       summaryBody.appendChild(usageTotal);
     }
@@ -403,9 +352,10 @@
   }
 
   function renderPastResponse(container) {
-    var text = container.textContent;
-    if (text) {
-      container.innerHTML = renderMarkdown(text);
+    var rawMarkdown = container.textContent;
+    if (rawMarkdown) {
+      container.innerHTML = SP.renderMarkdown(rawMarkdown);
+      container.parentNode.appendChild(createResponseActions(rawMarkdown));
     }
   }
 
@@ -417,9 +367,9 @@
     if (!data.total) { container.remove(); return; }
     container.className = "tool-usage-total";
     var parts = [];
-    if (data.research) parts.push("Research agent: " + fmtUsage(data.research));
-    if (data.extraction) parts.push("Extraction agent: " + fmtUsage(data.extraction));
-    parts.push("Total: " + fmtUsage(data.total));
+    if (data.research) parts.push("Research agent: " + SP.fmtUsage(data.research));
+    if (data.extraction) parts.push("Extraction agent: " + SP.fmtUsage(data.extraction));
+    parts.push("Total: " + SP.fmtUsage(data.total));
     container.innerHTML = parts.map(function (p) { return "<div>" + p + "</div>"; }).join("");
   }
 
@@ -429,243 +379,6 @@
   document.querySelectorAll(".chat-assistant-usage").forEach(renderPastUsage);
 
   // ---------------------------------------------------------------------------
-  // DOM builders for streaming (same as research.js)
-  // ---------------------------------------------------------------------------
-
-  function createToolGroup(topic) {
-    var group = document.createElement("div");
-    group.className = "tool-group is-running";
-
-    var header = document.createElement("div");
-    header.className = "tool-header";
-
-    var chevron = document.createElement("span");
-    chevron.className = "tool-chevron";
-
-    var spinner = document.createElement("span");
-    spinner.className = "tool-spinner";
-
-    var label = document.createElement("span");
-    label.className = "tool-label";
-    label.textContent = "Researching";
-
-    var topicEl = document.createElement("span");
-    topicEl.className = "tool-topic";
-    topicEl.textContent = topic;
-
-    header.appendChild(chevron);
-    header.appendChild(spinner);
-    header.appendChild(label);
-    header.appendChild(topicEl);
-    group.appendChild(header);
-
-    var subline = document.createElement("div");
-    subline.className = "tool-subline";
-    group.appendChild(subline);
-
-    var sources = document.createElement("div");
-    sources.className = "tool-sources";
-    sources.hidden = true;
-    group.appendChild(sources);
-
-    var body = document.createElement("div");
-    body.className = "tool-body";
-
-    var children = document.createElement("div");
-    children.className = "tool-children";
-    body.appendChild(children);
-    group.appendChild(body);
-
-    header.addEventListener("click", function () {
-      if (!group.classList.contains("is-done")) return;
-      group.classList.toggle("is-collapsed");
-    });
-
-    var groupObj = {
-      el: group,
-      header: header,
-      label: label,
-      spinner: spinner,
-      chevron: chevron,
-      subline: subline,
-      sources: sources,
-      body: body,
-      childrenEl: children,
-      topic: topic,
-      fetchedUrls: [],
-      runningChildren: [],
-    };
-
-    toolGroups.push(groupObj);
-    groupsByTopic[topic] = groupObj;
-    pipelineDetails.appendChild(group);
-    pipelineItems.push(group);
-    return groupObj;
-  }
-
-  function addChild(group, html, isRunning) {
-    var child = document.createElement("div");
-    child.className = "tool-child" + (isRunning ? "" : " is-done");
-    child.innerHTML = html;
-    group.childrenEl.appendChild(child);
-    if (isRunning) {
-      group.runningChildren.push(child);
-    }
-    return child;
-  }
-
-  function updateSubline(group) {
-    var running = group.runningChildren;
-    if (running.length === 0) {
-      group.subline.innerHTML = "";
-      group.subline.hidden = true;
-      return;
-    }
-    var last = running[running.length - 1];
-    group.subline.innerHTML = last.innerHTML;
-    group.subline.hidden = false;
-  }
-
-  function finishChild(group, child, doneHtml) {
-    child.innerHTML = doneHtml;
-    child.classList.add("is-done");
-    var idx = group.runningChildren.indexOf(child);
-    if (idx !== -1) group.runningChildren.splice(idx, 1);
-    updateSubline(group);
-  }
-
-  function collapseGroup(group, numSources) {
-    group.el.classList.remove("is-running");
-    group.el.classList.add("is-done", "is-collapsed");
-
-    group.spinner.className = "tool-icon-done";
-    group.spinner.textContent = "\u2713";
-    group.label.textContent = "Researched";
-
-    group.subline.innerHTML = "";
-    group.subline.hidden = true;
-
-    if (group.fetchedUrls.length > 0) {
-      group.sources.innerHTML = "";
-      var shown = group.fetchedUrls.slice(0, 6);
-      shown.forEach(function (u) {
-        var img = createFaviconImg(u);
-        if (img) group.sources.appendChild(img);
-      });
-      var count = document.createElement("span");
-      count.className = "tool-source-count";
-      count.textContent = "Read " + numSources + " source" + (numSources !== 1 ? "s" : "");
-      group.sources.appendChild(count);
-      group.sources.hidden = false;
-    }
-  }
-
-  function buildSummary() {
-    var summaryEl = document.createElement("div");
-    summaryEl.className = "tool-summary";
-    summaryEl.setAttribute("role", "button");
-
-    var chevron = document.createElement("span");
-    chevron.className = "tool-chevron";
-    summaryEl.appendChild(chevron);
-
-    var countEl = document.createElement("span");
-    countEl.className = "tool-summary-count";
-    countEl.textContent = totalToolCalls + " tool call" + (totalToolCalls !== 1 ? "s" : "");
-    summaryEl.appendChild(countEl);
-
-    if (allFetchedUrls.length > 0) {
-      var favicons = document.createElement("span");
-      favicons.className = "tool-summary-favicons";
-      var seen = {};
-      var count = 0;
-      allFetchedUrls.forEach(function (u) {
-        try {
-          var host = new URL(u).hostname;
-          if (seen[host] || count >= 10) return;
-          seen[host] = true;
-          count++;
-          var img = createFaviconImg(u);
-          if (img) favicons.appendChild(img);
-        } catch (_) {}
-      });
-      summaryEl.appendChild(favicons);
-
-      var srcCount = document.createElement("span");
-      srcCount.className = "tool-source-count";
-      srcCount.textContent = "Read " + allFetchedUrls.length + " source" + (allFetchedUrls.length !== 1 ? "s" : "");
-      summaryEl.appendChild(srcCount);
-    }
-
-    if (usageData) {
-      var usageSummary = document.createElement("span");
-      usageSummary.className = "tool-usage";
-      usageSummary.textContent = fmtUsage(usageData.total);
-      summaryEl.appendChild(usageSummary);
-    }
-
-    var summaryBody = document.createElement("div");
-    summaryBody.className = "tool-summary-body";
-    summaryBody.hidden = true;
-
-    pipelineItems.forEach(function (item) {
-      // item is either a DOM element (reasoning block) or a tool group object
-      summaryBody.appendChild(item.el || item);
-    });
-
-    summaryEl.addEventListener("click", function () {
-      summaryBody.hidden = !summaryBody.hidden;
-      summaryEl.classList.toggle("is-expanded", !summaryBody.hidden);
-    });
-
-    pipelineDetails.innerHTML = "";
-    pipelineDetails.appendChild(summaryEl);
-    pipelineDetails.appendChild(summaryBody);
-
-    if (usageData) {
-      var usageTotal = document.createElement("div");
-      usageTotal.className = "tool-usage-total";
-      usageTotal.innerHTML =
-        '<div>Research agent: ' + fmtUsage(usageData.research) + '</div>' +
-        '<div>Extraction agent: ' + fmtUsage(usageData.extraction) + '</div>' +
-        '<div>Total: ' + fmtUsage(usageData.total) + '</div>';
-      summaryBody.appendChild(usageTotal);
-    }
-  }
-
-  function addDetail(label, text) {
-    var item = document.createElement("div");
-    item.className = "pipeline-detail";
-    item.innerHTML =
-      '<span class="pipeline-label">' + escapeHtml(label) + ":</span> " + escapeHtml(text);
-    pipelineDetails.appendChild(item);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Reset stream state for a new turn
-  // ---------------------------------------------------------------------------
-
-  function resetStreamState() {
-    buffer = "";
-    receivedFirstText = false;
-    toolGroups = [];
-    groupsByTopic = {};
-    allFetchedUrls = [];
-    totalToolCalls = 0;
-    usageData = null;
-    reasoningBuffer = "";
-    reasoningBlock = null;
-    pipelineItems = [];
-
-    pipelineStatus.textContent = "";
-    pipelineStatus.className = "pipeline-status";
-    pipelineDetails.innerHTML = "";
-    responseEl.innerHTML = "";
-    responseEl.appendChild(cursorEl);
-    activeTurn.hidden = false;
-  }
-
-  // ---------------------------------------------------------------------------
   // Finalize: move active turn content into chat history
   // ---------------------------------------------------------------------------
 
@@ -673,7 +386,6 @@
     var turn = document.createElement("div");
     turn.className = "chat-turn";
 
-    // Move pipeline summary
     if (pipelineDetails.children.length > 0) {
       var eventsContainer = document.createElement("div");
       eventsContainer.className = "chat-assistant-events";
@@ -683,274 +395,110 @@
       turn.appendChild(eventsContainer);
     }
 
-    // Move response
     var responseClone = document.createElement("div");
     responseClone.className = "chat-assistant-response";
-    responseClone.innerHTML = renderMarkdown(buffer);
+    responseClone.innerHTML = SP.renderMarkdown(pipeline.state.buffer);
     turn.appendChild(responseClone);
+    turn.appendChild(createResponseActions(pipeline.state.buffer));
 
     chatMessages.appendChild(turn);
     activeTurn.hidden = true;
-
-    // Scroll to bottom
     window.scrollTo(0, document.body.scrollHeight);
   }
 
   // ---------------------------------------------------------------------------
-  // SSE connection
+  // Clarification UI helper
   // ---------------------------------------------------------------------------
 
-  function connectStream(extraContext) {
-    resetStreamState();
-
-    var streamUrl = "/chat/" + chatId + "/stream";
-    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-    var params = [];
-    if (extraContext) params.push("context=" + encodeURIComponent(extraContext));
-    if (tz) params.push("tz=" + encodeURIComponent(tz));
-    if (params.length) streamUrl += "?" + params.join("&");
-    var es = new EventSource(streamUrl);
-
-    var fetchChildren = {};
-
-    es.addEventListener("stage", function (e) {
-      var data = JSON.parse(e.data);
-      var label = stageLabels[data.stage] || data.stage.toUpperCase();
-      pipelineStatus.textContent = label;
-      pipelineStatus.className = "pipeline-status visible";
-
-      // Finalize reasoning block when leaving reasoning stage
-      if (data.stage !== "reasoning" && reasoningBlock) {
-        reasoningBlock.classList.add("is-complete");
-        reasoningBlock = null;
-        reasoningBuffer = "";
-      }
+  function showClarification(questions, reconnect) {
+    var container = document.createElement("div");
+    container.className = "pipeline-clarification";
+    questions.forEach(function (question) {
+      var qEl = document.createElement("div");
+      qEl.className = "clarification-question";
+      qEl.textContent = question;
+      container.appendChild(qEl);
     });
-
-    es.addEventListener("detail", function (e) {
-      var data = JSON.parse(e.data);
-      var group = data.topic ? groupsByTopic[data.topic] : null;
-
-      if (data.type === "reasoning") {
-        if (!reasoningBlock) {
-          reasoningBlock = document.createElement("div");
-          reasoningBlock.className = "deep-reasoning";
-          pipelineDetails.appendChild(reasoningBlock);
-          pipelineItems.push(reasoningBlock);
-        }
-        reasoningBuffer += data.text;
-        reasoningBlock.innerHTML = renderMarkdown(reasoningBuffer);
-
-      } else if (data.type === "research") {
-        // Finalize current reasoning block before starting research
-        if (reasoningBlock) {
-          reasoningBlock.classList.add("is-complete");
-          reasoningBlock = null;
-          reasoningBuffer = "";
-        }
-        totalToolCalls++;
-        createToolGroup(data.topic);
-
-      } else if (data.type === "search") {
-        totalToolCalls++;
-        if (group) {
-          var html = '<span class="tool-spinner-sm"></span> Searching "' + escapeHtml(data.query) + '"';
-          var child = addChild(group, html, true);
-          child._searchQuery = data.query;
-          updateSubline(group);
-        }
-
-      } else if (data.type === "search_done") {
-        if (group) {
-          var found = null;
-          group.runningChildren.forEach(function (c) {
-            if (c._searchQuery === data.query) found = c;
-          });
-          if (found) {
-            var doneHtml = '<span class="tool-icon-done">\u2713</span> Searched "' +
-              escapeHtml(data.query) + '" \u2014 ' + data.num_results + ' result' +
-              (data.num_results !== 1 ? 's' : '');
-            finishChild(group, found, doneHtml);
-          }
-        }
-
-      } else if (data.type === "fetch") {
-        totalToolCalls++;
-        if (group) {
-          var fav = createFaviconImg(data.url);
-          var favHtml = fav ? fav.outerHTML + " " : "";
-          var html = '<span class="tool-spinner-sm"></span> ' + favHtml +
-            "Reading " + escapeHtml(truncateUrl(data.url));
-          var child = addChild(group, html, true);
-          fetchChildren[data.url] = { child: child, group: group };
-          updateSubline(group);
-        }
-
-      } else if (data.type === "fetch_done") {
-        var entry = fetchChildren[data.url];
-        if (entry) {
-          var child = entry.child;
-          var g = entry.group;
-          var fav = createFaviconImg(data.url);
-          var favHtml = fav ? fav.outerHTML + " " : "";
-          var verb = data.failed ? "Failed" : "Read";
-          var doneHtml = '<span class="tool-icon-done">' + (data.failed ? "\u2717" : "\u2713") +
-            '</span> ' + favHtml + verb + " " + escapeHtml(truncateUrl(data.url));
-          finishChild(g, child, doneHtml);
-          if (!data.failed) {
-            g.fetchedUrls.push(data.url);
-            allFetchedUrls.push(data.url);
-            if (data.usage) {
-              var usageSpan = document.createElement("span");
-              usageSpan.className = "tool-usage";
-              usageSpan.textContent = fmtUsage(data.usage);
-              child.appendChild(usageSpan);
-            }
-            if (data.content) {
-              child.classList.add("has-content");
-              var contentEl = document.createElement("div");
-              contentEl.className = "tool-child-content";
-              contentEl.hidden = true;
-              contentEl.textContent = data.content;
-              child.appendChild(contentEl);
-              child.addEventListener("click", function (ev) {
-                ev.stopPropagation();
-                contentEl.hidden = !contentEl.hidden;
-                child.classList.toggle("is-expanded", !contentEl.hidden);
-              });
-            }
-          }
-          delete fetchChildren[data.url];
-        }
-
-      } else if (data.type === "result") {
-        if (group) {
-          collapseGroup(group, data.num_sources || 0);
-        }
-
-      } else if (data.type === "message") {
-        var msgEl = document.createElement("div");
-        msgEl.className = "tool-message";
-        msgEl.innerHTML = renderMarkdown(data.text || "");
-        var msgGroup = group || (toolGroups.length > 0 ? toolGroups[toolGroups.length - 1] : null);
-        if (msgGroup) {
-          msgGroup.childrenEl.appendChild(msgEl);
-        } else {
-          pipelineDetails.appendChild(msgEl);
-        }
-
-      } else if (data.type === "usage") {
-        usageData = data;
-        var existingSummary = pipelineDetails.querySelector(".tool-summary");
-        if (existingSummary) {
-          var usageSpan = document.createElement("span");
-          usageSpan.className = "tool-usage";
-          usageSpan.textContent = fmtUsage(data.total);
-          existingSummary.appendChild(usageSpan);
-
-          var summaryBody = pipelineDetails.querySelector(".tool-summary-body");
-          if (summaryBody) {
-            var usageTotal = document.createElement("div");
-            usageTotal.className = "tool-usage-total";
-            usageTotal.innerHTML =
-              '<div>Research agent: ' + fmtUsage(data.research) + '</div>' +
-              '<div>Extraction agent: ' + fmtUsage(data.extraction) + '</div>' +
-              '<div>Total: ' + fmtUsage(data.total) + '</div>';
-            summaryBody.appendChild(usageTotal);
-          }
-        }
-      }
+    var form = document.createElement("form");
+    form.className = "clarification-form";
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "scan-input clarification-input";
+    input.placeholder = "Provide details...";
+    input.autofocus = true;
+    form.appendChild(input);
+    container.appendChild(form);
+    pipelineDetails.appendChild(container);
+    input.focus();
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var answer = input.value.trim();
+      if (!answer) return;
+      container.remove();
+      pipeline.addDetail("YOU", answer);
+      reconnect(answer);
     });
+  }
 
-    es.addEventListener("clarification", function (e) {
-      es.close();
-      pipelineStatus.className = "pipeline-status";
-      var data = JSON.parse(e.data);
-      var container = document.createElement("div");
-      container.className = "pipeline-clarification";
-      data.questions.forEach(function (question) {
-        var qEl = document.createElement("div");
-        qEl.className = "clarification-question";
-        qEl.textContent = question;
-        container.appendChild(qEl);
-      });
-      var form = document.createElement("form");
-      form.className = "clarification-form";
-      var input = document.createElement("input");
-      input.type = "text";
-      input.className = "scan-input clarification-input";
-      input.placeholder = "Provide details...";
-      input.autofocus = true;
-      form.appendChild(input);
-      container.appendChild(form);
-      pipelineDetails.appendChild(container);
-      input.focus();
-      form.addEventListener("submit", function (ev) {
-        ev.preventDefault();
-        var answer = input.value.trim();
-        if (!answer) return;
-        container.remove();
-        addDetail("YOU", answer);
-        connectStream(answer);
-      });
-    });
+  // ---------------------------------------------------------------------------
+  // Notification-driven pipeline connection
+  // ---------------------------------------------------------------------------
 
-    es.addEventListener("text", function (e) {
-      if (!receivedFirstText) {
-        receivedFirstText = true;
-        pipelineStatus.className = "pipeline-status";
-        // Finalize any open reasoning block
-        if (reasoningBlock) {
-          reasoningBlock.classList.add("is-complete");
-          reasoningBlock = null;
-          reasoningBuffer = "";
-        }
-        toolGroups.forEach(function (g) {
-          if (g.el.classList.contains("is-running")) {
-            collapseGroup(g, g.fetchedUrls.length);
-          }
+  function connectStream() {
+    pipeline.reset();
+    activeTurn.hidden = false;
+
+    pipeline.connectNotifications(chatId, {
+      onDone: function () { finalizeCurrentTurn(); },
+      onClarification: function (questions) {
+        showClarification(questions, function (answer) {
+          sendMessage(answer);
         });
-        if (pipelineItems.length > 0) {
-          buildSummary();
-        }
-      }
-      var data = JSON.parse(e.data);
-      buffer += data.text;
-      responseEl.innerHTML = renderMarkdown(buffer);
-      responseEl.appendChild(cursorEl);
-      responseEl.scrollTop = responseEl.scrollHeight;
+      },
+      onError: function () {
+        if (pipeline.state.buffer) finalizeCurrentTurn();
+      },
     });
 
-    es.addEventListener("done", function () {
-      es.close();
-      cursorEl.remove();
-      finalizeCurrentTurn();
-      // Don't autofocus — it scrolls viewport away from the response
-    });
-
-    es.addEventListener("error", function (e) {
-      if (e.data) {
-        var data = JSON.parse(e.data);
-        responseEl.innerHTML =
-          '<p class="research-error">Error: ' + escapeHtml(data.error) + "</p>";
+    // Listener is ready — reconnect Skrift to trigger replay of queued notifications.
+    // Setting lastSeen to the chat's cursor ensures we replay from the right point;
+    // if null (pipeline in-progress), Skrift flushes all queued notifications.
+    var sn = window.__skriftNotifications;
+    if (sn) {
+      sn.configure({ persistConnection: true });
+      if (lastNotificationAt) {
+        sn.lastSeen = parseFloat(lastNotificationAt);
       }
-      es.close();
-      cursorEl.remove();
-      pipelineStatus.className = "pipeline-status";
-    });
-
-    es.onerror = function () {
-      if (buffer) {
-        es.close();
-        cursorEl.remove();
-        finalizeCurrentTurn();
-      }
-    };
+      sn._disconnect();
+      sn._connect();
+    }
   }
 
   // ---------------------------------------------------------------------------
   // Follow-up form handler
   // ---------------------------------------------------------------------------
+
+  var userTz = "";
+  try { userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) {}
+
+  function sendMessage(content) {
+    fetch("/chat/" + chatId + "/message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ content: content, tz: userTz }),
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    })
+    .then(function () { connectStream(); })
+    .catch(function (err) {
+      activeTurn.hidden = false;
+      responseEl.innerHTML =
+        '<p class="research-error">Error: ' + SP.escapeHtml(err.message) + "</p>";
+    });
+  }
 
   if (followupForm) {
     followupForm.addEventListener("submit", function (e) {
@@ -959,7 +507,6 @@
       if (!q) return;
       followupInput.value = "";
 
-      // Add user message to chat display
       var turn = document.createElement("div");
       turn.className = "chat-turn";
       var queryEl = document.createElement("div");
@@ -968,26 +515,7 @@
       turn.appendChild(queryEl);
       chatMessages.appendChild(turn);
 
-      // POST the message to create a user message in DB
-      fetch("/chat/" + chatId + "/message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ content: q }),
-      })
-      .then(function (r) {
-        if (!r.ok) throw new Error(r.status);
-        return r.json();
-      })
-      .then(function () {
-        // Start streaming the response
-        connectStream();
-      })
-      .catch(function (err) {
-        activeTurn.hidden = false;
-        responseEl.innerHTML =
-          '<p class="research-error">Error: ' + escapeHtml(err.message) + "</p>";
-      });
+      sendMessage(q);
     });
   }
 
@@ -995,7 +523,6 @@
   // Start initial stream if needed
   // ---------------------------------------------------------------------------
 
-  // Scroll to the most recent message, offset for fixed nav
   var lastTurn = chatMessages.querySelector(".chat-turn:last-child");
   if (lastTurn) {
     var nav = document.querySelector(".zech-topnav");
@@ -1004,19 +531,14 @@
     window.scrollTo({ top: top, behavior: "smooth" });
   }
 
-  if (needsStream) {
-    connectStream();
-  }
+  if (needsStream) connectStream();
 
-  // Focus the input when the user starts typing
   if (followupInput) {
     document.addEventListener("keydown", function (e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (document.activeElement === followupInput) return;
       if (document.activeElement && document.activeElement.tagName === "INPUT") return;
-      if (e.key.length === 1) {
-        followupInput.focus();
-      }
+      if (e.key.length === 1) followupInput.focus();
     });
   }
 })();
