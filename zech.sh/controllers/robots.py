@@ -354,7 +354,7 @@ async def get_robots_rules(
     Returns a tuple of (parsed_rules, cache_record). If the cache is
     stale (older than 24 hours), a background refresh is attempted.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
 
     # Check cache
     result = await db_session.execute(
@@ -362,7 +362,7 @@ async def get_robots_rules(
     )
     cached = result.scalar_one_or_none()
 
-    if cached is not None and cached.next_check_at > now:
+    if cached is not None and cached.next_check_at and cached.next_check_at > now:
         # Cache is fresh
         parsed = _deserialize_parsed(cached.rules_json)
         return parsed, cached

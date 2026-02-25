@@ -55,6 +55,8 @@
     src="{{ theme_url('js/chat.js') }}"
     data-chat-id="{{ chat.id }}"
     data-chat-mode="{{ chat.mode }}"
+    data-chat-title="{{ chat.title }}"
     data-needs-stream="{{ 'true' if needs_stream else 'false' }}"
+    data-last-notification-at="{{ last_notification_at or '' }}"
 ></script>
 {% endblock %}

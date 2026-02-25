@@ -1,4 +1,4 @@
-// SCAN: Multi-turn chat with hierarchical tool-call UI + streamed AI response via SSE
+// SCAN: Multi-turn chat with hierarchical tool-call UI + notification-driven pipeline
 // Depends on scan-pipeline.js (loaded before this script).
 (function () {
   "use strict";
@@ -7,8 +7,17 @@
   var scriptEl = document.currentScript;
   var chatId = scriptEl && scriptEl.getAttribute("data-chat-id");
   var chatMode = scriptEl && scriptEl.getAttribute("data-chat-mode");
+  var chatTitle = scriptEl && scriptEl.getAttribute("data-chat-title");
   var needsStream = scriptEl && scriptEl.getAttribute("data-needs-stream") === "true";
+  var lastNotificationAt = scriptEl && scriptEl.getAttribute("data-last-notification-at");
   if (!chatId) return;
+
+  // Prevent premature notification replay — Skrift auto-connects and would
+  // dispatch queued sk:notification events before our listener is attached.
+  // We disconnect now and reconnect inside connectStream() after the listener is ready.
+  if (needsStream && window.__skriftNotifications) {
+    window.__skriftNotifications._disconnect();
+  }
 
   var chatMessages = document.getElementById("chatMessages");
   var activeTurn = document.getElementById("activeTurn");
@@ -25,6 +34,56 @@
     responseEl: responseEl,
     cursorEl: cursorEl,
   });
+
+  // ---------------------------------------------------------------------------
+  // Response action helpers (copy / download)
+  // ---------------------------------------------------------------------------
+
+  function slugify(text) {
+    return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+
+  function createResponseActions(markdown) {
+    var row = document.createElement("div");
+    row.className = "response-actions";
+
+    // Copy button
+    var copyBtn = document.createElement("button");
+    copyBtn.className = "response-action-btn";
+    copyBtn.title = "Copy as Markdown";
+    copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    copyBtn.addEventListener("click", function () {
+      navigator.clipboard.writeText(markdown).then(function () {
+        var fb = document.createElement("span");
+        fb.className = "response-actions-feedback";
+        fb.textContent = "Copied!";
+        row.appendChild(fb);
+        setTimeout(function () { fb.remove(); }, 1500);
+      });
+    });
+    row.appendChild(copyBtn);
+
+    // Download button
+    var dlBtn = document.createElement("button");
+    dlBtn.className = "response-action-btn";
+    dlBtn.title = "Download as Markdown";
+    dlBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+    dlBtn.addEventListener("click", function () {
+      var filename = (chatTitle ? slugify(chatTitle) : "research") + ".md";
+      var blob = new Blob([markdown], { type: "text/markdown" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+    row.appendChild(dlBtn);
+
+    return row;
+  }
 
   // ---------------------------------------------------------------------------
   // Render past assistant messages (events summary)
@@ -293,8 +352,11 @@
   }
 
   function renderPastResponse(container) {
-    var text = container.textContent;
-    if (text) container.innerHTML = SP.renderMarkdown(text);
+    var rawMarkdown = container.textContent;
+    if (rawMarkdown) {
+      container.innerHTML = SP.renderMarkdown(rawMarkdown);
+      container.parentNode.appendChild(createResponseActions(rawMarkdown));
+    }
   }
 
   function renderPastUsage(container) {
@@ -337,6 +399,7 @@
     responseClone.className = "chat-assistant-response";
     responseClone.innerHTML = SP.renderMarkdown(pipeline.state.buffer);
     turn.appendChild(responseClone);
+    turn.appendChild(createResponseActions(pipeline.state.buffer));
 
     chatMessages.appendChild(turn);
     activeTurn.hidden = true;
@@ -378,37 +441,64 @@
   }
 
   // ---------------------------------------------------------------------------
-  // SSE connection
+  // Notification-driven pipeline connection
   // ---------------------------------------------------------------------------
 
-  function connectStream(extraContext) {
+  function connectStream() {
     pipeline.reset();
     activeTurn.hidden = false;
 
-    var streamUrl = "/chat/" + chatId + "/stream";
-    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-    var params = [];
-    if (extraContext) params.push("context=" + encodeURIComponent(extraContext));
-    if (tz) params.push("tz=" + encodeURIComponent(tz));
-    if (params.length) streamUrl += "?" + params.join("&");
-
-    pipeline.connectSSE(streamUrl, {
+    pipeline.connectNotifications(chatId, {
       onDone: function () { finalizeCurrentTurn(); },
       onClarification: function (questions) {
         showClarification(questions, function (answer) {
-          connectStream(answer);
+          sendMessage(answer);
         });
       },
       onError: function () {
-        // Finalize even on connection loss if we had content
         if (pipeline.state.buffer) finalizeCurrentTurn();
       },
     });
+
+    // Listener is ready — reconnect Skrift to trigger replay of queued notifications.
+    // Setting lastSeen to the chat's cursor ensures we replay from the right point;
+    // if null (pipeline in-progress), Skrift flushes all queued notifications.
+    var sn = window.__skriftNotifications;
+    if (sn) {
+      sn.configure({ persistConnection: true });
+      if (lastNotificationAt) {
+        sn.lastSeen = parseFloat(lastNotificationAt);
+      }
+      sn._disconnect();
+      sn._connect();
+    }
   }
 
   // ---------------------------------------------------------------------------
   // Follow-up form handler
   // ---------------------------------------------------------------------------
+
+  var userTz = "";
+  try { userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) {}
+
+  function sendMessage(content) {
+    fetch("/chat/" + chatId + "/message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ content: content, tz: userTz }),
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    })
+    .then(function () { connectStream(); })
+    .catch(function (err) {
+      activeTurn.hidden = false;
+      responseEl.innerHTML =
+        '<p class="research-error">Error: ' + SP.escapeHtml(err.message) + "</p>";
+    });
+  }
 
   if (followupForm) {
     followupForm.addEventListener("submit", function (e) {
@@ -425,22 +515,7 @@
       turn.appendChild(queryEl);
       chatMessages.appendChild(turn);
 
-      fetch("/chat/" + chatId + "/message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ content: q }),
-      })
-      .then(function (r) {
-        if (!r.ok) throw new Error(r.status);
-        return r.json();
-      })
-      .then(function () { connectStream(); })
-      .catch(function (err) {
-        activeTurn.hidden = false;
-        responseEl.innerHTML =
-          '<p class="research-error">Error: ' + SP.escapeHtml(err.message) + "</p>";
-      });
+      sendMessage(q);
     });
   }
 

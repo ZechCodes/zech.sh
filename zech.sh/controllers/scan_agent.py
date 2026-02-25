@@ -30,16 +30,18 @@ from pypdf import PdfReader
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from controllers.brave_search import brave_search as _brave_search_raw
-from controllers.domain_throttle import (
-    cache_response,
-    get_cached_response,
-    wait_for_rate_limit,
-)
+from controllers.domain_throttle import wait_for_rate_limit
 from controllers.llm import (
     calc_usage_cost,
     gemini_flash,
     gemini_flash_lite,
     gemini_pro,
+)
+from controllers.deep_research_agent import (
+    LIGHT_CONFIG,
+    LIGHT_PLANNING_PROMPT,
+    _jina_fetch,
+    run_deep_research_pipeline,
 )
 from controllers.robots import USER_AGENT, check_url_allowed
 
@@ -68,7 +70,7 @@ class FetchedResource(BaseModel):
 # Pipeline SSE event types
 # ---------------------------------------------------------------------------
 
-StageName = Literal["researching", "responding"]
+StageName = Literal["reasoning", "researching", "responding"]
 
 
 @dataclass
@@ -240,6 +242,7 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
         return f"No search results found for: {topic}"
 
     urls = _pick_top_urls(results, ctx.deps.fetched_urls)
+    logger.info("Picked %d URLs for topic %r: %s", len(urls), topic, urls)
     findings: list[str] = []
 
     fetched_urls_list: list[str] = []
@@ -263,6 +266,7 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
                 payload["usage"] = result.usage
             await queue.put(DetailEvent(type="fetch_done", payload=payload))
         except Exception:
+            logger.exception("fetch_and_extract crashed for %s", url)
             await queue.put(DetailEvent(type="fetch_done", payload={"topic": topic, "url": url, "failed": True}))
 
     if not findings:
@@ -346,22 +350,19 @@ async def fetch_and_extract(
 ) -> ExtractionResult:
     """Fetch a URL and extract relevant content using the extraction agent.
 
-    Checks robots.txt rules before fetching, rate-limits requests per domain,
-    and caches responses in Redis when available.
+    Tries Jina Reader first for clean markdown. Falls back to direct fetch
+    for PDFs, images, or when Jina fails. Checks robots.txt rules before
+    fetching and caches responses in Redis.
 
     Returns ExtractionResult with output=None if blocked by robots.txt.
     """
-    parsed_url = urlparse(url)
-    domain = parsed_url.hostname or ""
-
     # --- robots.txt check ---
+    crawl_delay = 10.0
     if db_session is not None:
         allowed, crawl_delay = await check_url_allowed(url, db_session)
         if not allowed:
             logger.info("Blocked by robots.txt: %s", url)
             return ExtractionResult()
-    else:
-        crawl_delay = 10.0
 
     def _track(run_result) -> dict | None:
         """Accumulate extraction usage on *deps* and return a cost dict."""
@@ -373,21 +374,19 @@ async def fetch_and_extract(
             run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview",
         )
 
-    # --- Check response cache ---
-    cached = await get_cached_response(url, redis_url=redis_url)
-    if cached is not None:
-        content_type = cached.get("content_type", "")
-        text = cached.get("text", "")
-        if "html" in content_type:
-            text = _html_to_text(text)
-        prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
+    # --- Try Jina Reader first (handles HTML → markdown, has Redis cache) ---
+    jina_text = await _jina_fetch(url, redis_url=redis_url)
+    logger.info("Jina fetch for %s: %s", url, f"{len(jina_text)} chars" if jina_text else "None")
+    if jina_text:
+        prompt = f"Query: {query}\n\nDocument:\n{jina_text[:_MAX_DOC_CHARS]}"
         result = await extraction_agent.run(prompt, model=gemini_flash())
         return ExtractionResult(output=result.output, usage=_track(result))
 
-    # --- Rate limit ---
+    # --- Jina failed — fall back to direct fetch (PDFs, images, etc.) ---
+    parsed_url = urlparse(url)
+    domain = parsed_url.hostname or ""
     await wait_for_rate_limit(domain, delay_seconds=crawl_delay, redis_url=redis_url)
 
-    # --- Fetch ---
     async with httpx.AsyncClient(follow_redirects=True) as client:
         try:
             resp = await client.get(
@@ -402,17 +401,6 @@ async def fetch_and_extract(
             return ExtractionResult(output=f"Could not fetch {url}: {exc}")
 
     content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
-
-    # --- Cache the response ---
-    if "html" in content_type or content_type.startswith("text/"):
-        await cache_response(
-            url,
-            status_code=resp.status_code,
-            headers=dict(resp.headers),
-            text=resp.text,
-            content_type=content_type,
-            redis_url=redis_url,
-        )
 
     if content_type == "application/pdf":
         text = _pdf_to_text(resp.content)
@@ -467,96 +455,41 @@ async def run_research_pipeline(
     conversation_history: list[dict] | None = None,
     user_timezone: str = "",
 ) -> AsyncGenerator[PipelineEvent, None]:
-    """Run the research agent, yielding SSE-ready events via a queue.
+    """Run the light research pipeline using the deep research architecture.
 
-    Args:
-        conversation_history: List of {"role": "user"|"assistant", "content": str}
-            representing prior turns in the conversation.
-        user_timezone: IANA timezone string from the client (e.g. "America/New_York").
+    Uses Flash/Flash Lite models, fewer topics, and fewer reads per topic
+    for a fast but comprehensive answer.
     """
-    try:
-        tz = ZoneInfo(user_timezone) if user_timezone else timezone.utc
-    except (KeyError, ValueError):
-        tz = timezone.utc
-    now = datetime.now(tz)
-    preamble = (
-        f"Current date/time: {now.strftime('%A, %B %d, %Y %H:%M')} ({user_timezone or 'UTC'})\n\n"
+    from controllers.deep_research_agent import (
+        DetailEvent as DeepDetailEvent,
+        DoneEvent as DeepDoneEvent,
+        ErrorEvent as DeepErrorEvent,
+        StageEvent as DeepStageEvent,
+        TextEvent as DeepTextEvent,
     )
 
-    parts: list[str] = [preamble]
-    if conversation_history:
-        parts.append("Previous conversation:")
-        for msg in conversation_history:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            parts.append(f"{role}: {msg['content']}")
-        parts.append("")
-        parts.append(f"Current question: {query}")
-        if additional_context:
-            parts.append(f"\nAdditional context from user: {additional_context}")
-        full_query = "\n".join(parts)
-    elif additional_context:
-        full_query = f"{query}\n\nAdditional context from user: {additional_context}"
-    else:
-        full_query = query
+    combined_query = query
+    if additional_context:
+        combined_query = f"{query}\n\nAdditional context: {additional_context}"
 
-    queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
-    deps = ResearchDeps(
-        brave_api_key=brave_api_key,
-        event_queue=queue,
+    async for event in run_deep_research_pipeline(
+        combined_query,
+        brave_api_key,
         db_session=db_session,
         redis_url=redis_url,
-    )
-
-    yield StageEvent(stage="researching")
-
-    async def _agent_task() -> None:
-        try:
-            async with research_agent.run_stream(
-                full_query, model=gemini_pro(), deps=deps
-            ) as stream:
-                async for text in stream.stream_text(delta=True):
-                    await queue.put(TextEvent(text=text))
-
-                # Emit usage breakdown
-                research_usage = stream.usage()
-                research_cost = calc_usage_cost(
-                    research_usage.input_tokens,
-                    research_usage.output_tokens,
-                    "gemini-3-pro-preview",
-                )
-                ext = deps.extraction_usage
-                ext_cost = calc_usage_cost(
-                    ext.input_tokens, ext.output_tokens, "gemini-3-flash-preview"
-                )
-                total_in = research_usage.input_tokens + ext.input_tokens
-                total_out = research_usage.output_tokens + ext.output_tokens
-                await queue.put(DetailEvent(type="usage", payload={
-                    "research": research_cost,
-                    "extraction": ext_cost,
-                    "total": {
-                        "input_tokens": total_in,
-                        "output_tokens": total_out,
-                        "input_cost": f"{float(research_cost['input_cost']) + float(ext_cost['input_cost']):.4f}",
-                        "output_cost": f"{float(research_cost['output_cost']) + float(ext_cost['output_cost']):.4f}",
-                    },
-                }))
-
-            await queue.put(DoneEvent())
-        except _ClarificationNeeded:
-            pass  # ClarificationEvent already in queue
-        except Exception as exc:
-            await queue.put(ErrorEvent(error=str(exc)))
-
-    task = asyncio.create_task(_agent_task())
-
-    sent_responding = False
-    while True:
-        event = await queue.get()
-        if isinstance(event, TextEvent) and not sent_responding:
-            sent_responding = True
-            yield StageEvent(stage="responding")
-        yield event
-        if isinstance(event, (DoneEvent, ErrorEvent, ClarificationEvent)):
-            break
-
-    await task
+        user_timezone=user_timezone,
+        conversation_history=conversation_history,
+        config_override=LIGHT_CONFIG,
+        planning_prompt_override=LIGHT_PLANNING_PROMPT,
+    ):
+        # Re-wrap deep events as scan_agent events for compatibility
+        if isinstance(event, DeepStageEvent):
+            yield StageEvent(stage=event.stage)
+        elif isinstance(event, DeepDetailEvent):
+            yield DetailEvent(type=event.type, payload=event.payload)
+        elif isinstance(event, DeepTextEvent):
+            yield TextEvent(text=event.text)
+        elif isinstance(event, DeepDoneEvent):
+            yield DoneEvent()
+        elif isinstance(event, DeepErrorEvent):
+            yield ErrorEvent(error=event.error)

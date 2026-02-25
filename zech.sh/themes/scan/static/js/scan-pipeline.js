@@ -1,5 +1,5 @@
-// SCAN: Shared pipeline utilities — SSE streaming, markdown, tool-call UI
-// Both chat.js and research.js delegate to this module.
+// SCAN: Shared pipeline utilities — notification/SSE streaming, markdown, tool-call UI
+// chat.js delegates to this module.
 window.ScanPipeline = (function () {
   "use strict";
 
@@ -344,154 +344,209 @@ window.ScanPipeline = (function () {
       pipelineDetails.appendChild(item);
     }
 
-    // --- SSE connection ---
+    // --- Shared event handlers ---
 
-    function connectSSE(streamUrl, callbacks) {
-      callbacks = callbacks || {};
-      var es = new EventSource(streamUrl);
-      var fetchChildren = {};
+    var fetchChildren = {};
 
-      es.addEventListener("stage", function (e) {
-        var data = JSON.parse(e.data);
-        var label = stageLabels[data.stage] || data.stage.toUpperCase();
-        pipelineStatus.textContent = label;
-        pipelineStatus.className = "pipeline-status visible";
-        if (data.stage !== "reasoning" && state.reasoningBlock) {
+    function handleStage(data) {
+      var label = stageLabels[data.stage] || data.stage.toUpperCase();
+      pipelineStatus.textContent = label;
+      pipelineStatus.className = "pipeline-status visible";
+      if (data.stage !== "reasoning" && state.reasoningBlock) {
+        state.reasoningBlock.classList.add("is-complete");
+        state.reasoningBlock = null;
+        state.reasoningBuffer = "";
+      }
+    }
+
+    function handleDetail(data) {
+      var group = data.topic ? state.groupsByTopic[data.topic] : null;
+
+      if (data.type === "reasoning") {
+        if (!state.reasoningBlock) {
+          state.reasoningBlock = document.createElement("div");
+          state.reasoningBlock.className = "deep-reasoning";
+          pipelineDetails.appendChild(state.reasoningBlock);
+          state.pipelineItems.push(state.reasoningBlock);
+        }
+        state.reasoningBuffer += data.text;
+        state.reasoningBlock.innerHTML = renderMarkdown(state.reasoningBuffer);
+
+      } else if (data.type === "research") {
+        if (state.reasoningBlock) {
           state.reasoningBlock.classList.add("is-complete");
           state.reasoningBlock = null;
           state.reasoningBuffer = "";
         }
+        state.totalToolCalls++;
+        createToolGroup(data.topic);
+
+      } else if (data.type === "search") {
+        state.totalToolCalls++;
+        if (group) {
+          var html = '<span class="tool-spinner-sm"></span> Searching "' + escapeHtml(data.query) + '"';
+          var child = addChild(group, html, true);
+          child._searchQuery = data.query;
+          updateSubline(group);
+        }
+
+      } else if (data.type === "search_done") {
+        if (group) {
+          var found = null;
+          group.runningChildren.forEach(function (c) {
+            if (c._searchQuery === data.query) found = c;
+          });
+          if (found) {
+            var doneHtml = '<span class="tool-icon-done">\u2713</span> Searched "' +
+              escapeHtml(data.query) + '" \u2014 ' + data.num_results + ' result' +
+              (data.num_results !== 1 ? 's' : '');
+            finishChild(group, found, doneHtml);
+          }
+        }
+
+      } else if (data.type === "fetch") {
+        state.totalToolCalls++;
+        if (group) {
+          var fav = createFaviconImg(data.url);
+          var favHtml = fav ? fav.outerHTML + " " : "";
+          var html = '<span class="tool-spinner-sm"></span> ' + favHtml +
+            "Reading " + escapeHtml(truncateUrl(data.url));
+          var child = addChild(group, html, true);
+          fetchChildren[data.url] = { child: child, group: group };
+          updateSubline(group);
+        }
+
+      } else if (data.type === "fetch_done") {
+        var entry = fetchChildren[data.url];
+        if (entry) {
+          var child = entry.child;
+          var g = entry.group;
+          var fav = createFaviconImg(data.url);
+          var favHtml = fav ? fav.outerHTML + " " : "";
+          var verb = data.failed ? "Failed" : "Read";
+          var doneHtml = '<span class="tool-icon-done">' + (data.failed ? "\u2717" : "\u2713") +
+            '</span> ' + favHtml + verb + " " + escapeHtml(truncateUrl(data.url));
+          finishChild(g, child, doneHtml);
+          if (!data.failed) {
+            g.fetchedUrls.push(data.url);
+            state.allFetchedUrls.push(data.url);
+            if (data.usage) {
+              var usageSpan = document.createElement("span");
+              usageSpan.className = "tool-usage";
+              usageSpan.textContent = fmtUsage(data.usage);
+              child.appendChild(usageSpan);
+            }
+            if (data.content) {
+              child.classList.add("has-content");
+              var contentEl = document.createElement("div");
+              contentEl.className = "tool-child-content";
+              contentEl.hidden = true;
+              contentEl.textContent = data.content;
+              child.appendChild(contentEl);
+              child.addEventListener("click", function (ev) {
+                ev.stopPropagation();
+                contentEl.hidden = !contentEl.hidden;
+                child.classList.toggle("is-expanded", !contentEl.hidden);
+              });
+            }
+          }
+          delete fetchChildren[data.url];
+        }
+
+      } else if (data.type === "result") {
+        if (group) collapseGroup(group, data.num_sources || 0);
+
+      } else if (data.type === "message") {
+        var msgEl = document.createElement("div");
+        msgEl.className = "tool-message";
+        msgEl.innerHTML = renderMarkdown(data.text || "");
+        var msgGroup = group || (state.toolGroups.length > 0 ? state.toolGroups[state.toolGroups.length - 1] : null);
+        if (msgGroup) {
+          msgGroup.childrenEl.appendChild(msgEl);
+        } else {
+          pipelineDetails.appendChild(msgEl);
+        }
+
+      } else if (data.type === "usage") {
+        state.usageData = data;
+        var existingSummary = pipelineDetails.querySelector(".tool-summary");
+        if (existingSummary) {
+          var usageSpan = document.createElement("span");
+          usageSpan.className = "tool-usage";
+          usageSpan.textContent = fmtUsage(data.total);
+          existingSummary.appendChild(usageSpan);
+          var summaryBody = pipelineDetails.querySelector(".tool-summary-body");
+          if (summaryBody) {
+            var usageTotal = document.createElement("div");
+            usageTotal.className = "tool-usage-total";
+            usageTotal.innerHTML =
+              '<div>Research agent: ' + fmtUsage(data.research) + '</div>' +
+              '<div>Extraction agent: ' + fmtUsage(data.extraction) + '</div>' +
+              '<div>Total: ' + fmtUsage(data.total) + '</div>';
+            summaryBody.appendChild(usageTotal);
+          }
+        }
+      }
+    }
+
+    function handleText(data) {
+      if (!state.receivedFirstText) {
+        state.receivedFirstText = true;
+        pipelineStatus.className = "pipeline-status";
+        if (state.reasoningBlock) {
+          state.reasoningBlock.classList.add("is-complete");
+          state.reasoningBlock = null;
+          state.reasoningBuffer = "";
+        }
+        state.toolGroups.forEach(function (g) {
+          if (g.el.classList.contains("is-running")) {
+            collapseGroup(g, g.fetchedUrls.length);
+          }
+        });
+        if (state.pipelineItems.length > 0) {
+          buildSummary();
+        }
+      }
+      state.buffer += data.text;
+      responseEl.innerHTML = renderMarkdown(state.buffer);
+      responseEl.appendChild(cursorEl);
+      responseEl.scrollTop = responseEl.scrollHeight;
+    }
+
+    function handleDone(callbacks) {
+      if (cursorEl.parentNode) cursorEl.remove();
+      if (callbacks.onDone) callbacks.onDone();
+    }
+
+    function handleError(data, callbacks) {
+      if (cursorEl.parentNode) cursorEl.remove();
+      pipelineStatus.className = "pipeline-status";
+      if (data && data.error) {
+        responseEl.innerHTML =
+          '<p class="research-error">Error: ' + escapeHtml(data.error) + "</p>";
+      } else if (state.buffer) {
+        responseEl.innerHTML = renderMarkdown(state.buffer);
+      } else {
+        responseEl.innerHTML =
+          '<p class="research-error">Connection lost. Please try again.</p>';
+      }
+      if (callbacks.onError) callbacks.onError();
+    }
+
+    // --- SSE connection ---
+
+    function connectSSE(streamUrl, callbacks) {
+      callbacks = callbacks || {};
+      fetchChildren = {};
+
+      var es = new EventSource(streamUrl);
+
+      es.addEventListener("stage", function (e) {
+        handleStage(JSON.parse(e.data));
       });
 
       es.addEventListener("detail", function (e) {
-        var data = JSON.parse(e.data);
-        var group = data.topic ? state.groupsByTopic[data.topic] : null;
-
-        if (data.type === "reasoning") {
-          if (!state.reasoningBlock) {
-            state.reasoningBlock = document.createElement("div");
-            state.reasoningBlock.className = "deep-reasoning";
-            pipelineDetails.appendChild(state.reasoningBlock);
-            state.pipelineItems.push(state.reasoningBlock);
-          }
-          state.reasoningBuffer += data.text;
-          state.reasoningBlock.innerHTML = renderMarkdown(state.reasoningBuffer);
-
-        } else if (data.type === "research") {
-          if (state.reasoningBlock) {
-            state.reasoningBlock.classList.add("is-complete");
-            state.reasoningBlock = null;
-            state.reasoningBuffer = "";
-          }
-          state.totalToolCalls++;
-          createToolGroup(data.topic);
-
-        } else if (data.type === "search") {
-          state.totalToolCalls++;
-          if (group) {
-            var html = '<span class="tool-spinner-sm"></span> Searching "' + escapeHtml(data.query) + '"';
-            var child = addChild(group, html, true);
-            child._searchQuery = data.query;
-            updateSubline(group);
-          }
-
-        } else if (data.type === "search_done") {
-          if (group) {
-            var found = null;
-            group.runningChildren.forEach(function (c) {
-              if (c._searchQuery === data.query) found = c;
-            });
-            if (found) {
-              var doneHtml = '<span class="tool-icon-done">\u2713</span> Searched "' +
-                escapeHtml(data.query) + '" \u2014 ' + data.num_results + ' result' +
-                (data.num_results !== 1 ? 's' : '');
-              finishChild(group, found, doneHtml);
-            }
-          }
-
-        } else if (data.type === "fetch") {
-          state.totalToolCalls++;
-          if (group) {
-            var fav = createFaviconImg(data.url);
-            var favHtml = fav ? fav.outerHTML + " " : "";
-            var html = '<span class="tool-spinner-sm"></span> ' + favHtml +
-              "Reading " + escapeHtml(truncateUrl(data.url));
-            var child = addChild(group, html, true);
-            fetchChildren[data.url] = { child: child, group: group };
-            updateSubline(group);
-          }
-
-        } else if (data.type === "fetch_done") {
-          var entry = fetchChildren[data.url];
-          if (entry) {
-            var child = entry.child;
-            var g = entry.group;
-            var fav = createFaviconImg(data.url);
-            var favHtml = fav ? fav.outerHTML + " " : "";
-            var verb = data.failed ? "Failed" : "Read";
-            var doneHtml = '<span class="tool-icon-done">' + (data.failed ? "\u2717" : "\u2713") +
-              '</span> ' + favHtml + verb + " " + escapeHtml(truncateUrl(data.url));
-            finishChild(g, child, doneHtml);
-            if (!data.failed) {
-              g.fetchedUrls.push(data.url);
-              state.allFetchedUrls.push(data.url);
-              if (data.usage) {
-                var usageSpan = document.createElement("span");
-                usageSpan.className = "tool-usage";
-                usageSpan.textContent = fmtUsage(data.usage);
-                child.appendChild(usageSpan);
-              }
-              if (data.content) {
-                child.classList.add("has-content");
-                var contentEl = document.createElement("div");
-                contentEl.className = "tool-child-content";
-                contentEl.hidden = true;
-                contentEl.textContent = data.content;
-                child.appendChild(contentEl);
-                child.addEventListener("click", function (ev) {
-                  ev.stopPropagation();
-                  contentEl.hidden = !contentEl.hidden;
-                  child.classList.toggle("is-expanded", !contentEl.hidden);
-                });
-              }
-            }
-            delete fetchChildren[data.url];
-          }
-
-        } else if (data.type === "result") {
-          if (group) collapseGroup(group, data.num_sources || 0);
-
-        } else if (data.type === "message") {
-          var msgEl = document.createElement("div");
-          msgEl.className = "tool-message";
-          msgEl.innerHTML = renderMarkdown(data.text || "");
-          var msgGroup = group || (state.toolGroups.length > 0 ? state.toolGroups[state.toolGroups.length - 1] : null);
-          if (msgGroup) {
-            msgGroup.childrenEl.appendChild(msgEl);
-          } else {
-            pipelineDetails.appendChild(msgEl);
-          }
-
-        } else if (data.type === "usage") {
-          state.usageData = data;
-          var existingSummary = pipelineDetails.querySelector(".tool-summary");
-          if (existingSummary) {
-            var usageSpan = document.createElement("span");
-            usageSpan.className = "tool-usage";
-            usageSpan.textContent = fmtUsage(data.total);
-            existingSummary.appendChild(usageSpan);
-            var summaryBody = pipelineDetails.querySelector(".tool-summary-body");
-            if (summaryBody) {
-              var usageTotal = document.createElement("div");
-              usageTotal.className = "tool-usage-total";
-              usageTotal.innerHTML =
-                '<div>Research agent: ' + fmtUsage(data.research) + '</div>' +
-                '<div>Extraction agent: ' + fmtUsage(data.extraction) + '</div>' +
-                '<div>Total: ' + fmtUsage(data.total) + '</div>';
-              summaryBody.appendChild(usageTotal);
-            }
-          }
-        }
+        handleDetail(JSON.parse(e.data));
       });
 
       es.addEventListener("clarification", function (e) {
@@ -502,64 +557,68 @@ window.ScanPipeline = (function () {
       });
 
       es.addEventListener("text", function (e) {
-        if (!state.receivedFirstText) {
-          state.receivedFirstText = true;
-          pipelineStatus.className = "pipeline-status";
-          if (state.reasoningBlock) {
-            state.reasoningBlock.classList.add("is-complete");
-            state.reasoningBlock = null;
-            state.reasoningBuffer = "";
-          }
-          state.toolGroups.forEach(function (g) {
-            if (g.el.classList.contains("is-running")) {
-              collapseGroup(g, g.fetchedUrls.length);
-            }
-          });
-          if (state.pipelineItems.length > 0) {
-            buildSummary();
-          }
-        }
-        var data = JSON.parse(e.data);
-        state.buffer += data.text;
-        responseEl.innerHTML = renderMarkdown(state.buffer);
-        responseEl.appendChild(cursorEl);
-        responseEl.scrollTop = responseEl.scrollHeight;
+        handleText(JSON.parse(e.data));
       });
 
       es.addEventListener("done", function () {
         es.close();
-        if (cursorEl.parentNode) cursorEl.remove();
-        if (callbacks.onDone) callbacks.onDone();
+        handleDone(callbacks);
       });
 
       es.addEventListener("error", function (e) {
         es.close();
-        if (cursorEl.parentNode) cursorEl.remove();
-        pipelineStatus.className = "pipeline-status";
-
-        if (e.data) {
-          // Server-sent error event
-          var data = JSON.parse(e.data);
-          responseEl.innerHTML =
-            '<p class="research-error">Error: ' + escapeHtml(data.error) + "</p>";
-        } else if (state.buffer) {
-          // Connection drop with partial results — render what we have
-          responseEl.innerHTML = renderMarkdown(state.buffer);
-        } else {
-          // Connection drop before any response
-          responseEl.innerHTML =
-            '<p class="research-error">Connection lost. Please try again.</p>';
-        }
-        if (callbacks.onError) callbacks.onError();
+        handleError(e.data ? JSON.parse(e.data) : null, callbacks);
       });
 
       return es;
+    }
+
+    // --- Notification connection ---
+
+    function connectNotifications(chatId, callbacks) {
+      callbacks = callbacks || {};
+      fetchChildren = {};
+
+      function handler(e) {
+        var data = e.detail;
+        if (data.chat_id !== chatId) return;
+        e.preventDefault();
+
+        var ntype = data.type;
+        if (ntype === "scan:stage") {
+          handleStage(data);
+        } else if (ntype === "scan:detail") {
+          // Remap detail_type → type for shared handler compatibility
+          var detailData = {};
+          for (var k in data) { if (data.hasOwnProperty(k)) detailData[k] = data[k]; }
+          detailData.type = data.detail_type;
+          handleDetail(detailData);
+        } else if (ntype === "scan:text") {
+          handleText(data);
+        } else if (ntype === "scan:done") {
+          handleDone(callbacks);
+          cleanup();
+        } else if (ntype === "scan:error") {
+          handleError(data, callbacks);
+          cleanup();
+        } else if (ntype === "scan:clarification") {
+          pipelineStatus.className = "pipeline-status";
+          if (callbacks.onClarification) callbacks.onClarification(data.questions);
+          cleanup();
+        }
+      }
+
+      document.addEventListener("sk:notification", handler);
+
+      function cleanup() { document.removeEventListener("sk:notification", handler); }
+      return cleanup;
     }
 
     return {
       state: state,
       reset: reset,
       connectSSE: connectSSE,
+      connectNotifications: connectNotifications,
       buildSummary: buildSummary,
       addDetail: addDetail,
     };
