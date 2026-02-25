@@ -9,8 +9,10 @@ controllers:
   - skrift.controllers.auth:AuthController
   - controllers.admin_import_posts:ImportPostsAdminController
   - controllers.admin_integrations:IntegrationsAdminController
+  - controllers.uploads:UploadsController
   - skrift.admin.controller:AdminController
   - controllers.redirects:RedirectsController
+  - controllers.uploads:UploadServeController
   - skrift.controllers.web:WebController
   - controllers.health:HealthController
 

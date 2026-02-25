@@ -13,6 +13,7 @@ Quick start::
 from __future__ import annotations
 
 import mimetypes
+import os
 from typing import Any
 
 from lib.storage.base import StorageBackend, StoredFile
@@ -28,31 +29,34 @@ __all__ = [
 _DEFAULT_MAX_SIZE = 10 * 1024 * 1024
 
 
+def _env(name: str, default: str = "") -> str:
+    """Read an environment variable, returning *default* when unset or empty."""
+    return os.environ.get(name, "") or default
+
+
 def create_storage_backend(config: dict[str, Any] | None = None) -> StorageBackend:
     """Instantiate a storage backend from an ``app.yaml`` config dict.
 
     The *config* dict is the ``storage`` section of the application
-    configuration.  When *config* is ``None`` or empty the local
-    filesystem backend is returned so the app works out of the box.
+    configuration.  When *config* is ``None`` or empty, environment
+    variables are consulted before falling back to sensible defaults so
+    the app works out of the box with zero configuration::
 
-    Expected shape::
+        UPLOAD_BACKEND   – "local" (default) or "s3"
+        UPLOAD_DIR       – local directory  (default ``./uploads``)
+        UPLOAD_URL       – URL prefix       (default ``/uploads``)
 
-        storage:
-          backend: local          # "local" (default) or "s3"
-          local:
-            directory: ./uploads
-          s3:
-            bucket: my-bucket
-            prefix: uploads/
-            region: us-east-1
-            endpoint_url: ...
-            access_key_id: ...
-            secret_access_key: ...
+    For S3 the standard ``S3_BUCKET``, ``S3_PREFIX``, ``AWS_REGION``,
+    ``S3_ENDPOINT_URL``, ``AWS_ACCESS_KEY_ID``, and
+    ``AWS_SECRET_ACCESS_KEY`` variables are read.
+
+    All env-var defaults can be overridden by defining the ``storage``
+    section in ``app.yaml``.
     """
     if not config:
         config = {}
 
-    backend_name = config.get("backend", "local")
+    backend_name = config.get("backend") or _env("UPLOAD_BACKEND", "local")
 
     if backend_name == "s3":
         # Lazy import so aioboto3 is not required for local-only setups.
@@ -60,12 +64,12 @@ def create_storage_backend(config: dict[str, Any] | None = None) -> StorageBacke
 
         s3_cfg = config.get("s3", {})
         return S3StorageBackend(
-            bucket=s3_cfg["bucket"],
-            prefix=s3_cfg.get("prefix", ""),
-            region=s3_cfg.get("region", "us-east-1"),
-            endpoint_url=s3_cfg.get("endpoint_url"),
-            access_key_id=s3_cfg.get("access_key_id"),
-            secret_access_key=s3_cfg.get("secret_access_key"),
+            bucket=s3_cfg.get("bucket") or _env("S3_BUCKET"),
+            prefix=s3_cfg.get("prefix") or _env("S3_PREFIX", "uploads/"),
+            region=s3_cfg.get("region") or _env("AWS_REGION", "us-east-1"),
+            endpoint_url=s3_cfg.get("endpoint_url") or _env("S3_ENDPOINT_URL") or None,
+            access_key_id=s3_cfg.get("access_key_id") or _env("AWS_ACCESS_KEY_ID") or None,
+            secret_access_key=s3_cfg.get("secret_access_key") or _env("AWS_SECRET_ACCESS_KEY") or None,
         )
 
     # Default: local filesystem backend.
@@ -73,8 +77,8 @@ def create_storage_backend(config: dict[str, Any] | None = None) -> StorageBacke
 
     local_cfg = config.get("local", {})
     return LocalStorageBackend(
-        directory=local_cfg.get("directory", "./uploads"),
-        base_url=local_cfg.get("base_url", "/uploads"),
+        directory=local_cfg.get("directory") or _env("UPLOAD_DIR", "./uploads"),
+        base_url=local_cfg.get("base_url") or _env("UPLOAD_URL", "/uploads"),
     )
 
 

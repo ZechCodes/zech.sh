@@ -1,0 +1,194 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ "Edit" if page else "New" }} {{ page_type_label }} - Admin - {{ site_name() }}{% endblock %}
+
+{% block admin_content %}
+<hgroup>
+    <h1>{{ "Edit" if page else "New" }} {{ page_type_label }}</h1>
+    <p>{{ "Update " ~ page_type_name ~ " details" if page else "Create a new " ~ page_type_name }}</p>
+</hgroup>
+
+<form method="post" action="{{ admin_type_base ~ '/' ~ page.id ~ '/edit' if page else admin_type_base ~ '/new' }}">
+    <label for="title">Title</label>
+    <input type="text" id="title" name="title" value="{{ page.title if page else '' }}" required>
+
+    <label for="slug">Slug</label>
+    <input type="text" id="slug" name="slug" value="{{ page.slug if page else '' }}" required placeholder="e.g., about or services/consulting">
+    <small class="sk-text-muted">The URL path for this {{ page_type_name }} (e.g., "about" becomes /about)</small>
+
+    <label for="content">Content</label>
+    <textarea id="content" name="content" rows="15">{{ page.content if page else '' }}</textarea>
+
+    {# ── Featured Image ────────────────────────────────────────── #}
+    <fieldset class="form-group" id="featured-image-section">
+        <legend>Featured Image</legend>
+
+        <div id="fi-preview" style="display:none">
+            <img id="fi-img" src="" alt=""
+                 style="max-width:320px;max-height:220px;border-radius:6px;margin-bottom:.5rem">
+            <br>
+            <small class="sk-text-muted" id="fi-filename"></small>
+            <br>
+            <button type="button" class="sk-btn-outline" id="fi-remove" style="margin-top:.25rem">Remove</button>
+        </div>
+
+        <div id="fi-upload">
+            <label for="fi-file">Upload image (JPEG, PNG, GIF, WebP, AVIF, SVG &mdash; max 10 MB)</label>
+            <input type="file" id="fi-file" accept="image/*">
+            <small class="sk-text-muted" id="fi-status"></small>
+        </div>
+
+        <input type="hidden" name="featured_image_id" id="fi-id" value="">
+
+        <label for="fi-alt" style="margin-top:.5rem">Alt Text</label>
+        <input type="text" id="fi-alt" name="featured_image_alt" value=""
+               placeholder="Describe the image for accessibility">
+    </fieldset>
+
+    <fieldset class="form-group">
+        <legend>Publication</legend>
+
+        <label>
+            <input type="checkbox" name="is_published" {% if page and page.is_published %}checked{% endif %}>
+            Published
+        </label>
+
+        <label for="order">Display Order</label>
+        <input type="number" id="order" name="order" value="{{ page.order if page else 0 }}" min="0">
+        <small class="sk-text-muted">Lower numbers appear first (default: 0)</small>
+
+        <label for="publish_at">Schedule Publish</label>
+        <input type="datetime-local" id="publish_at" name="publish_at" value="{{ page.publish_at.strftime('%Y-%m-%dT%H:%M') if page and page.publish_at else '' }}">
+        <small class="sk-text-muted">Leave empty to publish immediately when published is checked</small>
+    </fieldset>
+
+    <details class="seo-settings">
+        <summary>SEO Settings</summary>
+        <fieldset>
+            <label for="meta_description">Meta Description</label>
+            <textarea id="meta_description" name="meta_description" rows="3" maxlength="320" placeholder="Brief description for search engines (max 320 chars)">{{ page.meta_description or '' if page else '' }}</textarea>
+
+            <label for="meta_robots">Meta Robots</label>
+            <select id="meta_robots" name="meta_robots">
+                <option value="">Default (index, follow)</option>
+                <option value="noindex" {% if page and page.meta_robots == 'noindex' %}selected{% endif %}>noindex</option>
+                <option value="nofollow" {% if page and page.meta_robots == 'nofollow' %}selected{% endif %}>nofollow</option>
+                <option value="noindex, nofollow" {% if page and page.meta_robots == 'noindex, nofollow' %}selected{% endif %}>noindex, nofollow</option>
+            </select>
+
+            <label for="og_title">OpenGraph Title</label>
+            <input type="text" id="og_title" name="og_title" value="{{ page.og_title or '' if page else '' }}" placeholder="Custom title for social sharing (uses page title if empty)">
+
+            <label for="og_description">OpenGraph Description</label>
+            <textarea id="og_description" name="og_description" rows="2" placeholder="Custom description for social sharing">{{ page.og_description or '' if page else '' }}</textarea>
+
+            <label for="og_image">OpenGraph Image URL</label>
+            <input type="url" id="og_image" name="og_image" value="{{ page.og_image or '' if page else '' }}" placeholder="https://example.com/image.jpg">
+            <small class="sk-text-muted">Leave empty to use the featured image</small>
+        </fieldset>
+    </details>
+
+    <div class="sk-form-actions">
+        <button type="submit">{{ "Update" if page else "Create" }} {{ page_type_label }}</button>
+        <a href="{{ admin_type_base }}" role="button" class="sk-btn-outline">Cancel</a>
+        {% if page %}
+        <a href="{{ admin_type_base }}/{{ page.id }}/revisions" role="button" class="sk-btn-outline">View History</a>
+        {% endif %}
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce() }}">
+(function() {
+    const fileInput  = document.getElementById('fi-file');
+    const preview    = document.getElementById('fi-preview');
+    const uploadArea = document.getElementById('fi-upload');
+    const imgEl      = document.getElementById('fi-img');
+    const filenameEl = document.getElementById('fi-filename');
+    const idInput    = document.getElementById('fi-id');
+    const altInput   = document.getElementById('fi-alt');
+    const statusEl   = document.getElementById('fi-status');
+    const removeBtn  = document.getElementById('fi-remove');
+    const ogImageEl  = document.getElementById('og_image');
+
+    const pageId = '{{ page.id if page else "" }}';
+
+    /* ── Load existing featured image on edit ──────────────── */
+    if (pageId) {
+        fetch('/admin/uploads/page/' + pageId + '?role=featured')
+            .then(function(r) { return r.json(); })
+            .then(function(images) {
+                if (images.length) {
+                    var img = images[0];
+                    showPreview(img.url, img.original_filename || img.key, img.id, img.alt_text);
+                }
+            })
+            .catch(function() { /* no existing image – fine */ });
+    }
+
+    function showPreview(url, filename, id, alt) {
+        imgEl.src = url;
+        filenameEl.textContent = filename;
+        idInput.value = id;
+        if (alt) altInput.value = alt;
+        preview.style.display = '';
+        uploadArea.style.display = 'none';
+    }
+
+    /* ── Upload ────────────────────────────────────────────── */
+    fileInput.addEventListener('change', async function() {
+        var file = this.files[0];
+        if (!file) return;
+
+        statusEl.textContent = 'Uploading\u2026';
+
+        var body = new FormData();
+        body.append('data', file);
+
+        var url = '/admin/uploads/';
+        var params = new URLSearchParams();
+        if (pageId) params.set('page_id', pageId);
+        params.set('role', 'featured');
+        if (params.toString()) url += '?' + params.toString();
+
+        try {
+            var resp = await fetch(url, { method: 'POST', body: body });
+            if (!resp.ok) {
+                var err = await resp.json().catch(function() { return {}; });
+                statusEl.textContent = err.error || 'Upload failed';
+                return;
+            }
+            var data = await resp.json();
+
+            showPreview(data.url, data.original_filename || data.key, data.id, '');
+            statusEl.textContent = '';
+
+            /* Auto-fill OG image when empty */
+            if (ogImageEl && !ogImageEl.value) {
+                ogImageEl.value = data.url;
+            }
+        } catch (e) {
+            statusEl.textContent = 'Upload failed: ' + e.message;
+        }
+    });
+
+    /* ── Remove ────────────────────────────────────────────── */
+    removeBtn.addEventListener('click', async function() {
+        var imageId = idInput.value;
+        if (imageId) {
+            try {
+                await fetch('/admin/uploads/' + imageId, { method: 'DELETE' });
+            } catch (_) { /* best-effort */ }
+        }
+        imgEl.src = '';
+        filenameEl.textContent = '';
+        idInput.value = '';
+        altInput.value = '';
+        fileInput.value = '';
+        preview.style.display = 'none';
+        uploadArea.style.display = '';
+    });
+})();
+</script>
+{% endblock %}

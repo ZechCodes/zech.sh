@@ -5,7 +5,9 @@ models:
 
 controllers:
   - skrift.controllers.auth:AuthController
+  - controllers.uploads:UploadsController
   - skrift.admin.controller:AdminController
+  - controllers.uploads:UploadServeController
   - skrift.controllers.web:WebController
   - controllers.health:HealthController
 
