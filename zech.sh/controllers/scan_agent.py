@@ -13,24 +13,18 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-import os
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from functools import lru_cache
-from zoneinfo import ZoneInfo
 from typing import Literal
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import httpx
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
-from genai_prices import calc_price
-from genai_prices import Usage as GenAIUsage
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
-from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.usage import RunUsage
 from pypdf import PdfReader
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,40 +35,18 @@ from controllers.domain_throttle import (
     get_cached_response,
     wait_for_rate_limit,
 )
+from controllers.llm import (
+    calc_usage_cost,
+    gemini_flash,
+    gemini_flash_lite,
+    gemini_pro,
+)
 from controllers.robots import USER_AGENT, check_url_allowed
 
 logger = logging.getLogger(__name__)
 
 # Maximum characters of document text to send to the extraction model.
 _MAX_DOC_CHARS = 200_000
-
-# ---------------------------------------------------------------------------
-# Google / Gemini model helpers
-# ---------------------------------------------------------------------------
-
-
-@lru_cache(maxsize=1)
-def _google_provider() -> GoogleProvider:
-    return GoogleProvider(api_key=os.environ["GOOGLE_API_KEY"])
-
-
-@lru_cache(maxsize=1)
-def gemini_pro() -> GoogleModel:
-    """Gemini 3 Pro — research agent, title generation."""
-    return GoogleModel("gemini-3-pro-preview", provider=_google_provider())
-
-
-@lru_cache(maxsize=1)
-def gemini_flash() -> GoogleModel:
-    """Gemini 3 Flash — extraction and evaluation."""
-    return GoogleModel("gemini-3-flash-preview", provider=_google_provider())
-
-
-@lru_cache(maxsize=1)
-def gemini_flash_lite() -> GoogleModel:
-    """Gemini 2.5 Flash Lite — fast classification."""
-    return GoogleModel("gemini-2.5-flash-lite", provider=_google_provider())
-
 
 # ---------------------------------------------------------------------------
 # Pydantic models for pipeline data
@@ -280,17 +252,15 @@ async def research(ctx: RunContext[ResearchDeps], topic: str, context: str = "")
                 db_session=ctx.deps.db_session,
                 redis_url=ctx.deps.redis_url,
             )
-            if isinstance(result, tuple):
-                extracted, usage_dict = result
-            else:
-                extracted, usage_dict = result, None
+            if result.output is None:
+                await queue.put(DetailEvent(type="fetch_done", payload={"topic": topic, "url": url, "failed": True}))
+                continue
             ctx.deps.fetched_urls.add(url)
             fetched_urls_list.append(url)
-            if extracted is not None:
-                findings.append(f"Source: {url}\n{extracted}")
-            payload: dict = {"topic": topic, "url": url, "content": (extracted or "")[:3000]}
-            if usage_dict:
-                payload["usage"] = usage_dict
+            findings.append(f"Source: {url}\n{result.output}")
+            payload: dict = {"topic": topic, "url": url, "content": result.output[:3000]}
+            if result.usage:
+                payload["usage"] = result.usage
             await queue.put(DetailEvent(type="fetch_done", payload=payload))
         except Exception:
             await queue.put(DetailEvent(type="fetch_done", payload={"topic": topic, "url": url, "failed": True}))
@@ -359,16 +329,11 @@ async def brave_search(query: str, api_key: str) -> list[SearchResultItem]:
     ]
 
 
-def _calc_cost(input_tokens: int, output_tokens: int, model_name: str) -> dict:
-    """Calculate cost for a model call and return a usage dict."""
-    usage = GenAIUsage(input_tokens=input_tokens, output_tokens=output_tokens)
-    price = calc_price(usage, model_name)
-    return {
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "input_cost": f"{price.input_price:.4f}",
-        "output_cost": f"{price.output_price:.4f}",
-    }
+@dataclass
+class ExtractionResult:
+    """Return value from fetch_and_extract."""
+    output: str | None = None
+    usage: dict | None = None
 
 
 async def fetch_and_extract(
@@ -378,14 +343,13 @@ async def fetch_and_extract(
     deps: ResearchDeps | None = None,
     db_session: AsyncSession | None = None,
     redis_url: str = "",
-) -> str | tuple[str, dict] | None:
+) -> ExtractionResult:
     """Fetch a URL and extract relevant content using the extraction agent.
 
     Checks robots.txt rules before fetching, rate-limits requests per domain,
     and caches responses in Redis when available.
 
-    Returns None if the URL is disallowed by robots.txt.
-    When deps is provided, returns (output, usage_dict) tuple for cost tracking.
+    Returns ExtractionResult with output=None if blocked by robots.txt.
     """
     parsed_url = urlparse(url)
     domain = parsed_url.hostname or ""
@@ -395,9 +359,19 @@ async def fetch_and_extract(
         allowed, crawl_delay = await check_url_allowed(url, db_session)
         if not allowed:
             logger.info("Blocked by robots.txt: %s", url)
-            return None
+            return ExtractionResult()
     else:
         crawl_delay = 10.0
+
+    def _track(run_result) -> dict | None:
+        """Accumulate extraction usage on *deps* and return a cost dict."""
+        if deps is None:
+            return None
+        run_usage = run_result.usage()
+        deps.extraction_usage.incr(run_usage)
+        return calc_usage_cost(
+            run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview",
+        )
 
     # --- Check response cache ---
     cached = await get_cached_response(url, redis_url=redis_url)
@@ -408,14 +382,7 @@ async def fetch_and_extract(
             text = _html_to_text(text)
         prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
         result = await extraction_agent.run(prompt, model=gemini_flash())
-        if deps is not None:
-            run_usage = result.usage()
-            deps.extraction_usage.incr(run_usage)
-            usage_dict = _calc_cost(
-                run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview"
-            )
-            return result.output, usage_dict
-        return result.output
+        return ExtractionResult(output=result.output, usage=_track(result))
 
     # --- Rate limit ---
     await wait_for_rate_limit(domain, delay_seconds=crawl_delay, redis_url=redis_url)
@@ -430,9 +397,9 @@ async def fetch_and_extract(
             )
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            return f"Could not fetch {url}: HTTP {exc.response.status_code}"
+            return ExtractionResult(output=f"Could not fetch {url}: HTTP {exc.response.status_code}")
         except httpx.RequestError as exc:
-            return f"Could not fetch {url}: {exc}"
+            return ExtractionResult(output=f"Could not fetch {url}: {exc}")
 
     content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
 
@@ -459,17 +426,10 @@ async def fetch_and_extract(
         text = _html_to_text(resp.text) if "html" in content_type else resp.text
         prompt = f"Query: {query}\n\nDocument:\n{text[:_MAX_DOC_CHARS]}"
     else:
-        return f"Unsupported content type: {content_type}"
+        return ExtractionResult(output=f"Unsupported content type: {content_type}")
 
     result = await extraction_agent.run(prompt, model=gemini_flash())
-    if deps is not None:
-        run_usage = result.usage()
-        deps.extraction_usage.incr(run_usage)
-        usage_dict = _calc_cost(
-            run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview"
-        )
-        return result.output, usage_dict
-    return result.output
+    return ExtractionResult(output=result.output, usage=_track(result))
 
 
 def _pick_top_urls(
@@ -559,13 +519,13 @@ async def run_research_pipeline(
 
                 # Emit usage breakdown
                 research_usage = stream.usage()
-                research_cost = _calc_cost(
+                research_cost = calc_usage_cost(
                     research_usage.input_tokens,
                     research_usage.output_tokens,
                     "gemini-3-pro-preview",
                 )
                 ext = deps.extraction_usage
-                ext_cost = _calc_cost(
+                ext_cost = calc_usage_cost(
                     ext.input_tokens, ext.output_tokens, "gemini-3-flash-preview"
                 )
                 total_in = research_usage.input_tokens + ext.input_tokens

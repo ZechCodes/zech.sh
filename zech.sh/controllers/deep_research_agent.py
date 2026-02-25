@@ -11,56 +11,30 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlparse
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import httpx
-from google import genai
 from google.genai.types import (
     GenerateContentConfig,
     ThinkingConfig,
     ThinkingLevel,
 )
-from genai_prices import calc_price
-from genai_prices import Usage as GenAIUsage
 from pydantic import BaseModel
 from pydantic_ai import Agent
-from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.providers.google import GoogleProvider
 
 from controllers.brave_search import brave_search as _shared_brave_search
 from controllers.domain_throttle import cache_response, get_cached_response
-from controllers.robots import USER_AGENT
+from controllers.llm import calc_usage_cost, gemini_flash_lite, genai_client
+from controllers.robots import USER_AGENT, check_url_allowed
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Google genai client
-# ---------------------------------------------------------------------------
-
-
-@lru_cache(maxsize=1)
-def _genai_client() -> genai.Client:
-    return genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
-
-
-@lru_cache(maxsize=1)
-def _google_provider() -> GoogleProvider:
-    return GoogleProvider(api_key=os.environ["GOOGLE_API_KEY"])
-
-
-@lru_cache(maxsize=1)
-def _flash_lite_model() -> GoogleModel:
-    return GoogleModel("gemini-2.5-flash-lite", provider=_google_provider())
-
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -178,18 +152,6 @@ class TokenCounter:
         if last_meta:
             self.input_tokens += last_meta.prompt_token_count or 0
             self.output_tokens += last_meta.candidates_token_count or 0
-
-
-def _calc_cost(input_tokens: int, output_tokens: int, model_name: str) -> dict:
-    """Calculate cost for a model call and return a usage dict."""
-    usage = GenAIUsage(input_tokens=input_tokens, output_tokens=output_tokens)
-    price = calc_price(usage, model_name)
-    return {
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "input_cost": f"{price.input_price:.4f}",
-        "output_cost": f"{price.output_price:.4f}",
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -417,7 +379,7 @@ async def _filter_results(
     )
 
     try:
-        result = await _filter_agent.run(prompt, model=_flash_lite_model())
+        result = await _filter_agent.run(prompt, model=gemini_flash_lite())
         usage = result.usage()
         extraction_counter.input_tokens += usage.request_tokens or 0
         extraction_counter.output_tokens += usage.response_tokens or 0
@@ -490,7 +452,7 @@ async def _reason(
     counter: TokenCounter,
 ) -> list[str] | None:
     """Stream reasoning text, return search queries or None if ready."""
-    client = _genai_client()
+    client = genai_client()
 
     if knowledge.entries:
         user_msg = (
@@ -550,9 +512,10 @@ async def _search_and_extract(
     event_queue: asyncio.Queue[PipelineEvent],
     extraction_counter: TokenCounter,
     redis_url: str = "",
+    db_session=None,
 ) -> None:
     """Execute search queries, fetch pages, extract knowledge entries."""
-    client = _genai_client()
+    client = genai_client()
 
     for query_text in queries:
         # Emit research group
@@ -596,8 +559,25 @@ async def _search_and_extract(
             cfg, extraction_counter,
         )
 
+        # --- Filter by robots.txt ---
+        urls_allowed: list[tuple[str, str]] = []
+        for url, title in urls_to_fetch:
+            if db_session is not None:
+                try:
+                    allowed, _ = await check_url_allowed(url, db_session)
+                except Exception:
+                    allowed = True  # Proceed on robots.txt check failure
+                if not allowed:
+                    logger.info("Blocked by robots.txt: %s", url)
+                    await event_queue.put(DetailEvent(
+                        type="fetch_done",
+                        payload={"topic": query_text, "url": url, "failed": True},
+                    ))
+                    continue
+            urls_allowed.append((url, title))
+
         # Emit fetch start events
-        for url, _title in urls_to_fetch:
+        for url, _title in urls_allowed:
             await event_queue.put(DetailEvent(
                 type="fetch",
                 payload={"topic": query_text, "url": url},
@@ -605,13 +585,13 @@ async def _search_and_extract(
 
         # --- Fetch in parallel via Jina ---
         fetch_results = await asyncio.gather(
-            *[_jina_fetch(url, redis_url=redis_url) for url, _ in urls_to_fetch],
+            *[_jina_fetch(url, redis_url=redis_url) for url, _ in urls_allowed],
             return_exceptions=True,
         )
 
         # --- Extract knowledge from each document ---
         source_urls: list[str] = []
-        for (url, title), content in zip(urls_to_fetch, fetch_results):
+        for (url, title), content in zip(urls_allowed, fetch_results):
             if isinstance(content, Exception):
                 content = None
 
@@ -663,7 +643,7 @@ async def _search_and_extract(
                     ext_meta = getattr(extract_resp, "usage_metadata", None)
                     usage_dict = None
                     if ext_meta:
-                        usage_dict = _calc_cost(
+                        usage_dict = calc_usage_cost(
                             ext_meta.prompt_token_count or 0,
                             ext_meta.candidates_token_count or 0,
                             cfg["extraction_model"],
@@ -721,7 +701,7 @@ async def _articulate(
     counter: TokenCounter,
 ) -> None:
     """Stream the final cited response."""
-    client = _genai_client()
+    client = genai_client()
 
     user_msg = (
         f"QUESTION: {query}\n\n"
@@ -761,7 +741,7 @@ async def _compress_knowledge(
     counter: TokenCounter,
 ) -> None:
     """Compress knowledge entries oldest-first to reduce context size."""
-    client = _genai_client()
+    client = genai_client()
 
     idx = 0
     while knowledge.total_chars > target_chars and idx < len(knowledge.entries):
@@ -865,6 +845,7 @@ async def run_deep_research_pipeline(
                     event_queue,
                     extraction_counter,
                     redis_url=redis_url,
+                    db_session=db_session,
                 )
 
                 # --- COMPRESS if needed ---
@@ -883,12 +864,12 @@ async def run_deep_research_pipeline(
 
             # --- USAGE ---
             # Reasoning + extraction = "research" for display
-            reasoning_cost = _calc_cost(
+            reasoning_cost = calc_usage_cost(
                 reasoning_counter.input_tokens,
                 reasoning_counter.output_tokens,
                 cfg["reasoning_model"],
             )
-            extraction_cost = _calc_cost(
+            extraction_cost = calc_usage_cost(
                 extraction_counter.input_tokens,
                 extraction_counter.output_tokens,
                 cfg["extraction_model"],
@@ -910,7 +891,7 @@ async def run_deep_research_pipeline(
             )
 
             # Articulation = "extraction" label for display compatibility
-            articulation_cost = _calc_cost(
+            articulation_cost = calc_usage_cost(
                 articulation_counter.input_tokens,
                 articulation_counter.output_tokens,
                 cfg["articulation_model"],

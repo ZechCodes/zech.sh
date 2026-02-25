@@ -85,13 +85,16 @@ async def wait_for_rate_limit(
         await _wait_memory(domain, delay_seconds)
 
 
+_MAX_RATE_LIMIT_ATTEMPTS = 10
+
+
 async def _wait_redis(
     r: redis.Redis, domain: str, delay_seconds: float
 ) -> None:
     """Rate limit using Redis with a simple key-expiry approach."""
     key = f"scan:ratelimit:{domain}"
 
-    while True:
+    for _attempt in range(_MAX_RATE_LIMIT_ATTEMPTS):
         # Try to set key with NX (only if not exists) and expiry
         ttl_ms = int(delay_seconds * 1000)
         acquired = await r.set(key, "1", nx=True, px=ttl_ms)
@@ -106,6 +109,11 @@ async def _wait_redis(
 
         wait_time = remaining_ms / 1000.0
         await asyncio.sleep(wait_time)
+
+    logger.warning(
+        "Rate limit wait exceeded %d attempts for domain %s, proceeding",
+        _MAX_RATE_LIMIT_ATTEMPTS, domain,
+    )
 
 
 async def _wait_memory(domain: str, delay_seconds: float) -> None:
