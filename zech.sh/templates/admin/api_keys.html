@@ -1,0 +1,73 @@
+{% extends "admin/base.html" %}
+{% block title %}API Keys - Admin - {{ site_name() }}{% endblock %}
+
+{% block admin_content %}
+<hgroup>
+    <h1>API Keys</h1>
+    <p>Manage programmatic access to the research API</p>
+</hgroup>
+
+{% if new_key %}
+<article class="sk-alert sk-alert-warning" style="border-left: 4px solid var(--pico-color-amber-500, #f59e0b); padding: 1rem; margin-bottom: 2rem;">
+    <h4 style="margin-top: 0;">Your new API key</h4>
+    <p>Copy this key now. It will not be shown again.</p>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <code id="new-key-value" style="flex: 1; padding: 0.5rem; background: var(--pico-code-background); word-break: break-all;">{{ new_key }}</code>
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('new-key-value').textContent)" class="secondary outline" style="white-space: nowrap;">Copy</button>
+    </div>
+</article>
+{% endif %}
+
+{% for msg in flash_messages %}
+<article class="sk-alert sk-alert-{{ msg.category }}">{{ msg.message }}</article>
+{% endfor %}
+
+<form method="post" action="/admin/api-keys/create" style="margin-bottom: 2rem;">
+    <fieldset role="group">
+        <input type="text" name="name" placeholder="Key name (e.g. CI Pipeline)" required maxlength="100">
+        <button type="submit">Create Key</button>
+    </fieldset>
+</form>
+
+{% if api_keys %}
+<figure>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Prefix</th>
+                <th>Created</th>
+                <th>Last Used</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key in api_keys %}
+            <tr>
+                <td>{{ key.name }}</td>
+                <td><code>{{ key.key_prefix }}...</code></td>
+                <td>{{ key.created_at.strftime('%Y-%m-%d') }}</td>
+                <td>{{ key.last_used_at.strftime('%Y-%m-%d %H:%M') if key.last_used_at else 'Never' }}</td>
+                <td>
+                    <form method="post" action="/admin/api-keys/{{ key.id }}/revoke" style="margin: 0;">
+                        <button type="submit" class="secondary outline" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;" onclick="return confirm('Revoke this API key?')">Revoke</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</figure>
+{% else %}
+<p class="sk-text-muted">No API keys yet. Create one to get started.</p>
+{% endif %}
+
+<details style="margin-top: 2rem;">
+    <summary>API Usage</summary>
+    <p>Use your API key with the <code>Authorization: Bearer sk_...</code> header:</p>
+    <pre><code>curl -H "Authorization: Bearer YOUR_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"query": "your question", "mode": "lite"}' \
+     https://scan.zech.sh/api/research</code></pre>
+</details>
+{% endblock %}

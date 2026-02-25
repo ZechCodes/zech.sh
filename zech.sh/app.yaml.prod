@@ -1,0 +1,75 @@
+domain: zech.sh
+theme: fusion
+security_contact: security@zech.sh
+
+models:
+  - models
+
+controllers:
+  - skrift.controllers.auth:AuthController
+  - controllers.admin_import_posts:ImportPostsAdminController
+  - controllers.admin_integrations:IntegrationsAdminController
+  - controllers.admin_api_keys:ApiKeysAdminController
+  - skrift.admin.controller:AdminController
+  - controllers.redirects:RedirectsController
+  - skrift.controllers.web:WebController
+  - controllers.health:HealthController
+
+page_types:
+  - name: page
+    plural: pages
+    icon: file-text
+  - name: post
+    plural: posts
+    icon: pen-tool
+    nav_order: 10
+    subdomain: dump
+
+sites:
+  dump:
+    subdomain: dump
+    controllers:
+      - skrift.controllers.sitemap:SitemapController
+    theme: dump
+  scan:
+    subdomain: scan
+    controllers:
+      - controllers.scan:ScanController
+      - controllers.scan_api:ResearchApiController
+      - skrift.controllers.notifications:NotificationsController
+    theme: scan
+
+db:
+  url: $DATABASE_URL
+  schema: zech_sh
+  pool_size: 5
+  pool_overflow: 10
+  pool_timeout: 30
+  pool_pre_ping: true
+  echo: false
+
+redis:
+  url: $REDIS_URL
+  prefix: zech-sh
+
+session:
+  cookie_domain: .zech.sh
+
+logfire:
+  enabled: true
+  console: true
+  service_name: zech-sh
+  environment: production
+
+auth:
+  redirect_base_url: https://zech.sh
+  allowed_redirect_domains:
+    - "*.zech.sh"
+  providers:
+    google:
+      client_id: $GOOGLE_CLIENT_ID
+      client_secret: $GOOGLE_CLIENT_SECRET
+      scopes:
+        - openid
+        - email
+        - profile
