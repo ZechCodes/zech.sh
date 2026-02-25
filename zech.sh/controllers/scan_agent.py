@@ -14,7 +14,6 @@ import asyncio
 import io
 import logging
 import os
-import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -36,6 +35,7 @@ from pydantic_ai.usage import RunUsage
 from pypdf import PdfReader
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from controllers.brave_search import brave_search as _brave_search_raw
 from controllers.domain_throttle import (
     cache_response,
     get_cached_response,
@@ -346,49 +346,16 @@ def _pdf_to_text(data: bytes) -> str:
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
-_brave_lock: asyncio.Lock | None = None
-_brave_last_call: float = 0.0
-
-
-def _get_brave_lock() -> asyncio.Lock:
-    """Lazily create the Brave rate-limit lock inside the running event loop."""
-    global _brave_lock
-    if _brave_lock is None:
-        _brave_lock = asyncio.Lock()
-    return _brave_lock
-
-
 async def brave_search(query: str, api_key: str) -> list[SearchResultItem]:
     """Execute a Brave web search and return structured results (1 req/sec)."""
-    global _brave_last_call
-    lock = _get_brave_lock()
-    async with lock:
-        wait = 1.0 - (time.monotonic() - _brave_last_call)
-        if wait > 0:
-            await asyncio.sleep(wait)
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                "https://api.search.brave.com/res/v1/web/search",
-                headers={
-                    "Accept": "application/json",
-                    "Accept-Encoding": "gzip",
-                    "User-Agent": USER_AGENT,
-                    "X-Subscription-Token": api_key,
-                },
-                params={"q": query, "count": 5},
-                timeout=10.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        _brave_last_call = time.monotonic()
-
+    raw_results = await _brave_search_raw(query, api_key)
     return [
         SearchResultItem(
             title=item.get("title", ""),
             url=item.get("url", ""),
             description=item.get("description", ""),
         )
-        for item in data.get("web", {}).get("results", [])
+        for item in raw_results
     ]
 
 

@@ -13,13 +13,14 @@ import json
 import logging
 import os
 import re
-import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlparse
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import httpx
 from google import genai
@@ -35,6 +36,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
+from controllers.brave_search import brave_search as _shared_brave_search
 from controllers.domain_throttle import cache_response, get_cached_response
 from controllers.robots import USER_AGENT
 
@@ -159,8 +161,8 @@ class TokenCounter:
             self.input_tokens += meta.prompt_token_count or 0
             self.output_tokens += meta.candidates_token_count or 0
 
-    def counted_stream(self, response):
-        """Iterate a streaming response, recording usage once at the end.
+    async def counted_stream(self, response):
+        """Async-iterate a streaming response, recording usage at the end.
 
         Streaming chunks report cumulative totals, not per-chunk
         increments.  This wrapper yields chunks unchanged and adds
@@ -168,7 +170,7 @@ class TokenCounter:
         accounting idempotent regardless of chunk count.
         """
         last_meta = None
-        for chunk in response:
+        async for chunk in response:
             meta = getattr(chunk, "usage_metadata", None)
             if meta:
                 last_meta = meta
@@ -328,46 +330,13 @@ _SKIP_DOMAINS = frozenset({
     "youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com",
 })
 
-_brave_lock: asyncio.Lock | None = None
-_brave_last_call: float = 0.0
-
-
-def _get_brave_lock() -> asyncio.Lock:
-    global _brave_lock
-    if _brave_lock is None:
-        _brave_lock = asyncio.Lock()
-    return _brave_lock
-
-
 async def _brave_search(
     query: str,
     api_key: str,
     count: int = 5,
 ) -> list[dict]:
     """Run a Brave web search, returning raw result dicts."""
-    global _brave_last_call
-    lock = _get_brave_lock()
-    async with lock:
-        wait = 1.0 - (time.monotonic() - _brave_last_call)
-        if wait > 0:
-            await asyncio.sleep(wait)
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                "https://api.search.brave.com/res/v1/web/search",
-                headers={
-                    "Accept": "application/json",
-                    "Accept-Encoding": "gzip",
-                    "User-Agent": USER_AGENT,
-                    "X-Subscription-Token": api_key,
-                },
-                params={"q": query, "count": count},
-                timeout=10.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        _brave_last_call = time.monotonic()
-
-    return data.get("web", {}).get("results", [])
+    return await _shared_brave_search(query, api_key, count=count)
 
 
 async def _jina_fetch(url: str, redis_url: str = "") -> str | None:
@@ -541,7 +510,7 @@ async def _reason(
     # visible text output so we can stream it to the user.  With
     # ThinkingConfig the model puts reasoning into hidden thinking
     # tokens and chunk.text returns only a terse SEARCH/READY.
-    response = client.models.generate_content_stream(
+    response = await client.aio.models.generate_content_stream(
         model=cfg["reasoning_model"],
         contents=user_msg,
         config=GenerateContentConfig(
@@ -550,7 +519,7 @@ async def _reason(
     )
 
     full_text = ""
-    for chunk in counter.counted_stream(response):
+    async for chunk in counter.counted_stream(response):
         if chunk.text:
             await event_queue.put(DetailEvent(
                 type="reasoning",
@@ -663,7 +632,7 @@ async def _search_and_extract(
             )
 
             try:
-                extract_resp = client.models.generate_content(
+                extract_resp = await client.aio.models.generate_content(
                     model=cfg["extraction_model"],
                     contents=extraction_prompt,
                     config=GenerateContentConfig(
@@ -766,7 +735,7 @@ async def _articulate(
         else ThinkingLevel.MEDIUM
     )
 
-    response = client.models.generate_content_stream(
+    response = await client.aio.models.generate_content_stream(
         model=cfg["articulation_model"],
         contents=user_msg,
         config=GenerateContentConfig(
@@ -775,7 +744,7 @@ async def _articulate(
         ),
     )
 
-    for chunk in counter.counted_stream(response):
+    async for chunk in counter.counted_stream(response):
         if chunk.text:
             await event_queue.put(TextEvent(text=chunk.text))
 
@@ -791,19 +760,20 @@ async def _compress_knowledge(
     extraction_model: str,
     counter: TokenCounter,
 ) -> None:
-    """Compress oldest knowledge entries to reduce context size."""
+    """Compress knowledge entries oldest-first to reduce context size."""
     client = _genai_client()
 
-    while knowledge.total_chars > target_chars and len(knowledge.entries) > 1:
-        oldest = knowledge.entries[0]
+    idx = 0
+    while knowledge.total_chars > target_chars and idx < len(knowledge.entries):
+        entry = knowledge.entries[idx]
 
         compress_prompt = (
             f"Compress this extracted knowledge to roughly half its length, "
-            f"preserving the most important facts:\n\n{oldest.key_points}"
+            f"preserving the most important facts:\n\n{entry.key_points}"
         )
 
         try:
-            response = client.models.generate_content(
+            response = await client.aio.models.generate_content(
                 model=extraction_model,
                 contents=compress_prompt,
                 config=GenerateContentConfig(
@@ -814,19 +784,19 @@ async def _compress_knowledge(
             )
             counter.add_from_response(response)
 
-            compressed = response.text or oldest.key_points
-            old_chars = oldest.char_count
+            compressed = response.text or entry.key_points
+            old_chars = entry.char_count
             new_chars = len(compressed)
 
-            oldest.key_points = compressed
-            oldest.char_count = new_chars
+            entry.key_points = compressed
+            entry.char_count = new_chars
             knowledge.total_chars += new_chars - old_chars
 
-            # If compression didn't help much, stop
+            # Move to next entry when compression isn't shrinking much
             if new_chars > old_chars * 0.8:
-                break
+                idx += 1
         except Exception:
-            break
+            idx += 1
 
 
 # ---------------------------------------------------------------------------
@@ -849,6 +819,17 @@ async def run_deep_research_pipeline(
     """
     cfg = CONFIG
 
+    # Build timezone-aware date preamble (same as standard research pipeline)
+    try:
+        tz = ZoneInfo(user_timezone) if user_timezone else timezone.utc
+    except (KeyError, ValueError):
+        tz = timezone.utc
+    now = datetime.now(tz)
+    full_query = (
+        f"Current date/time: {now.strftime('%A, %B %d, %Y %H:%M')} "
+        f"({user_timezone or 'UTC'})\n\n{query}"
+    )
+
     event_queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
     knowledge = KnowledgeState()
     already_fetched: set[str] = set()
@@ -864,7 +845,7 @@ async def run_deep_research_pipeline(
                 await event_queue.put(StageEvent(stage="reasoning"))
 
                 queries = await _reason(
-                    query, knowledge, cfg, event_queue,
+                    full_query, knowledge, cfg, event_queue,
                     reasoning_counter,
                 )
 
@@ -897,7 +878,7 @@ async def run_deep_research_pipeline(
 
             # --- ARTICULATE ---
             await _articulate(
-                query, knowledge, cfg, event_queue, articulation_counter,
+                full_query, knowledge, cfg, event_queue, articulation_counter,
             )
 
             # --- USAGE ---

@@ -107,14 +107,21 @@
       .replace(/```(\w*)\n([\s\S]*?)```/g, function (_, lang, code) {
         return '<pre class="research-code"><code>' + escapeHtml(code.trim()) + "</code></pre>";
       })
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/`([^`]+)`/g, function (_, code) {
+        return "<code>" + escapeHtml(code) + "</code>";
+      })
       .replace(/^### (.+)$/gm, "<h4>$1</h4>")
       .replace(/^## (.+)$/gm, "<h3>$1</h3>")
       .replace(/^# (.+)$/gm, "<h2>$1</h2>")
       .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (_, text, url) {
+        if (/^https?:\/\//i.test(url)) {
+          return '<a href="' + encodeURI(url) + '" target="_blank" rel="noopener">' + escapeHtml(text) + '</a>';
+        }
+        return escapeHtml(text);
+      })
       .replace(/^[-*] (.+)$/gm, "<li>$1</li>")
       .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
       .replace(/\n\n+/g, "</p><p>")
