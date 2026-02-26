@@ -100,7 +100,23 @@ window.ScanPipeline = (function () {
   });
 
   function renderMarkdown(md) {
-    return marked.parse(md);
+    // Build citation map from Sources section: [n] Title — URL
+    var citations = {};
+    md.replace(/\[(\d+)\]\s+.+?\s[—\-]\s+(https?:\/\/\S+)/g, function (_, n, url) {
+      citations[n] = url;
+    });
+
+    var html = marked.parse(md);
+
+    // Link inline [n] references to their source URLs
+    if (Object.keys(citations).length > 0) {
+      html = html.replace(/\[(\d+)\]/g, function (match, n) {
+        if (!citations[n]) return match;
+        return '<a href="' + encodeURI(citations[n]) + '" class="citation" target="_blank" rel="noopener" title="Source ' + n + '">[' + n + ']</a>';
+      });
+    }
+
+    return html;
   }
 
   // ---------------------------------------------------------------------------

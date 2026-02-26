@@ -587,6 +587,19 @@ textarea.scan-input-auto {
   margin-bottom: 0.3em;
 }
 
+.chat-assistant-response a.citation {
+  font-size: 0.8em;
+  vertical-align: super;
+  line-height: 1;
+  border-bottom: none;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.chat-assistant-response a.citation:hover {
+  opacity: 1;
+}
+
 .chat-assistant-response .table-wrap {
   overflow-x: auto;
   margin: 1em 0;
@@ -719,6 +732,19 @@ textarea.scan-input-auto {
 
 .research-response li {
   margin-bottom: 0.3em;
+}
+
+.research-response a.citation {
+  font-size: 0.8em;
+  vertical-align: super;
+  line-height: 1;
+  border-bottom: none;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.research-response a.citation:hover {
+  opacity: 1;
 }
 
 .research-response .table-wrap {
