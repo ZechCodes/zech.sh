@@ -113,7 +113,9 @@ window.ScanPipeline = (function () {
       html = html.replace(/\[(\d+)\]/g, function (match, n) {
         if (!citations[n]) return match;
         var c = citations[n];
-        return '<a href="' + encodeURI(c.url) + '" class="citation" target="_blank" rel="noopener" title="' + escapeHtml(c.title) + '">[' + n + ']</a>';
+        var domain = domainFromUrl(c.url);
+        var tip = (domain ? '(' + domain + ') ' : '') + c.title;
+        return '<a href="' + encodeURI(c.url) + '" class="citation" target="_blank" rel="noopener" title="' + escapeHtml(tip) + '">[' + n + ']</a>';
       });
     }
 
