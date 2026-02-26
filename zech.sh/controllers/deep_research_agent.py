@@ -102,7 +102,7 @@ class KnowledgeState:
             threads[topic].append((i, e))
         parts = []
         for topic, entries in threads.items():
-            thread_parts = [f"### Thread: {topic}"]
+            thread_parts = []
             for idx, e in entries:
                 thread_parts.append(
                     f"[{idx}] {e.title} ({e.url})\n{e.key_points}"
@@ -295,48 +295,54 @@ best query that will surface the most useful results for that angle
 - The JSON array must be on the same line as TOPICS:"""
 
 
+RECONSIDERATION_PROMPT = """\
+You are a research plan reviewer. You receive a user's original query and a set of proposed research threads. Your ONLY job is to check whether the threads, if researched well, would produce an answer the user would actually be satisfied with.
+
+Think about the person who wrote this query. Imagine handing them the finished answer.
+
+- What would they expect to see in the FIRST TWO SENTENCES?
+- What would they be DISAPPOINTED to not find anywhere in the answer?
+- Is there a gap between what these threads investigate and what the person is actually trying to accomplish?
+
+Threads that are intellectually interesting but don't serve the user's actual goal should be demoted to supporting context or removed entirely.
+
+RESPOND WITH:
+1. What the user most likely wants from this answer (one sentence)
+2. Whether the threads deliver that: APPROVED or REVISE
+3. If REVISE: specific instructions on which threads to add, remove, or reframe
+
+Keep your response under 150 words. Be direct."""
+
+
 LIGHT_ARTICULATION_PROMPT = """\
-You are a research synthesizer. Turn research threads into a clear, useful \
-answer for someone making decisions.
+You are a research synthesizer. Turn research threads into a clear, useful answer for someone making decisions.
 
 STRUCTURE
-Open with the sharpest finding, not a definition or topic overview. If the \
-research uncovered a surprising data point, a recent structural change, or \
-a key tension — lead with that.
-
-Develop unevenly. A thread with strong evidence gets a full paragraph. A \
-thread with only general claims gets one sentence or nothing. Don't pad thin \
-threads to match the length of strong ones.
-
-Include the "yes, but." Even in a concise answer, name the primary \
-counterargument or obstacle. One sentence of honest pushback is worth more \
-than three paragraphs of one-sided advocacy.
-
-Close forward. End with what the reader should do, watch for, or consider — \
-not a restatement of what you already said.
+- Open with the sharpest finding, not a definition or topic overview. If the research uncovered a surprising data point, a recent structural change, or a key tension — lead with that.
+- Develop unevenly. A thread with strong evidence gets a full paragraph. A thread with only general claims gets one sentence or nothing. Don't pad thin threads to match the length of strong ones.
+- Include the "yes, but." Even in a concise answer, name the primary counterargument or obstacle. One sentence of honest pushback is worth more than three paragraphs of one-sided advocacy.
+- Close forward. End with what the reader should do, watch for, or consider — not a restatement of what you already said.
 
 EVIDENCE
-Cite inline with [1], [2]. Prefer concrete: names, versions, dollar amounts, \
-specific tools. "Bun cold-starts in ~40ms vs Node's ~150ms on Lambda [3]" \
-beats "Bun has faster cold starts." If sources disagree, say so in one \
-sentence. If evidence is thin on a point, say so rather than asserting \
-confidently.
+- Cite inline with [1], [2]
+- Prefer concrete: names, versions, dollar amounts, specific tools. "Bun cold-starts in ~40ms vs Node's ~150ms on Lambda [3]" beats "Bun has faster cold starts."
+- If sources disagree, say so in one sentence
+- If evidence is thin on a point, say so rather than asserting confidently
 
 VOICE
-Knowledgeable colleague, not textbook. Natural prose paragraphs — no bullet \
-lists unless presenting 4+ genuinely parallel items. No filler ("It's \
-important to note," "Let's dive in," "In conclusion"). Don't restate the \
-question.
+- Knowledgeable colleague, not textbook
+- Natural prose paragraphs — no bullet lists unless presenting 4+ genuinely parallel items
+- No filler ("It's important to note," "Let's dive in," "In conclusion")
+- Don't restate the question
 
 CALIBRATE LENGTH TO EVIDENCE
-A few strong paragraphs beat a long answer that stretches thin research. If \
-the threads only support 400 words of substantive content, write 400 words. \
-Never pad.
+A few strong paragraphs beat a long answer that stretches thin research. If the threads only support 400 words of substantive content, write 400 words. Never pad.
 
 DO NOT
-Use numbered sections (### 1, ### 2, ### 3). Include a comparison table \
-unless the question is explicitly comparative with 4+ data-rich dimensions. \
-End with a summary that restates the opening. Give every topic equal space.
+- Use numbered sections (### 1, ### 2, ### 3)
+- Include a comparison table unless the question is explicitly comparative with 4+ data-rich dimensions
+- End with a summary that restates the opening
+- Give every topic equal space
 
 End with ## Sources as [n] Title — URL"""
 
@@ -368,65 +374,36 @@ If nothing relevant, respond with "No relevant content." \
 Do not add commentary — just extract."""
 
 ARTICULATION_PROMPT = """\
-You are a research synthesizer producing expert briefings from accumulated \
-research threads.
+You are a research synthesizer producing expert briefings from accumulated research threads.
 
 THINK ABOUT THE PERSON
-Consider intent, blind spots, and obstacles. What would they assume before \
-reading this? What would change their thinking? If the research reveals the \
-question is wrong or incomplete, say so and reframe.
+Consider intent, blind spots, and obstacles. What would they assume before reading this? What would change their thinking? If the research reveals the question is wrong or incomplete, say so and reframe.
 
 STRUCTURE
 Structure the answer as a narrative argument, not a reference document.
 
-Open with the sharpest thing you found. A surprising data point, a structural \
-shift, a quote that captures the whole thesis. Never open with a definition \
-or by restating the question.
+- Open with the sharpest thing you found. A surprising data point, a structural shift, a quote that captures the whole thesis. Never open with a definition or by restating the question.
+- Develop unevenly. A thread with strong evidence and concrete examples deserves 2-3 paragraphs. A thread with only general assertions deserves one sentence woven into another section, or nothing. Do not give every topic equal weight.
+- Integrate threads. Show causation between them — how the architecture enables the business model, how the obstacle explains the competitive landscape. The reader should feel the argument building.
+- Include the counterargument. What makes this harder than it sounds? Why hasn't the obvious conclusion already won? This is not a disclaimer — it's often the most valuable section. Develop it with the same rigor as the thesis.
+- Close with implications, not summary. What does this mean going forward? What should the reader do or watch for? Never restate what you already said. If the final paragraph could be deleted without losing information, rewrite it.
 
-Develop unevenly. A thread with strong evidence and concrete examples deserves \
-2-3 paragraphs. A thread with only general assertions deserves one sentence \
-woven into another section, or nothing. Do not give every topic equal weight.
-
-Integrate threads. Show causation between them — how the architecture enables \
-the business model, how the obstacle explains the competitive landscape. The \
-reader should feel the argument building.
-
-Include the counterargument. What makes this harder than it sounds? Why hasn't \
-the obvious conclusion already won? This is not a disclaimer — it's often the \
-most valuable section. Develop it with the same rigor as the thesis.
-
-Close with implications, not summary. What does this mean going forward? What \
-should the reader do or watch for? Never restate what you already said. If the \
-final paragraph could be deleted without losing information, rewrite it.
-
-Use markdown headers sparingly — only at genuine topic shifts. Make them \
-specific and descriptive ("The Monorepo Problem Nobody Warns You About") not \
-generic ("Key Challenges"). Never number them.
+Use markdown headers sparingly — only at genuine topic shifts. Make them specific and descriptive ("The Monorepo Problem Nobody Warns You About") not generic ("Key Challenges"). Never number them.
 
 EVIDENCE
-Every factual claim gets an inline citation [n]. Concrete over abstract: name \
-companies, cite dollar amounts, reference specific versions and tools. A claim \
-with a named example is worth three without. When sources disagree, say so and \
-explain why. When evidence is thin or single-sourced, say so. "Based on \
-limited early data" is more credible than false confidence.
+- Every factual claim gets an inline citation [n]
+- Concrete over abstract: name companies, cite dollar amounts, reference specific versions and tools. A claim with a named example is worth three without.
+- When sources disagree, say so and explain why
+- When evidence is thin or single-sourced, say so. "Based on limited early data" is more credible than false confidence.
 
 VOICE
-Write as a knowledgeable colleague briefing someone smart. Natural prose \
-paragraphs — no bullet-point lists in the body unless presenting genuinely \
-parallel items (a set of 4+ tools or metrics). If you catch yourself writing \
-bullets, convert to prose. Do not use filler phrases ("It's important to \
-note," "Let's dive in," "In conclusion," "Here's what you need to know").
+Write as a knowledgeable colleague briefing someone smart. Natural prose paragraphs — no bullet-point lists in the body unless presenting genuinely parallel items (a set of 4+ tools or metrics). If you catch yourself writing bullets, convert to prose. Do not use filler phrases ("It's important to note," "Let's dive in," "In conclusion," "Here's what you need to know").
 
 COMPARISON TABLES
-Only include a table if the question is explicitly comparative AND the \
-comparison has 4+ substantive dimensions. The table must contain specific \
-data (versions, numbers, tool names) — not restatements of your prose. Never \
-use a table to summarize your own argument.
+Only include a table if the question is explicitly comparative AND the comparison has 4+ substantive dimensions. The table must contain specific data (versions, numbers, tool names) — not restatements of your prose. Never use a table to summarize your own argument.
 
 CALIBRATE DEPTH TO EVIDENCE
-If the research threads are thin, write a shorter, tighter answer. A 600-word \
-answer that's honest about what's known is better than a 1500-word answer that \
-pads thin research with generalities. Do not speculate to fill space.
+If the research threads are thin, write a shorter, tighter answer. A 600-word answer that's honest about what's known is better than a 1500-word answer that pads thin research with generalities. Do not speculate to fill space.
 
 End with ## Sources as [n] Title — URL"""
 
@@ -880,6 +857,114 @@ async def _plan(
         len(topics),
         [t.label for t in topics],
     )
+    return topics
+
+
+async def _reconsider(
+    raw_query: str,
+    topics: list[TopicPlan],
+    cfg: dict,
+    budget: CostBudget,
+    planning_counter: TokenCounter,
+) -> list[TopicPlan]:
+    """Review planned topics and revise if they don't serve the user's goal.
+
+    Single-pass reconsideration: the reviewer sees ONLY the original query
+    and the thread list (not the reasoning LLM's full analysis) to avoid
+    being biased by the reasoning's framing.
+
+    Returns revised topics if the reviewer says REVISE, otherwise the
+    original topics unchanged.
+    """
+    client = genai_client()
+
+    # Format thread list for the reviewer
+    thread_list = "\n".join(
+        f"- {t.label}: {t.description}" for t in topics
+    )
+
+    user_msg = (
+        f"USER QUERY: {raw_query}\n\n"
+        f"PROPOSED RESEARCH THREADS:\n{thread_list}"
+    )
+
+    response = await client.aio.models.generate_content(
+        model=cfg["planning_model"],
+        contents=user_msg,
+        config=GenerateContentConfig(
+            system_instruction=RECONSIDERATION_PROMPT,
+        ),
+    )
+
+    # Track tokens
+    if response.usage_metadata:
+        meta = response.usage_metadata
+        input_tokens = meta.prompt_token_count or 0
+        output_tokens = meta.candidates_token_count or 0
+        planning_counter.input_tokens += input_tokens
+        planning_counter.output_tokens += output_tokens
+        budget.add(input_tokens, output_tokens, cfg["planning_model"])
+
+    review_text = (response.text or "").strip()
+    logger.info("Reconsideration response: %s", review_text[:200])
+
+    # If approved, pass topics through unchanged
+    if "APPROVED" in review_text.upper() and "REVISE" not in review_text.upper():
+        logger.info("Reconsideration: APPROVED — topics unchanged")
+        return topics
+
+    # REVISE: ask the planning model to produce revised topics
+    logger.info("Reconsideration: REVISE — regenerating topics")
+
+    revision_prompt = (
+        f"QUESTION: {raw_query}\n\n"
+        f"ORIGINAL RESEARCH THREADS:\n{thread_list}\n\n"
+        f"A reviewer identified problems with these threads. "
+        f"Their feedback:\n{review_text}\n\n"
+        f"Produce a revised set of research topics that addresses "
+        f"this feedback. Do NOT repeat your reasoning — just output "
+        f"the TOPICS directive directly.\n\n"
+        f"TOPICS: [{{\"label\": \"...\", \"description\": \"...\", "
+        f"\"queries\": [\"...\"]}}]"
+    )
+
+    revision_response = await client.aio.models.generate_content(
+        model=cfg["planning_model"],
+        contents=revision_prompt,
+        config=GenerateContentConfig(
+            system_instruction=(
+                "You are a research planning engine. Given a user question, "
+                "original research threads, and reviewer feedback, produce a "
+                "revised TOPICS directive. Output ONLY the TOPICS: line with "
+                "a JSON array. Each topic needs a label, description, and "
+                "queries array."
+            ),
+        ),
+    )
+
+    # Track tokens for revision call
+    if revision_response.usage_metadata:
+        meta = revision_response.usage_metadata
+        input_tokens = meta.prompt_token_count or 0
+        output_tokens = meta.candidates_token_count or 0
+        planning_counter.input_tokens += input_tokens
+        planning_counter.output_tokens += output_tokens
+        budget.add(input_tokens, output_tokens, cfg["planning_model"])
+
+    revision_text = revision_response.text or ""
+    revised_topics = _parse_plan_result(revision_text)
+
+    if revised_topics:
+        revised_topics = revised_topics[:cfg["max_topics"]]
+        logger.info(
+            "Reconsideration produced %d revised topics: %s",
+            len(revised_topics),
+            [t.label for t in revised_topics],
+        )
+        return revised_topics
+
+    # If parsing failed, fall back to original topics
+    logger.warning("Reconsideration revision parsing failed — keeping original topics")
     return topics
 
 
@@ -1409,6 +1494,11 @@ async def run_deep_research_pipeline(
                 full_query, query, cfg, event_queue, budget,
                 planning_counter,
                 planning_prompt=planning_prompt_override or "",
+            )
+
+            # --- Phase 1b: RECONSIDER ---
+            topics = await _reconsider(
+                query, topics, cfg, budget, planning_counter,
             )
 
             # --- Phase 2: RESEARCH (wave 1 — all topics concurrent) ---
