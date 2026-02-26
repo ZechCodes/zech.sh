@@ -121,7 +121,7 @@ window.ScanPipeline = (function () {
           var tip = (domain ? '(' + domain + ') ' : '') + c.title;
           return '<a href="' + encodeURI(c.url) + '" class="citation" target="_blank" rel="noopener" title="' + escapeHtml(tip) + '">' + n + '</a>';
         });
-        return '[' + linked.join(', ') + ']';
+        return linked.join(' ');
       });
     }
 
