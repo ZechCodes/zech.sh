@@ -59,40 +59,48 @@ window.ScanPipeline = (function () {
   }
 
   // ---------------------------------------------------------------------------
-  // Markdown renderer
+  // Markdown renderer (marked.js)
   // ---------------------------------------------------------------------------
 
-  function renderMarkdown(md) {
-    var html = md
-      .replace(/```(\w*)\n([\s\S]*?)```/g, function (_, lang, code) {
-        return '<pre class="research-code"><code>' + escapeHtml(code.trim()) + "</code></pre>";
-      })
-      .replace(/`([^`]+)`/g, function (_, code) {
-        return "<code>" + escapeHtml(code) + "</code>";
-      })
-      .replace(/^### (.+)$/gm, "<h4>$1</h4>")
-      .replace(/^## (.+)$/gm, "<h3>$1</h3>")
-      .replace(/^# (.+)$/gm, "<h2>$1</h2>")
-      .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (_, text, url) {
-        if (/^https?:\/\//i.test(url)) {
-          return '<a href="' + encodeURI(url) + '" target="_blank" rel="noopener">' + escapeHtml(text) + '</a>';
+  marked.use({
+    gfm: true,
+    breaks: true,
+    renderer: {
+      link: function (token) {
+        var href = token.href || "";
+        var text = this.parser.parseInline(token.tokens);
+        if (/^https?:\/\//i.test(href)) {
+          return '<a href="' + encodeURI(href) + '" target="_blank" rel="noopener">' + text + '</a>';
         }
-        return escapeHtml(text);
-      })
-      .replace(/^[-*] (.+)$/gm, "<li>$1</li>")
-      .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
-      .replace(/\n\n+/g, "</p><p>")
-      .replace(/\n/g, "<br>");
+        return text;
+      },
+      code: function (token) {
+        return '<pre class="research-code"><code>' + escapeHtml(token.text || "") + '</code></pre>';
+      },
+      table: function (token) {
+        var self = this;
+        var html = '<div class="table-wrap"><table><thead><tr>';
+        token.header.forEach(function (cell) {
+          var align = cell.align ? ' style="text-align:' + cell.align + '"' : '';
+          html += '<th' + align + '>' + self.parser.parseInline(cell.tokens) + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+        token.rows.forEach(function (row) {
+          html += '<tr>';
+          row.forEach(function (cell) {
+            var align = cell.align ? ' style="text-align:' + cell.align + '"' : '';
+            html += '<td' + align + '>' + self.parser.parseInline(cell.tokens) + '</td>';
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        return html;
+      },
+    },
+  });
 
-    html = html.replace(/((?:<li>.*?<\/li>(?:<br>)?)+)/g, "<ul>$1</ul>");
-    html = html.replace(/<ul>([\s\S]*?)<\/ul>/g, function (_, inner) {
-      return "<ul>" + inner.replace(/<br>/g, "") + "</ul>";
-    });
-
-    return "<p>" + html + "</p>";
+  function renderMarkdown(md) {
+    return marked.parse(md);
   }
 
   // ---------------------------------------------------------------------------
