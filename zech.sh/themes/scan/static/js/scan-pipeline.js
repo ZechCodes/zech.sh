@@ -102,8 +102,8 @@ window.ScanPipeline = (function () {
   function renderMarkdown(md) {
     // Build citation map from Sources section: [n] Title — URL
     var citations = {};
-    md.replace(/\[(\d+)\]\s+.+?\s[—\-]\s+(https?:\/\/\S+)/g, function (_, n, url) {
-      citations[n] = url;
+    md.replace(/\[(\d+)\]\s+(.+?)\s[—\-]\s+(https?:\/\/\S+)/g, function (_, n, title, url) {
+      citations[n] = { url: url, title: title };
     });
 
     var html = marked.parse(md);
@@ -112,7 +112,8 @@ window.ScanPipeline = (function () {
     if (Object.keys(citations).length > 0) {
       html = html.replace(/\[(\d+)\]/g, function (match, n) {
         if (!citations[n]) return match;
-        return '<a href="' + encodeURI(citations[n]) + '" class="citation" target="_blank" rel="noopener" title="Source ' + n + '">[' + n + ']</a>';
+        var c = citations[n];
+        return '<a href="' + encodeURI(c.url) + '" class="citation" target="_blank" rel="noopener" title="' + escapeHtml(c.title) + '">[' + n + ']</a>';
       });
     }
 
