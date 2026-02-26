@@ -110,12 +110,18 @@ window.ScanPipeline = (function () {
 
     // Link inline [n] references to their source URLs
     if (Object.keys(citations).length > 0) {
-      html = html.replace(/\[(\d+)\]/g, function (match, n) {
-        if (!citations[n]) return match;
-        var c = citations[n];
-        var domain = domainFromUrl(c.url);
-        var tip = (domain ? '(' + domain + ') ' : '') + c.title;
-        return '<a href="' + encodeURI(c.url) + '" class="citation" target="_blank" rel="noopener" title="' + escapeHtml(tip) + '">[' + n + ']</a>';
+      html = html.replace(/\[([\d,\s]+)\]/g, function (match, inner) {
+        var nums = inner.split(/,\s*/);
+        var allKnown = nums.every(function (n) { return citations[n.trim()]; });
+        if (!allKnown) return match;
+        var linked = nums.map(function (n) {
+          n = n.trim();
+          var c = citations[n];
+          var domain = domainFromUrl(c.url);
+          var tip = (domain ? '(' + domain + ') ' : '') + c.title;
+          return '<a href="' + encodeURI(c.url) + '" class="citation" target="_blank" rel="noopener" title="' + escapeHtml(tip) + '">' + n + '</a>';
+        });
+        return '[' + linked.join(', ') + ']';
       });
     }
 
