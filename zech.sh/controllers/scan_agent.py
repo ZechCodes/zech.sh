@@ -40,6 +40,8 @@ from controllers.llm import (
 from controllers.deep_research_agent import (
     LIGHT_CONFIG,
     LIGHT_PLANNING_PROMPT,
+    Dispatch,
+    ResearchPipeline,
     _jina_fetch,
     run_deep_research_pipeline,
 )

@@ -19,7 +19,7 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
@@ -176,6 +176,8 @@ class ErrorEvent:
 
 
 PipelineEvent = StageEvent | DetailEvent | TextEvent | DoneEvent | ErrorEvent
+
+Dispatch = Callable[[PipelineEvent], Awaitable[None]]
 
 
 # ---------------------------------------------------------------------------
@@ -772,7 +774,7 @@ async def _plan(
     full_query: str,
     raw_query: str,
     cfg: dict,
-    event_queue: asyncio.Queue[PipelineEvent],
+    dispatch: Dispatch,
     budget: CostBudget,
     planning_counter: TokenCounter,
     planning_prompt: str = "",
@@ -811,7 +813,7 @@ async def _plan(
             full_text += chunk.text
             safe_len = max(0, len(full_text) - _HOLDBACK)
             if safe_len > emitted_len:
-                await event_queue.put(DetailEvent(
+                await dispatch(DetailEvent(
                     type="reasoning",
                     payload={"text": full_text[emitted_len:safe_len]},
                 ))
@@ -826,7 +828,7 @@ async def _plan(
         remaining, flags=re.DOTALL,
     )
     if remaining.strip():
-        await event_queue.put(DetailEvent(
+        await dispatch(DetailEvent(
             type="reasoning",
             payload={"text": remaining},
         ))
@@ -1034,7 +1036,7 @@ async def _search_and_extract_query(
     brave_api_key: str,
     already_fetched: set[str],
     cfg: dict,
-    event_queue: asyncio.Queue[PipelineEvent],
+    dispatch: Dispatch,
     extraction_counter: TokenCounter,
     budget: CostBudget,
     topic_entries: list[KnowledgeEntry],
@@ -1049,13 +1051,13 @@ async def _search_and_extract_query(
     client = genai_client()
 
     # Emit research group
-    await event_queue.put(DetailEvent(
+    await dispatch(DetailEvent(
         type="research",
         payload={"topic": topic.label},
     ))
 
     # --- Brave search ---
-    await event_queue.put(DetailEvent(
+    await dispatch(DetailEvent(
         type="search",
         payload={"topic": topic.label, "query": query_text},
     ))
@@ -1064,7 +1066,7 @@ async def _search_and_extract_query(
         results = await _brave_search(
             query_text, brave_api_key, count=cfg["brave_results"],
         )
-        await event_queue.put(DetailEvent(
+        await dispatch(DetailEvent(
             type="search_done",
             payload={
                 "topic": topic.label,
@@ -1073,7 +1075,7 @@ async def _search_and_extract_query(
             },
         ))
     except Exception:
-        await event_queue.put(DetailEvent(
+        await dispatch(DetailEvent(
             type="search_done",
             payload={
                 "topic": topic.label,
@@ -1081,7 +1083,7 @@ async def _search_and_extract_query(
                 "num_results": 0,
             },
         ))
-        await event_queue.put(DetailEvent(
+        await dispatch(DetailEvent(
             type="result",
             payload={
                 "topic": topic.label,
@@ -1107,7 +1109,7 @@ async def _search_and_extract_query(
                 allowed = True
             if not allowed:
                 logger.info("Blocked by robots.txt: %s", url)
-                await event_queue.put(DetailEvent(
+                await dispatch(DetailEvent(
                     type="fetch_done",
                     payload={
                         "topic": topic.label,
@@ -1120,7 +1122,7 @@ async def _search_and_extract_query(
 
     # Emit fetch start events
     for url, _title in urls_allowed:
-        await event_queue.put(DetailEvent(
+        await dispatch(DetailEvent(
             type="fetch",
             payload={"topic": topic.label, "url": url},
         ))
@@ -1141,7 +1143,7 @@ async def _search_and_extract_query(
             content = None
 
         if not content:
-            await event_queue.put(DetailEvent(
+            await dispatch(DetailEvent(
                 type="fetch_done",
                 payload={
                     "topic": topic.label,
@@ -1206,7 +1208,7 @@ async def _search_and_extract_query(
                         cfg["extraction_model"],
                     )
 
-                await event_queue.put(DetailEvent(
+                await dispatch(DetailEvent(
                     type="fetch_done",
                     payload={
                         "topic": topic.label,
@@ -1216,7 +1218,7 @@ async def _search_and_extract_query(
                     },
                 ))
             else:
-                await event_queue.put(DetailEvent(
+                await dispatch(DetailEvent(
                     type="fetch_done",
                     payload={
                         "topic": topic.label,
@@ -1229,7 +1231,7 @@ async def _search_and_extract_query(
 
         except Exception:
             logger.exception("Extraction failed for %s", url)
-            await event_queue.put(DetailEvent(
+            await dispatch(DetailEvent(
                 type="fetch_done",
                 payload={
                     "topic": topic.label,
@@ -1239,7 +1241,7 @@ async def _search_and_extract_query(
             ))
 
     # Collapse research group for this query
-    await event_queue.put(DetailEvent(
+    await dispatch(DetailEvent(
         type="result",
         payload={
             "topic": topic.label,
@@ -1256,7 +1258,7 @@ async def _research_topic(
     already_fetched: set[str],
     queries_searched: set[str],
     cfg: dict,
-    event_queue: asyncio.Queue[PipelineEvent],
+    dispatch: Dispatch,
     extraction_counter: TokenCounter,
     budget: CostBudget,
     redis_url: str = "",
@@ -1296,7 +1298,7 @@ async def _research_topic(
             all_queries_used.append(query_text)
             await _search_and_extract_query(
                 query_text, topic, knowledge, brave_api_key,
-                already_fetched, cfg, event_queue, extraction_counter,
+                already_fetched, cfg, dispatch, extraction_counter,
                 budget, topic_entries,
                 redis_url=redis_url, db_session=db_session,
             )
@@ -1350,7 +1352,7 @@ async def _articulate(
     query: str,
     knowledge: KnowledgeState,
     cfg: dict,
-    event_queue: asyncio.Queue[PipelineEvent],
+    dispatch: Dispatch,
     counter: TokenCounter,
 ) -> None:
     """Stream the final cited response."""
@@ -1379,7 +1381,7 @@ async def _articulate(
 
     async for chunk in counter.counted_stream(response):
         if chunk.text:
-            await event_queue.put(TextEvent(text=chunk.text))
+            await dispatch(TextEvent(text=chunk.text))
 
 
 # ---------------------------------------------------------------------------
@@ -1437,82 +1439,119 @@ async def _compress_knowledge(
 # ---------------------------------------------------------------------------
 
 
-async def run_deep_research_pipeline(
-    query: str,
-    brave_api_key: str,
-    *,
-    db_session=None,
-    redis_url: str = "",
-    user_timezone: str = "",
-    conversation_history: list[dict] | None = None,
-    config_override: dict | None = None,
-    planning_prompt_override: str | None = None,
-) -> AsyncGenerator[PipelineEvent, None]:
-    """Run the deep research pipeline, yielding SSE-compatible events.
+class ResearchPipeline:
+    """Standalone research pipeline component.
 
-    This is the main entry point, matching the same generator pattern
-    as ``run_research_pipeline`` in scan_agent.py.
+    Takes a query and an event dispatch callable, then runs the full
+    plan → research → articulate pipeline, emitting tool uses and text
+    chunks through the dispatch.
 
-    Pass ``config_override`` and ``planning_prompt_override`` to run a
-    lighter variant (e.g. the basic researcher uses LIGHT_CONFIG).
+    Can be pulled out, tested independently with a mock dispatch, or
+    swapped for a different implementation at runtime.
+
+    Usage::
+
+        collected = []
+        pipeline = ResearchPipeline(
+            query="How does TCP work?",
+            dispatch=lambda event: collected.append(event),
+            brave_api_key="...",
+        )
+        await pipeline.run()
     """
-    cfg = config_override or CONFIG
 
-    # Build timezone-aware date preamble
-    try:
-        tz = ZoneInfo(user_timezone) if user_timezone else timezone.utc
-    except (KeyError, ValueError):
-        tz = timezone.utc
-    now = datetime.now(tz)
-    full_query = (
-        f"Current date/time: {now.strftime('%A, %B %d, %Y %H:%M')} "
-        f"({user_timezone or 'UTC'})\n\n{query}"
-    )
+    def __init__(
+        self,
+        query: str,
+        dispatch: Dispatch,
+        *,
+        brave_api_key: str,
+        db_session=None,
+        redis_url: str = "",
+        user_timezone: str = "",
+        conversation_history: list[dict] | None = None,
+        config: dict | None = None,
+        planning_prompt: str = "",
+    ) -> None:
+        self.query = query
+        self.dispatch = dispatch
+        self.brave_api_key = brave_api_key
+        self.db_session = db_session
+        self.redis_url = redis_url
+        self.user_timezone = user_timezone
+        self.conversation_history = conversation_history
+        self.config = config or CONFIG
+        self.planning_prompt = planning_prompt
 
-    # Prepend conversation history for multi-turn context
-    if conversation_history:
-        parts = ["Previous conversation:"]
-        for msg in conversation_history:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            parts.append(f"{role}: {msg['content']}")
-        full_query = "\n".join(parts) + "\n\n" + full_query
+        # Pipeline state — accessible for inspection/testing after run()
+        self.knowledge = KnowledgeState()
+        self.already_fetched: set[str] = set()
+        self.queries_searched: set[str] = set()
+        self.budget = CostBudget(limit=self.config["research_budget"])
+        self.planning_counter = TokenCounter()
+        self.extraction_counter = TokenCounter()
+        self.articulation_counter = TokenCounter()
 
-    event_queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
-    knowledge = KnowledgeState()
-    already_fetched: set[str] = set()
-    queries_searched: set[str] = set()
-    budget = CostBudget(limit=cfg["research_budget"])
+    def _build_full_query(self) -> str:
+        """Build the full query with timestamp preamble and history."""
+        try:
+            tz = ZoneInfo(self.user_timezone) if self.user_timezone else timezone.utc
+        except (KeyError, ValueError):
+            tz = timezone.utc
+        now = datetime.now(tz)
+        full_query = (
+            f"Current date/time: {now.strftime('%A, %B %d, %Y %H:%M')} "
+            f"({self.user_timezone or 'UTC'})\n\n{self.query}"
+        )
 
-    planning_counter = TokenCounter()
-    extraction_counter = TokenCounter()
-    articulation_counter = TokenCounter()
+        if self.conversation_history:
+            parts = ["Previous conversation:"]
+            for msg in self.conversation_history:
+                role = "User" if msg["role"] == "user" else "Assistant"
+                parts.append(f"{role}: {msg['content']}")
+            full_query = "\n".join(parts) + "\n\n" + full_query
 
-    async def _run() -> None:
+        return full_query
+
+    async def run(self) -> None:
+        """Execute the full pipeline, emitting events through dispatch.
+
+        Phases:
+          1. PLAN — decompose query into research topics
+          2. RESEARCH — investigate all topics concurrently
+          3. ARTICULATE — synthesize findings into a response
+
+        All events (StageEvent, DetailEvent, TextEvent, DoneEvent,
+        ErrorEvent) are emitted via ``self.dispatch``.
+        """
+        cfg = self.config
+        full_query = self._build_full_query()
+
         try:
             # --- Phase 1: PLAN ---
-            await event_queue.put(StageEvent(stage="reasoning"))
+            await self.dispatch(StageEvent(stage="reasoning"))
 
             topics = await _plan(
-                full_query, query, cfg, event_queue, budget,
-                planning_counter,
-                planning_prompt=planning_prompt_override or "",
+                full_query, self.query, cfg, self.dispatch, self.budget,
+                self.planning_counter,
+                planning_prompt=self.planning_prompt,
             )
 
             # --- Phase 1b: RECONSIDER ---
             topics = await _reconsider(
-                query, topics, cfg, budget, planning_counter,
+                self.query, topics, cfg, self.budget, self.planning_counter,
             )
 
             # --- Phase 2: RESEARCH (wave 1 — all topics concurrent) ---
-            await event_queue.put(StageEvent(stage="researching"))
+            await self.dispatch(StageEvent(stage="researching"))
 
             wave1_results = await asyncio.gather(
                 *[
                     _research_topic(
-                        topic, knowledge, brave_api_key, already_fetched,
-                        queries_searched, cfg, event_queue,
-                        extraction_counter, budget,
-                        redis_url=redis_url, db_session=db_session,
+                        topic, self.knowledge, self.brave_api_key,
+                        self.already_fetched, self.queries_searched, cfg,
+                        self.dispatch, self.extraction_counter, self.budget,
+                        redis_url=self.redis_url, db_session=self.db_session,
                     )
                     for topic in topics
                 ],
@@ -1534,7 +1573,7 @@ async def run_deep_research_pipeline(
                     logger.error("Topic research failed: %s", r)
 
             # Wave 2: spawned topics (if budget allows)
-            if spawned and not budget.exhausted:
+            if spawned and not self.budget.exhausted:
                 logger.info(
                     "Launching wave 2 with %d spawned topics: %s",
                     len(spawned),
@@ -1543,10 +1582,10 @@ async def run_deep_research_pipeline(
                 await asyncio.gather(
                     *[
                         _research_topic(
-                            topic, knowledge, brave_api_key, already_fetched,
-                            queries_searched, cfg, event_queue,
-                            extraction_counter, budget,
-                            redis_url=redis_url, db_session=db_session,
+                            topic, self.knowledge, self.brave_api_key,
+                            self.already_fetched, self.queries_searched, cfg,
+                            self.dispatch, self.extraction_counter, self.budget,
+                            redis_url=self.redis_url, db_session=self.db_session,
                         )
                         for topic in spawned
                     ],
@@ -1554,36 +1593,39 @@ async def run_deep_research_pipeline(
                 )
 
             # --- Compress if needed ---
-            if knowledge.needs_compression(cfg["max_knowledge_chars"]):
+            if self.knowledge.needs_compression(cfg["max_knowledge_chars"]):
                 await _compress_knowledge(
-                    knowledge,
+                    self.knowledge,
                     cfg["compress_target_chars"],
                     cfg["extraction_model"],
-                    extraction_counter,
+                    self.extraction_counter,
                 )
 
             # --- Phase 3: ARTICULATE (always runs regardless of budget) ---
             await _articulate(
-                full_query, knowledge, cfg, event_queue, articulation_counter,
+                full_query, self.knowledge, cfg, self.dispatch,
+                self.articulation_counter,
             )
 
             # --- USAGE ---
             planning_cost = calc_usage_cost(
-                planning_counter.input_tokens,
-                planning_counter.output_tokens,
+                self.planning_counter.input_tokens,
+                self.planning_counter.output_tokens,
                 cfg["planning_model"],
             )
             extraction_cost = calc_usage_cost(
-                extraction_counter.input_tokens,
-                extraction_counter.output_tokens,
+                self.extraction_counter.input_tokens,
+                self.extraction_counter.output_tokens,
                 cfg["extraction_model"],
             )
 
             research_in = (
-                planning_counter.input_tokens + extraction_counter.input_tokens
+                self.planning_counter.input_tokens
+                + self.extraction_counter.input_tokens
             )
             research_out = (
-                planning_counter.output_tokens + extraction_counter.output_tokens
+                self.planning_counter.output_tokens
+                + self.extraction_counter.output_tokens
             )
             research_input_cost = (
                 float(planning_cost["input_cost"])
@@ -1595,13 +1637,13 @@ async def run_deep_research_pipeline(
             )
 
             articulation_cost = calc_usage_cost(
-                articulation_counter.input_tokens,
-                articulation_counter.output_tokens,
+                self.articulation_counter.input_tokens,
+                self.articulation_counter.output_tokens,
                 cfg["articulation_model"],
             )
 
-            total_in = research_in + articulation_counter.input_tokens
-            total_out = research_out + articulation_counter.output_tokens
+            total_in = research_in + self.articulation_counter.input_tokens
+            total_out = research_out + self.articulation_counter.output_tokens
             total_input_cost = (
                 research_input_cost + float(articulation_cost["input_cost"])
             )
@@ -1609,7 +1651,7 @@ async def run_deep_research_pipeline(
                 research_output_cost + float(articulation_cost["output_cost"])
             )
 
-            await event_queue.put(DetailEvent(
+            await self.dispatch(DetailEvent(
                 type="usage",
                 payload={
                     "research": {
@@ -1626,19 +1668,53 @@ async def run_deep_research_pipeline(
                         "output_cost": f"{total_output_cost:.4f}",
                     },
                     "budget": {
-                        "limit": budget.limit,
-                        "spent": round(budget.spent, 4),
+                        "limit": self.budget.limit,
+                        "spent": round(self.budget.spent, 4),
                     },
                 },
             ))
 
-            await event_queue.put(DoneEvent())
+            await self.dispatch(DoneEvent())
 
         except Exception as exc:
-            logger.exception("Deep research pipeline error")
-            await event_queue.put(ErrorEvent(error=str(exc)))
+            logger.exception("Research pipeline error")
+            await self.dispatch(ErrorEvent(error=str(exc)))
 
-    task = asyncio.create_task(_run())
+
+async def run_deep_research_pipeline(
+    query: str,
+    brave_api_key: str,
+    *,
+    db_session=None,
+    redis_url: str = "",
+    user_timezone: str = "",
+    conversation_history: list[dict] | None = None,
+    config_override: dict | None = None,
+    planning_prompt_override: str | None = None,
+) -> AsyncGenerator[PipelineEvent, None]:
+    """Run the deep research pipeline, yielding SSE-compatible events.
+
+    Thin wrapper around ``ResearchPipeline`` that bridges the dispatch
+    callable to an async generator for backward compatibility.
+
+    Pass ``config_override`` and ``planning_prompt_override`` to run a
+    lighter variant (e.g. the basic researcher uses LIGHT_CONFIG).
+    """
+    event_queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
+
+    pipeline = ResearchPipeline(
+        query,
+        event_queue.put,
+        brave_api_key=brave_api_key,
+        db_session=db_session,
+        redis_url=redis_url,
+        user_timezone=user_timezone,
+        conversation_history=conversation_history,
+        config=config_override,
+        planning_prompt=planning_prompt_override or "",
+    )
+
+    task = asyncio.create_task(pipeline.run())
 
     sent_responding = False
     while True:
