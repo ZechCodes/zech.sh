@@ -91,7 +91,9 @@ jobs:
         run: kubectl apply -f k8s/services.yaml
 
       - name: Apply ingress
-        run: kubectl apply -f k8s/ingress.yaml
+        run: |
+          kubectl apply -f k8s/ingress.yaml
+          kubectl apply -f k8s/redirect-ingress.yaml
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/zech-sh --timeout=300s
