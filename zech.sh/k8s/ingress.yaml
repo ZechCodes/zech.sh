@@ -5,9 +5,9 @@ metadata:
   labels:
     app: zech-sh
   annotations:
-    kubernetes.io/ingress.class: traefik
     cert-manager.io/cluster-issuer: letsencrypt-production
 spec:
+  ingressClassName: traefik
   tls:
     - hosts:
         - zech.sh
