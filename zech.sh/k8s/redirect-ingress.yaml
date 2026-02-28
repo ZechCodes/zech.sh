@@ -1,4 +1,4 @@
-apiVersion: traefik.io/v1alpha1
+apiVersion: traefik.containo.us/v1alpha1
 kind: Middleware
 metadata:
   name: redirect-to-dump-zech-sh
@@ -15,10 +15,10 @@ metadata:
   labels:
     app: zech-sh
   annotations:
-    kubernetes.io/ingress.class: traefik
     cert-manager.io/cluster-issuer: letsencrypt-production
     traefik.ingress.kubernetes.io/router.middlewares: zechcodes-redirect-to-dump-zech-sh@kubernetescrd
 spec:
+  ingressClassName: traefik
   tls:
     - hosts:
         - zech.codes
