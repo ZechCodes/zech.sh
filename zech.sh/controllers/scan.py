@@ -14,7 +14,8 @@ from litestar.response import Template as TemplateResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from skrift.auth.guards import auth_guard, Permission
+from skrift.auth.guards import ADMINISTRATOR_PERMISSION
+from skrift.auth.services import get_user_permissions
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
@@ -256,9 +257,19 @@ async def _get_chat_messages(
     return list(result.scalars().all())
 
 
+_SCAN_PERMISSION = "scan"
+
+
+async def _has_scan_permission(user_id: UUID, db_session: AsyncSession) -> bool:
+    """Check whether a user has the 'scan' permission."""
+    perms = await get_user_permissions(db_session, str(user_id))
+    if ADMINISTRATOR_PERMISSION in perms.permissions:
+        return True
+    return _SCAN_PERMISSION in perms.permissions
+
+
 class ScanController(Controller):
     path = "/"
-    guards = [auth_guard, Permission("scan")]
 
     @get("/")
     async def index(
@@ -267,6 +278,8 @@ class ScanController(Controller):
         try:
             user = await _get_user(request, db_session)
             if not user:
+                return TemplateResponse("unauthorized.html")
+            if not await _has_scan_permission(user.id, db_session):
                 return TemplateResponse("unauthorized.html")
             recent_chats = await _get_recent_chats(user.id, db_session)
             return TemplateResponse(
@@ -288,6 +301,8 @@ class ScanController(Controller):
         try:
             user = await _get_user(request, db_session)
             if not user:
+                return TemplateResponse("unauthorized.html")
+            if not await _has_scan_permission(user.id, db_session):
                 return TemplateResponse("unauthorized.html")
             if not q.strip():
                 return Redirect(path="/")
@@ -380,6 +395,8 @@ class ScanController(Controller):
             user = await _get_user(request, db_session)
             if not user:
                 return TemplateResponse("unauthorized.html")
+            if not await _has_scan_permission(user.id, db_session):
+                return TemplateResponse("unauthorized.html")
 
             result = await db_session.execute(
                 select(ChatSession).where(
@@ -421,6 +438,8 @@ class ScanController(Controller):
         user = await _get_user(request, db_session)
         if not user:
             return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_scan_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
 
         result = await db_session.execute(
             select(ChatSession).where(
@@ -456,6 +475,8 @@ class ScanController(Controller):
         try:
             user = await _get_user(request, db_session)
             if not user:
+                return TemplateResponse("unauthorized.html")
+            if not await _has_scan_permission(user.id, db_session):
                 return TemplateResponse("unauthorized.html")
 
             if page < 1:
