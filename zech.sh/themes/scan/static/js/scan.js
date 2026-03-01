@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Search form — fetch classification then navigate via JS to avoid CSP form-action restriction
-    var form = document.querySelector('.scan-form:not(#chatFollowup)');
+    var form = document.querySelector('.scan-form:not(#chatFollowup):not(#searchBar)');
     if (form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
@@ -78,6 +78,11 @@ document.addEventListener('DOMContentLoaded', function() {
             var url = '/search?q=' + encodeURIComponent(q);
             if (currentMode && currentMode !== 'launch') {
                 url += '&mode=' + currentMode;
+            }
+            // Search mode renders server-side — navigate directly
+            if (currentMode === 'search') {
+                window.location.href = url;
+                return;
             }
             fetch(url, {
                 headers: { 'Accept': 'application/json' },
@@ -88,7 +93,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 return r.json();
             })
             .then(function(data) {
-                window.location.href = data.url;
+                if (data.url) {
+                    window.location.href = data.url;
+                } else {
+                    // Classifier returned SEARCH — navigate to results page
+                    window.location.href = '/search?q=' + encodeURIComponent(q) + '&mode=search';
+                }
             })
             .catch(function() {
                 window.location.href = '/search?q=' + encodeURIComponent(q);

@@ -1447,3 +1447,207 @@ textarea.scan-input-auto {
     font-size: 1rem;
   }
 }
+
+/* ==========================================================================
+   Search Results
+   ========================================================================== */
+
+.search-results-section {
+  width: 100%;
+  max-width: 760px;
+  align-self: flex-start;
+  padding-top: 2rem;
+}
+
+.search-bar {
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
+.search-bar .scan-form-row {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  background: rgba(0, 229, 255, 0.03);
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.search-bar .scan-form-row:focus-within {
+  border-color: var(--zech-primary);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.1), inset 0 0 20px rgba(0, 229, 255, 0.03);
+}
+
+.search-bar .scan-input {
+  border: none;
+  background: transparent;
+}
+
+.search-bar .scan-input:focus {
+  box-shadow: none;
+}
+
+.search-bar-submit {
+  padding: 0.75rem 1.5rem;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--zech-primary);
+  background: transparent;
+  border: none;
+  border-left: 1px solid rgba(0, 229, 255, 0.15);
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.search-bar-submit:hover {
+  background: rgba(0, 229, 255, 0.06);
+}
+
+/* AI Overview */
+.search-overview {
+  margin-bottom: 2rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(0, 229, 255, 0.12);
+  background: rgba(0, 229, 255, 0.02);
+  position: relative;
+}
+
+.search-overview::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--zech-primary);
+  opacity: 0.4;
+}
+
+.search-overview-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--zech-primary);
+  opacity: 0.7;
+  margin-bottom: 0.75rem;
+}
+
+.search-overview-text {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--zech-text);
+}
+
+/* Results list */
+.search-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.search-result {
+  display: block;
+  padding: 0.85rem 1rem;
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.search-result:hover {
+  border-left-color: var(--zech-primary);
+  background: rgba(0, 229, 255, 0.03);
+}
+
+.search-result-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--zech-primary);
+  margin-bottom: 0.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result:hover .search-result-title {
+  color: var(--zech-text);
+}
+
+.search-result-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  vertical-align: text-bottom;
+  margin-right: 0.4rem;
+}
+
+.search-result-url {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--zech-text-dim);
+  opacity: 0.5;
+  margin-bottom: 0.35rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result-desc {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--zech-text-dim);
+}
+
+/* Pagination */
+.search-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(0, 229, 255, 0.08);
+}
+
+.search-page-link {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--zech-primary);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.search-page-link:hover {
+  opacity: 0.8;
+}
+
+.search-page-disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.search-page-info {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--zech-text-dim);
+}
+
+.search-empty {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+  color: var(--zech-text-dim);
+  text-align: center;
+  padding: 3rem 0;
+}

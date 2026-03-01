@@ -31,6 +31,7 @@ async def brave_search(
     query: str,
     api_key: str,
     count: int = 5,
+    offset: int = 0,
 ) -> list[dict]:
     """Execute a Brave web search and return raw result dicts (1 req/sec).
 
@@ -42,6 +43,9 @@ async def brave_search(
         wait = 1.0 - (time.monotonic() - _brave_last_call)
         if wait > 0:
             await asyncio.sleep(wait)
+        params: dict = {"q": query, "count": count}
+        if offset:
+            params["offset"] = offset
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 "https://api.search.brave.com/res/v1/web/search",
@@ -51,7 +55,7 @@ async def brave_search(
                     "User-Agent": USER_AGENT,
                     "X-Subscription-Token": api_key,
                 },
-                params={"q": query, "count": count},
+                params=params,
                 timeout=10.0,
             )
             resp.raise_for_status()
