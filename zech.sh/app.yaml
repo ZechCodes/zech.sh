@@ -62,7 +62,7 @@ logfire:
   environment: production
 
 auth:
-  redirect_base_url: https://zech.sh
+  redirect_base_url: $AUTH_REDIRECT_BASE_URL
   allowed_redirect_domains:
     - "*.zech.sh"
   providers:
