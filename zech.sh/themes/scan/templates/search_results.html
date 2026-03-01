@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}SCAN.ZECH.SH — {{ query[:50] }}{% endblock %}
+
+{% block head %}
+<link rel="search" type="application/opensearchdescription+xml" title="Scan" href="/opensearch.xml">
+{% endblock %}
+
+{% block content %}
+<section class="search-results-section">
+    <div class="scan-label">SEARCH.RESULTS</div>
+
+    <form class="scan-form search-bar" id="searchBar" action="/search" method="get">
+        <input type="hidden" name="mode" value="search">
+        <div class="scan-form-row">
+            <input
+                class="scan-input"
+                type="text"
+                name="q"
+                value="{{ query }}"
+                placeholder="Search..."
+                autofocus
+            >
+            <button type="submit" class="search-bar-submit">SEARCH</button>
+        </div>
+    </form>
+
+    {% if overview %}
+    <div class="search-overview">
+        <div class="search-overview-label">AI OVERVIEW</div>
+        <div class="search-overview-text">{{ overview }}</div>
+    </div>
+    {% endif %}
+
+    {% if results %}
+    <div class="search-results-list">
+        {% for r in results %}
+        {% set host = r.meta_url.hostname if r.meta_url is defined and r.meta_url and r.meta_url.hostname is defined else r.url.split('//')[1].split('/')[0] if '//' in r.url else '' %}
+        <a href="{{ r.url }}" class="search-result" target="_blank" rel="noopener">
+            <div class="search-result-title">{% if host %}<img class="search-result-favicon" src="https://icons.duckduckgo.com/ip3/{{ host }}.ico" alt="" width="16" height="16">{% endif %}{{ r.title }}</div>
+            <div class="search-result-url">{{ r.url }}</div>
+            {% if r.description %}
+            <div class="search-result-desc">{{ r.description | striptags }}</div>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+
+    <div class="search-pagination">
+        {% if page > 1 %}
+        <a href="/search?q={{ query | urlencode }}&mode=search&page={{ page - 1 }}" class="search-page-link">&laquo; PREV</a>
+        {% else %}
+        <span class="search-page-link search-page-disabled">&laquo; PREV</span>
+        {% endif %}
+
+        <span class="search-page-info">PAGE {{ page }}</span>
+
+        {% if has_next %}
+        <a href="/search?q={{ query | urlencode }}&mode=search&page={{ page + 1 }}" class="search-page-link">NEXT &raquo;</a>
+        {% else %}
+        <span class="search-page-link search-page-disabled">NEXT &raquo;</span>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="search-empty">No results found.</div>
+    {% endif %}
+</section>
+{% endblock %}
