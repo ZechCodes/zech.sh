@@ -32,7 +32,7 @@ sites:
     theme: scan
 
 db:
-  url: sqlite+aiosqlite:///./app.db
+  url: $DATABASE_URL
   pool_size: 5
   pool_overflow: 10
   pool_timeout: 30
