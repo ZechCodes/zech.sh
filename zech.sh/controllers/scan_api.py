@@ -10,6 +10,8 @@ from litestar.response import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from skrift.auth.guards import Permission
+
 from controllers.api_auth import api_key_guard, get_api_user_id
 from controllers.scan import _active_research, _start_pipeline_task
 from controllers.scan_agent import generate_chat_title
@@ -20,7 +22,7 @@ class ResearchApiController(Controller):
     """API endpoints for triggering and retrieving research results."""
 
     path = "/api"
-    guards = [api_key_guard]
+    guards = [api_key_guard, Permission("scan")]
 
     @post("/research")
     async def create_research(

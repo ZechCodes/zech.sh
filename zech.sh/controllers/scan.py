@@ -14,6 +14,7 @@ from litestar.response import Template as TemplateResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from skrift.auth.guards import auth_guard, Permission
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
@@ -257,6 +258,7 @@ async def _get_chat_messages(
 
 class ScanController(Controller):
     path = "/"
+    guards = [auth_guard, Permission("scan")]
 
     @get("/")
     async def index(
