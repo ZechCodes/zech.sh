@@ -265,6 +265,9 @@ RULES:
 - Craft queries like a skilled researcher: specific, varied angles
 - One topic should target contrarian/critical perspective
 - One topic should seek primary/technical sources
+- Every topic and query must be research-focused — searching for new \
+information, evidence, or sources. NEVER create topics about synthesizing, \
+summarizing, or combining. Synthesis happens later.
 - TOPICS: must appear on its own line at the very end
 - The JSON array must be on the same line as TOPICS:"""
 
@@ -293,6 +296,144 @@ RULES:
 - 2-4 topics, each with exactly ONE search query — pick the single \
 best query that will surface the most useful results for that angle
 - Topics should cover different angles, not restatements
+- Every topic and query must be research-focused — searching for new \
+information, not synthesizing or summarizing. Synthesis happens later.
+- TOPICS: must appear on its own line at the very end
+- The JSON array must be on the same line as TOPICS:"""
+
+
+GROUNDED_PLANNING_PROMPT = """\
+You are a research planning engine. Your job is to figure out what to \
+search to get an initial understanding of the question.
+
+Before generating queries, think about:
+- What does the person actually need to walk away with?
+- What are the obvious dimensions of this question? (e.g., if it's \
+a comparison, what are the axes? If it's a recommendation, what \
+are the constraints? If it's a "how to build," what are the \
+components?)
+- What would you need to see in search results to know you've \
+mapped the landscape?
+
+Write 2-4 sentences framing the question and what an initial survey \
+should cover. Then output search queries.
+
+QUERIES: ["search query 1", "search query 2", ...]
+
+RULES:
+- Write brief reasoning before the QUERIES directive
+- 4-6 search queries covering different angles of the question
+- Queries should be specific enough to return useful results on the \
+first try. "best async Python testing" beats "Python testing." \
+Include years, version numbers, or named tools when relevant.
+- At least one query should target what practitioners or reviewers \
+say — not just official docs or marketing. Forums, benchmarks, \
+case studies, and comparisons tend to surface practical signal.
+- Do NOT include speculative or contrarian angles — those come later \
+after we see what exists
+- Every query must be a search for information, NOT synthesis or \
+summarization. "how X compares to Y" is research; "summarize X" is not.
+- QUERIES: must appear on its own line at the very end
+- The JSON array must be on the same line as QUERIES:"""
+
+
+EVALUATE_PROMPT = """\
+You are continuing your research analysis. You planned an initial survey and \
+the results are in. Now think through what you found and what needs deeper \
+investigation.
+
+Based on these results, work through:
+- What did the initial research actually reveal? Any surprises?
+- Where are the knowledge gaps — what important aspects weren't covered?
+- Are there contradictions between sources that need resolution?
+- What depth opportunities exist — topics where surface-level results hint \
+at something more substantive underneath?
+- What perspectives are missing? Who hasn't been heard from?
+- Are there primary sources, technical documentation, or original research \
+that should be consulted directly?
+- What's the contrarian take? What would someone with deep domain expertise \
+think to check that a generalist would miss?
+- Are there cross-domain parallels or historical precedents worth exploring?
+
+Think through this as a continuous internal monologue — you're reasoning \
+about what you found and what's still missing. Write 2-4 dense paragraphs.
+
+ENDING YOUR RESPONSE:
+
+After reasoning, end with a TOPICS directive decomposing the deeper \
+investigation into 3-8 concurrent research threads:
+
+TOPICS: [{"label": "Short label", "description": "What to investigate \
+and why", "queries": ["search query 1", "search query 2"]}, ...]
+
+RULES:
+- ALWAYS write substantial reasoning before TOPICS
+- 3-8 topics covering genuinely different dimensions that need depth
+- Each topic: short label, one-sentence description, 2-4 specific search queries
+- These topics should be GROUNDED in what you actually found — reference \
+specific findings, gaps, or contradictions from the initial research
+- Every topic and query must be research-focused — searching for new \
+information, evidence, or sources. NEVER create topics about synthesizing, \
+summarizing, or combining what you already have. Synthesis happens later.
+- One topic should target contrarian/critical perspective
+- One topic should seek primary/technical sources
+- TOPICS: must appear on its own line at the very end
+- The JSON array must be on the same line as TOPICS:"""
+
+
+LITE_GROUNDED_PLANNING_PROMPT = """\
+You are a research planning engine. Run a quick survey of the space \
+this question lives in — just enough to understand the landscape \
+before drilling down.
+
+Think briefly: what does this person need, and what are the 3 most \
+useful searches to map the territory? Write 1-2 sentences, then \
+output exactly 3 search queries.
+
+QUERIES: ["search query 1", "search query 2", "search query 3"]
+
+RULES:
+- Write 1-2 sentences of reasoning before QUERIES
+- Exactly 3 search queries
+- Queries should be specific — include years, names, or versions \
+when relevant
+- This is a survey, not the deep investigation — keep it broad enough \
+to map the space
+- Every query must search for information, NOT synthesize or summarize. \
+Research only — synthesis happens later.
+- QUERIES: must appear on its own line at the very end
+- The JSON array must be on the same line as QUERIES:"""
+
+
+LITE_EVALUATE_PROMPT = """\
+You are continuing your research analysis. You ran an initial survey of \
+the space and now need to decide what to drill into to actually answer \
+the user's question.
+
+Look at what the survey turned up and think through:
+- What directly answers the question? Where do we need more depth?
+- What are the supporting arguments or evidence — and what's the \
+strongest counterargument or caveat?
+- Did anything in the results contradict something else, or hint at \
+a nuance the surface results glossed over?
+
+Keep this to 2-3 sentences — just enough to explain your reasoning. \
+Then output focused research topics.
+
+TOPICS: [{"label": "Short label", "description": "What to investigate \
+and why", "queries": ["search query 1", "search query 2"]}, ...]
+
+RULES:
+- Write brief reasoning before TOPICS
+- 3-5 topics that directly serve answering the user's question
+- At least one topic should gather supporting evidence or examples
+- At least one topic should seek counterarguments, limitations, or \
+critical perspectives
+- Each topic: short label, one-sentence description, 1-2 specific queries
+- Topics should be grounded in what the survey actually found
+- Every topic and query must be research-focused — searching for new \
+information or evidence. NEVER create topics about synthesizing or \
+summarizing. Synthesis happens later.
 - TOPICS: must appear on its own line at the very end
 - The JSON array must be on the same line as TOPICS:"""
 
@@ -499,6 +640,54 @@ CONFIG = {
     "jina_reads": 5,
     "max_knowledge_chars": 100_000,
     "compress_target_chars": 70_000,
+    "extract_max_chars": 1200,
+    "fetch_max_chars": 20_000,
+}
+
+GROUNDED_CONFIG = {
+    "planning_model": "gemini-3-flash-preview",
+    "extraction_model": "gemini-2.0-flash-lite",
+    "articulation_model": "gemini-3-flash-preview",
+    "articulation_thinking": "high",
+    "max_topics": 5,
+    "shallow_brave_results": 10,
+    "shallow_jina_reads": 3,
+    "shallow_budget_fraction": 0.30,
+    "evaluate_max_topics": 8,
+    "max_topic_sources": 5,
+    "max_spawned_topics": 4,
+    "max_total_topics": 8,
+    "research_budget": 0.25,
+    "brave_results": 15,
+    "jina_reads": 5,
+    "max_knowledge_chars": 100_000,
+    "compress_target_chars": 70_000,
+    "extract_max_chars": 1200,
+    "fetch_max_chars": 20_000,
+}
+
+LITE_GROUNDED_CONFIG = {
+    "planning_model": "gemini-3-flash-preview",
+    "extraction_model": "gemini-2.0-flash-lite",
+    "articulation_model": "gemini-3-flash-preview",
+    "articulation_thinking": "medium",
+    "articulation_prompt": LIGHT_ARTICULATION_PROMPT,
+    "evaluate_prompt": LITE_EVALUATE_PROMPT,
+    "planning_prompt": LITE_GROUNDED_PLANNING_PROMPT,
+    "max_topics": 3,               # 3 survey searches
+    "shallow_brave_results": 8,    # Brave results per shallow query
+    "shallow_jina_reads": 2,       # 2 sources per survey query
+    "shallow_budget_fraction": 0.35,
+    "evaluate_max_topics": 5,      # 3-5 drill-down topics
+    "max_topic_sources": 4,        # 4 sources per deep topic
+    "max_spawned_topics": 0,
+    "max_total_topics": 5,
+    "max_iterations": 1,
+    "research_budget": 0.15,
+    "brave_results": 10,           # Deep phase Brave results
+    "jina_reads": 4,               # Deep phase reads
+    "max_knowledge_chars": 50_000,
+    "compress_target_chars": 35_000,
     "extract_max_chars": 1200,
     "fetch_max_chars": 20_000,
 }
@@ -770,6 +959,143 @@ def _parse_plan_result(text: str) -> list[TopicPlan]:
     return []
 
 
+def _parse_survey_result(text: str) -> list[TopicPlan]:
+    """Parse accumulated planning text for QUERIES: ["q1", "q2", ...] directive.
+
+    Returns a list of TopicPlan objects (one per query), or empty list if
+    parsing fails. Falls back to TOPICS: parsing if QUERIES: not found.
+    """
+    tail = text[-4000:] if len(text) > 4000 else text
+
+    # Strategy 1: QUERIES: [...] on one line
+    match = re.search(r"QUERIES:\s*(\[.*\])", tail, re.DOTALL)
+
+    # Strategy 2: QUERIES: followed by markdown code block
+    if not match:
+        match = re.search(
+            r"QUERIES:\s*```(?:json)?\s*(\[.*?\])\s*```", tail, re.DOTALL,
+        )
+
+    if match:
+        json_str = match.group(1)
+        try:
+            raw = json.loads(json_str)
+            if isinstance(raw, list) and raw:
+                topics = []
+                for i, item in enumerate(raw):
+                    if isinstance(item, str):
+                        topics.append(TopicPlan(
+                            id=f"t{i + 1}",
+                            label=f"Survey {i + 1}",
+                            description=item,
+                            queries=[item],
+                        ))
+                if topics:
+                    return topics
+        except (json.JSONDecodeError, ValueError):
+            logger.warning(
+                "QUERIES JSON parse failed. Matched text: %s",
+                repr(json_str[:500]),
+            )
+
+    # Fallback: try TOPICS: format
+    topics = _parse_plan_result(text)
+    if topics:
+        return topics
+
+    logger.warning(
+        "No QUERIES directive found in planning output. Tail: %s",
+        repr(tail[-500:]),
+    )
+    return []
+
+
+async def _plan_survey(
+    full_query: str,
+    raw_query: str,
+    cfg: dict,
+    dispatch: Dispatch,
+    budget: CostBudget,
+    planning_counter: TokenCounter,
+    planning_prompt: str = "",
+) -> list[TopicPlan]:
+    """Stream planning reasoning for a flat survey (QUERIES: format).
+
+    Like ``_plan()`` but parses QUERIES: ["q1", "q2", ...] instead of
+    the TOPICS: format. Each query becomes a single TopicPlan.
+    """
+    client = genai_client()
+
+    user_msg = (
+        f"QUESTION: {full_query}\n\n"
+        f"Figure out what to search to survey this question."
+    )
+
+    response = await client.aio.models.generate_content_stream(
+        model=cfg["planning_model"],
+        contents=user_msg,
+        config=GenerateContentConfig(
+            system_instruction=planning_prompt or GROUNDED_PLANNING_PROMPT,
+        ),
+    )
+
+    full_text = ""
+    emitted_len = 0
+    _HOLDBACK = 300  # Shorter holdback — QUERIES is shorter than TOPICS
+    async for chunk in planning_counter.counted_stream(response):
+        if chunk.text:
+            full_text += chunk.text
+            safe_len = max(0, len(full_text) - _HOLDBACK)
+            if safe_len > emitted_len:
+                await dispatch(DetailEvent(
+                    type="reasoning",
+                    payload={"text": full_text[emitted_len:safe_len]},
+                ))
+                emitted_len = safe_len
+
+    # Flush remaining text with directive stripped
+    remaining = full_text[emitted_len:]
+    remaining = re.sub(r"\s*QUERIES:\s*\[.*\]\s*$", "", remaining, flags=re.DOTALL)
+    remaining = re.sub(
+        r"\s*QUERIES:\s*```(?:json)?\s*\[.*?\]\s*```\s*$", "",
+        remaining, flags=re.DOTALL,
+    )
+    if remaining.strip():
+        await dispatch(DetailEvent(
+            type="reasoning",
+            payload={"text": remaining},
+        ))
+
+    # Track budget
+    budget.add(
+        planning_counter.input_tokens,
+        planning_counter.output_tokens,
+        cfg["planning_model"],
+    )
+
+    topics = _parse_survey_result(full_text)
+
+    # Fallback: single topic with the raw user query
+    if not topics:
+        logger.warning("Survey planning fallback — using raw query")
+        topics = [TopicPlan(
+            id="t1",
+            label="Survey",
+            description=raw_query,
+            queries=[raw_query],
+        )]
+
+    # Cap at max_topics
+    topics = topics[:cfg["max_topics"]]
+
+    logger.info(
+        "Survey planning produced %d queries: %s",
+        len(topics),
+        [t.queries[0] for t in topics],
+    )
+    return topics
+
+
 async def _plan(
     full_query: str,
     raw_query: str,
@@ -870,12 +1196,18 @@ async def _reconsider(
     cfg: dict,
     budget: CostBudget,
     planning_counter: TokenCounter,
+    dispatch: Dispatch | None = None,
+    output_format: Literal["topics", "queries"] = "topics",
 ) -> list[TopicPlan]:
     """Review planned topics and revise if they don't serve the user's goal.
 
     Single-pass reconsideration: the reviewer sees ONLY the original query
     and the thread list (not the reasoning LLM's full analysis) to avoid
     being biased by the reasoning's framing.
+
+    When ``dispatch`` is provided and REVISE is triggered, the reviewer's
+    feedback and revision reasoning are streamed as DetailEvent("reasoning")
+    so the user sees the course correction as a natural internal monologue.
 
     Returns revised topics if the reviewer says REVISE, otherwise the
     original topics unchanged.
@@ -920,43 +1252,106 @@ async def _reconsider(
     # REVISE: ask the planning model to produce revised topics
     logger.info("Reconsideration: REVISE — regenerating topics")
 
+    if dispatch:
+        await dispatch(DetailEvent(
+            type="reasoning",
+            payload={"text": "\n\n---\n\n"},
+        ))
+
+    if output_format == "queries":
+        directive_example = 'QUERIES: ["revised query 1", "revised query 2", ...]'
+        directive_name = "QUERIES"
+    else:
+        directive_example = (
+            'TOPICS: [{"label": "...", "description": "...", '
+            '"queries": ["..."]}]'
+        )
+        directive_name = "TOPICS"
+
     revision_prompt = (
         f"QUESTION: {raw_query}\n\n"
         f"ORIGINAL RESEARCH THREADS:\n{thread_list}\n\n"
-        f"A reviewer identified problems with these threads. "
-        f"Their feedback:\n{review_text}\n\n"
-        f"Produce a revised set of research topics that addresses "
-        f"this feedback. Do NOT repeat your reasoning — just output "
-        f"the TOPICS directive directly.\n\n"
-        f"TOPICS: [{{\"label\": \"...\", \"description\": \"...\", "
-        f"\"queries\": [\"...\"]}}]"
+        f"You just reviewed these threads and realized they have problems. "
+        f"Your review:\n{review_text}\n\n"
+        f"Think through what needs to change in 2-3 sentences — what did "
+        f"the original plan miss or get wrong? Then output revised searches.\n\n"
+        f"{directive_example}"
     )
 
-    revision_response = await client.aio.models.generate_content(
-        model=cfg["planning_model"],
-        contents=revision_prompt,
-        config=GenerateContentConfig(
-            system_instruction=(
-                "You are a research planning engine. Given a user question, "
-                "original research threads, and reviewer feedback, produce a "
-                "revised TOPICS directive. Output ONLY the TOPICS: line with "
-                "a JSON array. Each topic needs a label, description, and "
-                "queries array."
-            ),
-        ),
+    revision_system = (
+        "You are a research planning engine mid-thought. You just realized "
+        "your initial research plan has a problem. Continue your internal "
+        "monologue — explain what you caught and how you're adjusting, "
+        f"then output a revised {directive_name} directive. Write in first "
+        "person as a continuation of your earlier reasoning (e.g., 'I think "
+        "the threads are missing...' or 'Actually, looking at this again...'). "
+        f"Keep reasoning to 2-3 sentences, then the {directive_name}: line."
     )
 
-    # Track tokens for revision call
-    if revision_response.usage_metadata:
-        meta = revision_response.usage_metadata
-        input_tokens = meta.prompt_token_count or 0
-        output_tokens = meta.candidates_token_count or 0
-        planning_counter.input_tokens += input_tokens
-        planning_counter.output_tokens += output_tokens
-        budget.add(input_tokens, output_tokens, cfg["planning_model"])
+    if dispatch:
+        # Stream the revision reasoning
+        revision_response = await client.aio.models.generate_content_stream(
+            model=cfg["planning_model"],
+            contents=revision_prompt,
+            config=GenerateContentConfig(system_instruction=revision_system),
+        )
 
-    revision_text = revision_response.text or ""
-    revised_topics = _parse_plan_result(revision_text)
+        revision_text = ""
+        emitted_len = 0
+        _HOLDBACK = 500
+        async for chunk in planning_counter.counted_stream(revision_response):
+            if chunk.text:
+                revision_text += chunk.text
+                safe_len = max(0, len(revision_text) - _HOLDBACK)
+                if safe_len > emitted_len:
+                    await dispatch(DetailEvent(
+                        type="reasoning",
+                        payload={"text": revision_text[emitted_len:safe_len]},
+                    ))
+                    emitted_len = safe_len
+
+        # Flush remaining with directive stripped
+        remaining = revision_text[emitted_len:]
+        remaining = re.sub(
+            rf"\s*{directive_name}:\s*\[.*\]\s*$", "", remaining, flags=re.DOTALL,
+        )
+        remaining = re.sub(
+            rf"\s*{directive_name}:\s*```(?:json)?\s*\[.*?\]\s*```\s*$", "",
+            remaining, flags=re.DOTALL,
+        )
+        if remaining.strip():
+            await dispatch(DetailEvent(
+                type="reasoning",
+                payload={"text": remaining},
+            ))
+
+        budget.add(
+            planning_counter.input_tokens,
+            planning_counter.output_tokens,
+            cfg["planning_model"],
+        )
+    else:
+        # Silent revision (original behavior)
+        revision_response = await client.aio.models.generate_content(
+            model=cfg["planning_model"],
+            contents=revision_prompt,
+            config=GenerateContentConfig(system_instruction=revision_system),
+        )
+
+        if revision_response.usage_metadata:
+            meta = revision_response.usage_metadata
+            input_tokens = meta.prompt_token_count or 0
+            output_tokens = meta.candidates_token_count or 0
+            planning_counter.input_tokens += input_tokens
+            planning_counter.output_tokens += output_tokens
+            budget.add(input_tokens, output_tokens, cfg["planning_model"])
+
+        revision_text = revision_response.text or ""
+
+    if output_format == "queries":
+        revised_topics = _parse_survey_result(revision_text)
+    else:
+        revised_topics = _parse_plan_result(revision_text)
 
     if revised_topics:
         revised_topics = revised_topics[:cfg["max_topics"]]
@@ -969,6 +1364,102 @@ async def _reconsider(
 
     # If parsing failed, fall back to original topics
     logger.warning("Reconsideration revision parsing failed — keeping original topics")
+    return topics
+
+
+# ---------------------------------------------------------------------------
+# Shallow research evaluation (grounded pipeline)
+# ---------------------------------------------------------------------------
+
+
+async def _evaluate_shallow_research(
+    raw_query: str,
+    knowledge: KnowledgeState,
+    cfg: dict,
+    dispatch: Dispatch,
+    budget: CostBudget,
+    planning_counter: TokenCounter,
+) -> list[TopicPlan]:
+    """Evaluate shallow research findings and produce deep research topics.
+
+    A single holistic LLM call that receives the full KnowledgeState from
+    shallow research (formatted by thread + source list), streams reasoning
+    as DetailEvent(type="reasoning"), and parses TOPICS: directive for
+    deep iteration.
+    """
+    client = genai_client()
+
+    user_msg = (
+        f"QUESTION: {raw_query}\n\n"
+        f"INITIAL RESEARCH FINDINGS:\n{knowledge.format_by_thread()}\n\n"
+        f"SOURCES CONSULTED:\n{knowledge.format_source_list()}\n\n"
+        f"Based on these initial findings, reason through what needs deeper "
+        f"investigation and produce research topics for the deep phase."
+    )
+
+    response = await client.aio.models.generate_content_stream(
+        model=cfg["planning_model"],
+        contents=user_msg,
+        config=GenerateContentConfig(
+            system_instruction=cfg.get("evaluate_prompt", EVALUATE_PROMPT),
+        ),
+    )
+
+    full_text = ""
+    emitted_len = 0
+    _HOLDBACK = 500
+    async for chunk in planning_counter.counted_stream(response):
+        if chunk.text:
+            full_text += chunk.text
+            safe_len = max(0, len(full_text) - _HOLDBACK)
+            if safe_len > emitted_len:
+                await dispatch(DetailEvent(
+                    type="reasoning",
+                    payload={"text": full_text[emitted_len:safe_len]},
+                ))
+                emitted_len = safe_len
+
+    # Flush remaining text with directive stripped
+    remaining = full_text[emitted_len:]
+    remaining = re.sub(r"\s*TOPICS:\s*\[.*\]\s*$", "", remaining, flags=re.DOTALL)
+    remaining = re.sub(
+        r"\s*TOPICS:\s*```(?:json)?\s*\[.*?\]\s*```\s*$", "",
+        remaining, flags=re.DOTALL,
+    )
+    if remaining.strip():
+        await dispatch(DetailEvent(
+            type="reasoning",
+            payload={"text": remaining},
+        ))
+
+    # Track budget
+    budget.add(
+        planning_counter.input_tokens,
+        planning_counter.output_tokens,
+        cfg["planning_model"],
+    )
+
+    topics = _parse_plan_result(full_text)
+
+    # Fallback: single topic with the raw user query
+    if not topics:
+        logger.warning("Evaluate fallback triggered — using raw query as single topic")
+        topics = [TopicPlan(
+            id="t1",
+            label="Deep Research",
+            description=raw_query,
+            queries=[raw_query],
+        )]
+
+    # Cap at evaluate_max_topics
+    max_topics = cfg.get("evaluate_max_topics", cfg["max_topics"])
+    topics = topics[:max_topics]
+
+    logger.info(
+        "Evaluate produced %d deep topics: %s",
+        len(topics),
+        [t.label for t in topics],
+    )
     return topics
 
 
@@ -1136,8 +1627,11 @@ async def _search_and_extract_query(
         return_exceptions=True,
     )
 
-    # --- Extract knowledge from each document ---
+    # --- Extract knowledge from each document (parallel) ---
     source_urls: list[str] = []
+
+    # Separate successful fetches from failures
+    docs_to_extract: list[tuple[str, str, str]] = []  # (url, title, truncated)
     for (url, title), content in zip(urls_allowed, fetch_results):
         if isinstance(content, Exception):
             content = None
@@ -1154,27 +1648,29 @@ async def _search_and_extract_query(
             continue
 
         already_fetched.add(url)
-        truncated = content[: cfg["fetch_max_chars"]]
+        docs_to_extract.append((url, title, content[: cfg["fetch_max_chars"]]))
 
+    async def _extract_one(url: str, title: str, truncated: str) -> None:
         extraction_prompt = (
             f"Query: {query_text}\n\n"
             f"Document from {title} ({url}):\n{truncated}"
         )
 
         try:
+            extract_cfg = GenerateContentConfig(
+                system_instruction=EXTRACTION_PROMPT,
+            )
+            if "lite" not in cfg["extraction_model"]:
+                extract_cfg.thinking_config = ThinkingConfig(
+                    thinking_level=ThinkingLevel.MINIMAL,
+                )
             extract_resp = await client.aio.models.generate_content(
                 model=cfg["extraction_model"],
                 contents=extraction_prompt,
-                config=GenerateContentConfig(
-                    system_instruction=EXTRACTION_PROMPT,
-                    thinking_config=ThinkingConfig(
-                        thinking_level=ThinkingLevel.MINIMAL,
-                    ),
-                ),
+                config=extract_cfg,
             )
             extraction_counter.add_from_response(extract_resp)
 
-            # Track extraction cost in budget
             ext_meta = getattr(extract_resp, "usage_metadata", None)
             if ext_meta:
                 budget.add(
@@ -1240,6 +1736,11 @@ async def _search_and_extract_query(
                 },
             ))
 
+    await asyncio.gather(
+        *[_extract_one(u, t, c) for u, t, c in docs_to_extract],
+        return_exceptions=True,
+    )
+
     # Collapse research group for this query
     await dispatch(DetailEvent(
         type="result",
@@ -1283,25 +1784,27 @@ async def _research_topic(
     topic_entries: list[KnowledgeEntry] = []
 
     while queries and len(topic_entries) < max_sources and not budget.exhausted:
-        # Run all current queries, skipping duplicates
+        # Run all current queries concurrently, skipping duplicates
+        batch = []
         for query_text in queries:
-            if budget.exhausted or len(topic_entries) >= max_sources:
-                break
-
-            # Normalize and deduplicate
             q_key = query_text.strip().lower()
             if q_key in queries_searched:
                 logger.info("Skipping duplicate query: %r", query_text)
                 continue
             queries_searched.add(q_key)
-
             all_queries_used.append(query_text)
-            await _search_and_extract_query(
-                query_text, topic, knowledge, brave_api_key,
-                already_fetched, cfg, dispatch, extraction_counter,
-                budget, topic_entries,
-                redis_url=redis_url, db_session=db_session,
+
+            batch.append(
+                _search_and_extract_query(
+                    query_text, topic, knowledge, brave_api_key,
+                    already_fetched, cfg, dispatch, extraction_counter,
+                    budget, topic_entries,
+                    redis_url=redis_url, db_session=db_session,
+                )
             )
+
+        if batch:
+            await asyncio.gather(*batch, return_exceptions=True)
 
         result.entries_added = len(topic_entries)
         result.iterations_used += 1
@@ -1408,14 +1911,15 @@ async def _compress_knowledge(
         )
 
         try:
+            compress_cfg = GenerateContentConfig()
+            if "lite" not in extraction_model:
+                compress_cfg.thinking_config = ThinkingConfig(
+                    thinking_level=ThinkingLevel.MINIMAL,
+                )
             response = await client.aio.models.generate_content(
                 model=extraction_model,
                 contents=compress_prompt,
-                config=GenerateContentConfig(
-                    thinking_config=ThinkingConfig(
-                        thinking_level=ThinkingLevel.MINIMAL,
-                    ),
-                ),
+                config=compress_cfg,
             )
             counter.add_from_response(response)
 
@@ -1703,6 +2207,338 @@ async def run_deep_research_pipeline(
     event_queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
 
     pipeline = ResearchPipeline(
+        query,
+        event_queue.put,
+        brave_api_key=brave_api_key,
+        db_session=db_session,
+        redis_url=redis_url,
+        user_timezone=user_timezone,
+        conversation_history=conversation_history,
+        config=config_override,
+        planning_prompt=planning_prompt_override or "",
+    )
+
+    task = asyncio.create_task(pipeline.run())
+
+    sent_responding = False
+    while True:
+        event = await event_queue.get()
+        if isinstance(event, TextEvent) and not sent_responding:
+            sent_responding = True
+            yield StageEvent(stage="responding")
+        yield event
+        if isinstance(event, (DoneEvent, ErrorEvent)):
+            break
+
+    await task
+
+
+class GroundedResearchPipeline:
+    """Research pipeline that pushes boundaries after an initial research pass.
+
+    Flow: Plan → Align → Shallow Research → Evaluate → Deep Iterate → Synthesize
+
+    Unlike ``ResearchPipeline`` which speculatively generates creative angles
+    before any research, this pipeline first runs a conservative shallow pass
+    and then uses the actual findings to inform deeper exploration.
+    """
+
+    def __init__(
+        self,
+        query: str,
+        dispatch: Dispatch,
+        *,
+        brave_api_key: str,
+        db_session=None,
+        redis_url: str = "",
+        user_timezone: str = "",
+        conversation_history: list[dict] | None = None,
+        config: dict | None = None,
+        planning_prompt: str = "",
+    ) -> None:
+        self.query = query
+        self.dispatch = dispatch
+        self.brave_api_key = brave_api_key
+        self.db_session = db_session
+        self.redis_url = redis_url
+        self.user_timezone = user_timezone
+        self.conversation_history = conversation_history
+        self.config = config or GROUNDED_CONFIG
+        self.planning_prompt = (
+            planning_prompt
+            or self.config.get("planning_prompt", "")
+            or GROUNDED_PLANNING_PROMPT
+        )
+
+        # Pipeline state
+        self.knowledge = KnowledgeState()
+        self.already_fetched: set[str] = set()
+        self.queries_searched: set[str] = set()
+        self.budget = CostBudget(limit=self.config["research_budget"])
+        self.planning_counter = TokenCounter()
+        self.extraction_counter = TokenCounter()
+        self.articulation_counter = TokenCounter()
+
+    def _build_full_query(self) -> str:
+        """Build the full query with timestamp preamble and history."""
+        try:
+            tz = ZoneInfo(self.user_timezone) if self.user_timezone else timezone.utc
+        except (KeyError, ValueError):
+            tz = timezone.utc
+        now = datetime.now(tz)
+        full_query = (
+            f"Current date/time: {now.strftime('%A, %B %d, %Y %H:%M')} "
+            f"({self.user_timezone or 'UTC'})\n\n{self.query}"
+        )
+
+        if self.conversation_history:
+            parts = ["Previous conversation:"]
+            for msg in self.conversation_history:
+                role = "User" if msg["role"] == "user" else "Assistant"
+                parts.append(f"{role}: {msg['content']}")
+            full_query = "\n".join(parts) + "\n\n" + full_query
+
+        return full_query
+
+    async def _run_shallow_research(
+        self, topics: list[TopicPlan],
+    ) -> None:
+        """Single-pass research across all topic queries with reduced limits.
+
+        Uses shallow_brave_results and shallow_jina_reads config values.
+        Runs all queries concurrently via asyncio.gather().
+        """
+        cfg = self.config
+        shallow_cfg = dict(cfg)
+        shallow_cfg["brave_results"] = cfg.get("shallow_brave_results", 10)
+        shallow_cfg["jina_reads"] = cfg.get("shallow_jina_reads", 3)
+
+        topic_entries: list[KnowledgeEntry] = []
+
+        # Collect unique queries across all topics
+        tasks = []
+        for topic in topics:
+            for query_text in topic.queries:
+                q_key = query_text.strip().lower()
+                if q_key in self.queries_searched:
+                    continue
+                self.queries_searched.add(q_key)
+
+                tasks.append(
+                    _search_and_extract_query(
+                        query_text, topic, self.knowledge, self.brave_api_key,
+                        self.already_fetched, shallow_cfg, self.dispatch,
+                        self.extraction_counter, self.budget, topic_entries,
+                        redis_url=self.redis_url, db_session=self.db_session,
+                    )
+                )
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def run(self) -> None:
+        """Execute the grounded pipeline.
+
+        Phases:
+          1. PLAN — conservative decomposition
+          2. SHALLOW RESEARCH — initial survey pass
+          3. EVALUATE — analyze findings, produce deep topics
+          4. DEEP RESEARCH — investigate evaluate's topics concurrently
+          5. COMPRESS — if needed
+          6. ARTICULATE — synthesize into response
+        """
+        cfg = self.config
+        full_query = self._build_full_query()
+
+        try:
+            # --- Phase 1: PLAN (survey — flat queries) ---
+            await self.dispatch(StageEvent(stage="reasoning"))
+
+            topics = await _plan_survey(
+                full_query, self.query, cfg, self.dispatch, self.budget,
+                self.planning_counter,
+                planning_prompt=self.planning_prompt,
+            )
+
+            topics = await _reconsider(
+                self.query, topics, cfg, self.budget, self.planning_counter,
+                dispatch=self.dispatch, output_format="queries",
+            )
+
+            # --- Phase 2: SHALLOW RESEARCH ---
+            await self.dispatch(StageEvent(stage="researching"))
+
+            await self._run_shallow_research(topics)
+
+            # --- Phase 3: EVALUATE ---
+            await self.dispatch(StageEvent(stage="reasoning"))
+
+            deep_topics = await _evaluate_shallow_research(
+                self.query, self.knowledge, cfg, self.dispatch,
+                self.budget, self.planning_counter,
+            )
+
+            deep_topics = await _reconsider(
+                self.query, deep_topics, cfg, self.budget, self.planning_counter,
+                dispatch=self.dispatch,
+            )
+
+            # --- Phase 4: DEEP RESEARCH ---
+            await self.dispatch(StageEvent(stage="researching"))
+
+            wave1_results = await asyncio.gather(
+                *[
+                    _research_topic(
+                        topic, self.knowledge, self.brave_api_key,
+                        self.already_fetched, self.queries_searched, cfg,
+                        self.dispatch, self.extraction_counter, self.budget,
+                        redis_url=self.redis_url, db_session=self.db_session,
+                    )
+                    for topic in deep_topics
+                ],
+                return_exceptions=True,
+            )
+
+            # Collect spawned topics
+            spawned: list[TopicPlan] = []
+            total_topics = len(deep_topics)
+            for r in wave1_results:
+                if isinstance(r, TopicResult) and r.spawned:
+                    for s in r.spawned:
+                        if (
+                            len(spawned) < cfg["max_spawned_topics"]
+                            and total_topics + len(spawned) < cfg["max_total_topics"]
+                        ):
+                            spawned.append(s)
+                elif isinstance(r, BaseException):
+                    logger.error("Topic research failed: %s", r)
+
+            # Wave 2: spawned topics
+            if spawned and not self.budget.exhausted:
+                await asyncio.gather(
+                    *[
+                        _research_topic(
+                            topic, self.knowledge, self.brave_api_key,
+                            self.already_fetched, self.queries_searched, cfg,
+                            self.dispatch, self.extraction_counter, self.budget,
+                            redis_url=self.redis_url, db_session=self.db_session,
+                        )
+                        for topic in spawned
+                    ],
+                    return_exceptions=True,
+                )
+
+            # --- Phase 5: COMPRESS ---
+            if self.knowledge.needs_compression(cfg["max_knowledge_chars"]):
+                await _compress_knowledge(
+                    self.knowledge,
+                    cfg["compress_target_chars"],
+                    cfg["extraction_model"],
+                    self.extraction_counter,
+                )
+
+            # --- Phase 6: ARTICULATE ---
+            await _articulate(
+                full_query, self.knowledge, cfg, self.dispatch,
+                self.articulation_counter,
+            )
+
+            # --- USAGE ---
+            planning_cost = calc_usage_cost(
+                self.planning_counter.input_tokens,
+                self.planning_counter.output_tokens,
+                cfg["planning_model"],
+            )
+            extraction_cost = calc_usage_cost(
+                self.extraction_counter.input_tokens,
+                self.extraction_counter.output_tokens,
+                cfg["extraction_model"],
+            )
+
+            research_in = (
+                self.planning_counter.input_tokens
+                + self.extraction_counter.input_tokens
+            )
+            research_out = (
+                self.planning_counter.output_tokens
+                + self.extraction_counter.output_tokens
+            )
+            research_input_cost = (
+                float(planning_cost["input_cost"])
+                + float(extraction_cost["input_cost"])
+            )
+            research_output_cost = (
+                float(planning_cost["output_cost"])
+                + float(extraction_cost["output_cost"])
+            )
+
+            articulation_cost = calc_usage_cost(
+                self.articulation_counter.input_tokens,
+                self.articulation_counter.output_tokens,
+                cfg["articulation_model"],
+            )
+
+            total_in = research_in + self.articulation_counter.input_tokens
+            total_out = research_out + self.articulation_counter.output_tokens
+            total_input_cost = (
+                research_input_cost + float(articulation_cost["input_cost"])
+            )
+            total_output_cost = (
+                research_output_cost + float(articulation_cost["output_cost"])
+            )
+
+            await self.dispatch(DetailEvent(
+                type="usage",
+                payload={
+                    "research": {
+                        "input_tokens": research_in,
+                        "output_tokens": research_out,
+                        "input_cost": f"{research_input_cost:.4f}",
+                        "output_cost": f"{research_output_cost:.4f}",
+                    },
+                    "extraction": articulation_cost,
+                    "total": {
+                        "input_tokens": total_in,
+                        "output_tokens": total_out,
+                        "input_cost": f"{total_input_cost:.4f}",
+                        "output_cost": f"{total_output_cost:.4f}",
+                    },
+                    "budget": {
+                        "limit": self.budget.limit,
+                        "spent": round(self.budget.spent, 4),
+                    },
+                },
+            ))
+
+            await self.dispatch(DoneEvent())
+
+        except Exception as exc:
+            logger.exception("Grounded research pipeline error")
+            await self.dispatch(ErrorEvent(error=str(exc)))
+
+
+async def run_grounded_research_pipeline(
+    query: str,
+    brave_api_key: str,
+    *,
+    db_session=None,
+    redis_url: str = "",
+    user_timezone: str = "",
+    conversation_history: list[dict] | None = None,
+    config_override: dict | None = None,
+    planning_prompt_override: str | None = None,
+) -> AsyncGenerator[PipelineEvent, None]:
+    """Run the grounded research pipeline, yielding SSE-compatible events.
+
+    Thin wrapper around ``GroundedResearchPipeline`` that bridges the dispatch
+    callable to an async generator.
+
+    Pass ``config_override`` and ``planning_prompt_override`` to run a
+    lighter variant (e.g. LITE_GROUNDED_CONFIG).
+    """
+    event_queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
+
+    pipeline = GroundedResearchPipeline(
         query,
         event_queue.put,
         brave_api_key=brave_api_key,

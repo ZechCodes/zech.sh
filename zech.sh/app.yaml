@@ -1,16 +1,11 @@
 domain: zech.sh
-theme: fusion
-security_contact: security@zech.sh
 
 models:
   - models
 
 controllers:
   - skrift.controllers.auth:AuthController
-  - controllers.admin_import_posts:ImportPostsAdminController
-  - controllers.admin_integrations:IntegrationsAdminController
   - skrift.admin.controller:AdminController
-  - controllers.redirects:RedirectsController
   - skrift.controllers.web:WebController
   - controllers.health:HealthController
 
@@ -22,13 +17,12 @@ page_types:
     plural: posts
     icon: pen-tool
     nav_order: 10
-    subdomain: dump
 
 sites:
   dump:
     subdomain: dump
     controllers:
-      - skrift.controllers.sitemap:SitemapController
+      - controllers.dump:DumpController
     theme: dump
   scan:
     subdomain: scan
@@ -38,29 +32,15 @@ sites:
     theme: scan
 
 db:
-  url: $DATABASE_URL
-  schema: zech_sh
+  url: sqlite+aiosqlite:///./app.db
   pool_size: 5
   pool_overflow: 10
   pool_timeout: 30
   pool_pre_ping: true
   echo: false
 
-redis:
-  url: $REDIS_URL
-  prefix: zech-sh
-
-session:
-  cookie_domain: .zech.sh
-
-logfire:
-  enabled: true
-  console: true
-  service_name: zech-sh
-  environment: production
-
 auth:
-  redirect_base_url: https://zech.sh
+  redirect_base_url: http://localhost:8888
   allowed_redirect_domains:
     - "*.zech.sh"
   providers:
