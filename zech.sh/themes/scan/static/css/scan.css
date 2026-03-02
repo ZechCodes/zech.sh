@@ -456,6 +456,45 @@ textarea.scan-input-auto {
 }
 
 /* --------------------------------------------------------------------------
+   Autocomplete Suggestions Dropdown
+   -------------------------------------------------------------------------- */
+
+.scan-suggest-dropdown {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: -1px;
+  right: -1px;
+  background: rgba(8, 12, 20, 0.97);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-top: none;
+  z-index: 200;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 229, 255, 0.05);
+}
+
+.scan-suggest-dropdown[hidden] {
+  display: none;
+}
+
+.scan-suggest-item {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--zech-text-dim);
+  padding: 0.55rem 1.5rem;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.scan-suggest-item:hover,
+.scan-suggest-item.is-selected {
+  color: var(--zech-text);
+  border-left-color: var(--zech-primary);
+  background: rgba(0, 229, 255, 0.03);
+}
+
+/* --------------------------------------------------------------------------
    Unauthorized Section
    -------------------------------------------------------------------------- */
 
@@ -1445,6 +1484,11 @@ textarea.scan-input-auto {
 
   .chat-assistant-response {
     font-size: 1rem;
+  }
+
+  .scan-suggest-item {
+    font-size: 0.9rem;
+    padding: 0.5rem 1.25rem;
   }
 }
 

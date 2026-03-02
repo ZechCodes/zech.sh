@@ -166,6 +166,25 @@ title_agent = Agent(
 )
 
 
+class SuggestResult(BaseModel):
+    suggestions: list[str]
+
+
+suggest_agent = Agent(
+    system_prompt=(
+        "You are an autocomplete engine for a smart search relay. "
+        "Given a partial query, suggest 4 completions the user likely intends. "
+        "Each suggestion should be a complete, natural query.\n\n"
+        "Mode context:\n"
+        "- launch: general purpose (search, navigate, or research)\n"
+        "- discover: research-oriented questions\n"
+        "- deep: in-depth research topics\n"
+        "- search: web search queries"
+    ),
+    output_type=SuggestResult,
+)
+
+
 research_agent = Agent(
     system_prompt=(
         "You are a research assistant. Your job is to thoroughly answer the user's "
@@ -204,6 +223,17 @@ async def generate_chat_title(query: str) -> str:
         return result.output.strip()[:500]
     except Exception:
         return query[:500]
+
+
+async def generate_suggestions(query: str, mode: str) -> list[str]:
+    """Generate autocomplete suggestions for a partial query."""
+    try:
+        prompt = f"Mode: {mode}\nPartial query: {query}"
+        result = await suggest_agent.run(prompt, model=gemini_flash_lite())
+        return result.output.suggestions
+    except Exception:
+        logger.exception("Failed to generate suggestions for %r", query)
+        return []
 
 
 # ---------------------------------------------------------------------------

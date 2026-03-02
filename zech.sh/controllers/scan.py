@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import time
+from collections import OrderedDict
 from datetime import datetime, timezone
 from urllib.parse import quote_plus
 from uuid import UUID
@@ -35,6 +36,7 @@ from controllers.llm import genai_client
 from controllers.scan_agent import (
     classify_query,
     generate_chat_title,
+    generate_suggestions,
 )
 from models.chat import ChatMessage, ChatSession
 
@@ -266,6 +268,40 @@ async def _has_scan_permission(user_id: UUID, db_session: AsyncSession) -> bool:
     if ADMINISTRATOR_PERMISSION in perms.permissions:
         return True
     return _SCAN_PERMISSION in perms.permissions
+
+
+# ---------------------------------------------------------------------------
+# Autocomplete suggestion cache (in-memory LRU)
+# ---------------------------------------------------------------------------
+
+_SUGGEST_CACHE_MAXSIZE = 256
+_SUGGEST_CACHE_TTL = 300  # 5 minutes
+
+# key -> (timestamp, suggestions)
+_suggest_cache: OrderedDict[str, tuple[float, list[str]]] = OrderedDict()
+
+
+def _suggest_cache_put(key: str, suggestions: list[str]) -> None:
+    """Insert into the LRU cache, evicting oldest if over maxsize."""
+    _suggest_cache[key] = (time.monotonic(), suggestions)
+    _suggest_cache.move_to_end(key)
+    while len(_suggest_cache) > _SUGGEST_CACHE_MAXSIZE:
+        _suggest_cache.popitem(last=False)
+
+
+async def _get_suggestions(query: str, mode: str) -> list[str]:
+    """Get autocomplete suggestions, checking cache first."""
+    key = f"{mode}:{query.lower().strip()}"
+    entry = _suggest_cache.get(key)
+    if entry is not None:
+        ts, suggestions = entry
+        if time.monotonic() - ts < _SUGGEST_CACHE_TTL:
+            _suggest_cache.move_to_end(key)
+            return suggestions
+        del _suggest_cache[key]
+    suggestions = await generate_suggestions(query, mode)
+    _suggest_cache_put(key, suggestions)
+    return suggestions
 
 
 class ScanController(Controller):
@@ -557,6 +593,24 @@ class ScanController(Controller):
         except Exception:
             logger.exception("Error in history")
             raise
+
+    @get("/suggest")
+    async def suggest(
+        self,
+        request: Request,
+        db_session: AsyncSession,
+        q: str = "",
+        mode: str = "launch",
+    ) -> Response:
+        user = await _get_user(request, db_session)
+        if not user or not await _has_scan_permission(user.id, db_session):
+            return Response(content={"suggestions": []}, status_code=200)
+        if len(q.strip()) < 2:
+            return Response(content={"suggestions": []}, status_code=200)
+        if mode not in ("launch", "discover", "deep", "search"):
+            mode = "launch"
+        suggestions = await _get_suggestions(q.strip(), mode)
+        return Response(content={"suggestions": suggestions}, status_code=200)
 
     @get("/opensearch.xml")
     async def opensearch(self) -> Response:

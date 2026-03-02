@@ -1,0 +1,21 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8888:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./app.db:/app/app.db
+
+  scan:
+    build: .
+    ports:
+      - "8889:8080"
+    command: ["uv", "run", "skrift", "serve", "--host", "0.0.0.0", "--port", "8080", "--subdomain", "scan"]
+    env_file:
+      - .env
+    environment:
+      - SKRIFT_ENV=development
+    volumes:
+      - ./app.db:/app/app.db
