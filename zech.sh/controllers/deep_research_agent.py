@@ -38,7 +38,8 @@ from pydantic_ai import Agent
 
 from controllers.brave_search import brave_search as _shared_brave_search
 from controllers.domain_throttle import cache_response, get_cached_response
-from controllers.llm import calc_usage_cost, gemini_flash_lite, genai_client
+from controllers.llm import calc_usage_cost, gemini_flash_lite, genai_client, google_provider
+from pydantic_ai.models.google import GoogleModel
 from controllers.robots import USER_AGENT, check_url_allowed
 
 logger = logging.getLogger(__name__)
@@ -259,12 +260,28 @@ TOPICS: [{"label": "Short label", "description": "What to investigate \
 and why", "queries": ["search query 1", "search query 2"]}, ...]
 
 RULES:
+- The current date is provided in the QUESTION. Use it when crafting queries \
+that need recent or time-sensitive information.
 - ALWAYS write substantial reasoning before TOPICS
 - 3-6 topics covering genuinely different dimensions of the question
 - Each topic: short label, one-sentence description, 2-4 specific search queries
 - Craft queries like a skilled researcher: specific, varied angles
 - One topic should target contrarian/critical perspective
 - One topic should seek primary/technical sources
+- Include one query that stress-tests the biggest assumption in your plan. \
+Every research plan has a foundational assumption — a tool is still maintained, \
+a technology is still the standard approach, a company still exists, a policy \
+hasn't changed. Identify what your plan takes for granted and include a query \
+that would surface it if it's wrong. This query should target the most recent \
+information available — use the current year or "latest" rather than prior years.
+- Include one "what changed recently" thread. After identifying your research \
+threads, add one that targets recent shifts, disruptions, or surprises in the \
+landscape you're researching. What might have changed in the last 6 months \
+that would alter the conventional wisdom? Use queries that pair the core \
+subject with recency — "[subject] news [current year]," "[subject] major \
+changes latest." If nothing significant has changed, this thread returns \
+noise and the synthesis step ignores it. That's fine — one low-yield thread \
+is cheaper than an outdated answer.
 - Every topic and query must be research-focused — searching for new \
 information, evidence, or sources. NEVER create topics about synthesizing, \
 summarizing, or combining. Synthesis happens later.
@@ -292,10 +309,22 @@ TOPICS: [{"label": "Short label", "description": "What to investigate", \
 "queries": ["single best search query for this topic"]}, ...]
 
 RULES:
+- The current date is provided in the QUESTION. Use it when crafting queries \
+that need recent or time-sensitive information.
 - Write brief reasoning before the TOPICS directive
 - 2-4 topics, each with exactly ONE search query — pick the single \
 best query that will surface the most useful results for that angle
 - Topics should cover different angles, not restatements
+- Include one query that stress-tests the biggest assumption in your plan. \
+Every research plan has a foundational assumption — a tool is still maintained, \
+a technology is still the standard approach, a company still exists, a policy \
+hasn't changed. Identify what your plan takes for granted and include a query \
+that would surface it if it's wrong. This query should target the most recent \
+information available — use the current year or "latest" rather than prior years.
+- Include one "what changed recently" topic targeting recent shifts or \
+surprises in the landscape. Use queries like "[subject] news [current year]" \
+or "[subject] major changes latest." One low-yield thread is cheaper than \
+an outdated answer.
 - Every topic and query must be research-focused — searching for new \
 information, not synthesizing or summarizing. Synthesis happens later.
 - TOPICS: must appear on its own line at the very end
@@ -321,6 +350,8 @@ should cover. Then output search queries.
 QUERIES: ["search query 1", "search query 2", ...]
 
 RULES:
+- The current date is provided in the QUESTION. Use it when crafting queries \
+that need recent or time-sensitive information.
 - Write brief reasoning before the QUERIES directive
 - 4-6 search queries covering different angles of the question
 - Queries should be specific enough to return useful results on the \
@@ -329,6 +360,15 @@ Include years, version numbers, or named tools when relevant.
 - At least one query should target what practitioners or reviewers \
 say — not just official docs or marketing. Forums, benchmarks, \
 case studies, and comparisons tend to surface practical signal.
+- Include one query that stress-tests the biggest assumption in your plan. \
+Every research plan has a foundational assumption — a tool is still maintained, \
+a technology is still the standard approach, a company still exists, a policy \
+hasn't changed. Identify what your plan takes for granted and include a query \
+that would surface it if it's wrong. This query should target the most recent \
+information available — use the current year or "latest" rather than prior years.
+- Include one "what changed recently" query targeting recent shifts — \
+"[subject] news [current year]" or "[subject] major changes latest." \
+One low-yield query is cheaper than an outdated answer.
 - Do NOT include speculative or contrarian angles — those come later \
 after we see what exists
 - Every query must be a search for information, NOT synthesis or \
@@ -367,6 +407,8 @@ TOPICS: [{"label": "Short label", "description": "What to investigate \
 and why", "queries": ["search query 1", "search query 2"]}, ...]
 
 RULES:
+- The current date is provided in the QUESTION. Use it when crafting queries \
+that need recent or time-sensitive information.
 - ALWAYS write substantial reasoning before TOPICS
 - 3-8 topics covering genuinely different dimensions that need depth
 - Each topic: short label, one-sentence description, 2-4 specific search queries
@@ -377,6 +419,12 @@ information, evidence, or sources. NEVER create topics about synthesizing, \
 summarizing, or combining what you already have. Synthesis happens later.
 - One topic should target contrarian/critical perspective
 - One topic should seek primary/technical sources
+- Include one query that stress-tests the biggest assumption in your plan. \
+Every research plan has a foundational assumption — a tool is still maintained, \
+a technology is still the standard approach, a company still exists, a policy \
+hasn't changed. Identify what your plan takes for granted and include a query \
+that would surface it if it's wrong. This query should target the most recent \
+information available — use the current year or "latest" rather than prior years.
 - TOPICS: must appear on its own line at the very end
 - The JSON array must be on the same line as TOPICS:"""
 
@@ -393,12 +441,16 @@ output exactly 3 search queries.
 QUERIES: ["search query 1", "search query 2", "search query 3"]
 
 RULES:
+- The current date is provided in the QUESTION. Use it when crafting queries \
+that need recent or time-sensitive information.
 - Write 1-2 sentences of reasoning before QUERIES
 - Exactly 3 search queries
 - Queries should be specific — include years, names, or versions \
 when relevant
 - This is a survey, not the deep investigation — keep it broad enough \
 to map the space
+- One query should stress-test the biggest assumption in your plan — \
+target the most recent information using the current year or "latest."
 - Every query must search for information, NOT synthesize or summarize. \
 Research only — synthesis happens later.
 - QUERIES: must appear on its own line at the very end
@@ -424,6 +476,8 @@ TOPICS: [{"label": "Short label", "description": "What to investigate \
 and why", "queries": ["search query 1", "search query 2"]}, ...]
 
 RULES:
+- The current date is provided in the QUESTION. Use it when crafting queries \
+that need recent or time-sensitive information.
 - Write brief reasoning before TOPICS
 - 3-5 topics that directly serve answering the user's question
 - At least one topic should gather supporting evidence or examples
@@ -431,6 +485,8 @@ RULES:
 critical perspectives
 - Each topic: short label, one-sentence description, 1-2 specific queries
 - Topics should be grounded in what the survey actually found
+- Include one query that stress-tests the biggest assumption in your plan — \
+target the most recent information using the current year or "latest."
 - Every topic and query must be research-focused — searching for new \
 information or evidence. NEVER create topics about synthesizing or \
 summarizing. Synthesis happens later.
@@ -445,9 +501,10 @@ Think about the person who wrote this query. Imagine handing them the finished a
 
 - What would they expect to see in the FIRST TWO SENTENCES?
 - What would they be DISAPPOINTED to not find anywhere in the answer?
+- Is there anything in the research plan that the user didn't ask about but would materially change their decision if they knew? This should remain as supporting context, not a primary thread.
 - Is there a gap between what these threads investigate and what the person is actually trying to accomplish?
 
-Threads that are intellectually interesting but don't serve the user's actual goal should be demoted to supporting context or removed entirely.
+Threads that are intellectually interesting but don't serve the user's actual goal should be demoted to supporting context or removed entirely. However, do NOT remove or demote "what changed recently" threads that check for recent shifts in the landscape — an outdated answer is worse than one extra low-yield thread.
 
 RESPOND WITH:
 1. What the user most likely wants from this answer (one sentence)
@@ -563,6 +620,31 @@ class FilteredResults(BaseModel):
     indices: list[int]
 
 
+class OutlineSection(BaseModel):
+    heading: str
+    key_points: list[str]
+
+
+class ArticulationOutline(BaseModel):
+    thesis: str
+    sections: list[OutlineSection]
+    closing_direction: str
+
+
+class CitationRef(BaseModel):
+    source_number: int
+    fact: str
+
+
+class SectionCitations(BaseModel):
+    heading: str
+    citations: list[CitationRef]
+
+
+class CitationPlan(BaseModel):
+    section_citations: list[SectionCitations]
+
+
 _filter_agent = Agent(
     system_prompt=(
         "You are a search result relevance ranker. Given a user's research "
@@ -587,6 +669,54 @@ _filter_agent = Agent(
         "the research. Quality over quantity."
     ),
     output_type=FilteredResults,
+)
+
+_outline_agent = Agent(
+    system_prompt=(
+        "You are a research outline planner. Given a question and accumulated "
+        "research threads, produce a structured outline for the final answer.\n\n"
+        "THESIS: Identify the single sharpest finding from the research — "
+        "a surprising data point, a structural shift, or a key tension.\n\n"
+        "SECTIONS: Create sections weighted unevenly by evidence strength. "
+        "A thread with strong evidence deserves a full section. A thread with "
+        "only general claims should be folded into another section or omitted.\n"
+        "- Use specific, descriptive headings (e.g., 'The Monorepo Problem "
+        "Nobody Warns You About'), not generic ones ('Key Challenges').\n"
+        "- Include a counterargument section if the evidence warrants it.\n"
+        "- Each section's key_points should name specific facts, data points, "
+        "or claims to cover — not vague descriptions.\n\n"
+        "EXAMPLES: Before outlining, consider what form the most useful parts "
+        "of the answer would take. Not every point is best expressed as prose. "
+        "If the person would realistically copy, adapt, or reference something "
+        "directly — a command, a configuration, a formula, a template, a query, "
+        "a file structure — mark it in the outline as [EXAMPLE: what to show]. "
+        "If the answer is entirely conceptual, analytical, or comparative, no "
+        "examples are needed.\n"
+        "The test: if explaining something in prose would force the reader to "
+        "mentally translate your words back into the thing itself, show the "
+        "thing instead.\n\n"
+        "CLOSING: Describe the forward-looking implication to close with — "
+        "what the reader should do or watch for, not a summary."
+    ),
+    output_type=ArticulationOutline,
+)
+
+_citation_agent = Agent(
+    system_prompt=(
+        "You are a citation mapper. Given a structured outline and a numbered "
+        "source list with key findings, map specific citations to each section.\n\n"
+        "RULES:\n"
+        "- Every factual claim in the outline's key_points must get at least "
+        "one citation.\n"
+        "- Use the [n] source numbers exactly as they appear in the source list.\n"
+        "- For each citation, include the specific fact from that source that "
+        "supports the claim.\n"
+        "- A single source can appear in multiple sections.\n"
+        "- Do not invent source numbers — only use numbers present in the "
+        "provided source list.\n"
+        "- Prefer primary sources over secondary when both cover the same fact."
+    ),
+    output_type=CitationPlan,
 )
 
 
@@ -1851,6 +1981,21 @@ async def _research_topic(
 # ---------------------------------------------------------------------------
 
 
+def _build_generation_prompt(articulation_prompt: str) -> str:
+    """Strip the 'End with ## Sources' line and append plan-following instructions."""
+    cleaned = re.sub(r"(?m)^End with ## Sources.*$", "", articulation_prompt).rstrip()
+    return (
+        cleaned + "\n\n"
+        "RESPONSE PLAN\n"
+        "You have been given a structured outline and citation plan. Follow them:\n"
+        "- Cover each section in the outline in order, using its heading.\n"
+        "- Weave in the mapped citations [n] where indicated by the plan.\n"
+        "- You may adjust prose flow, merge small sections, or reorder "
+        "slightly for narrative quality, but do not drop sections or citations.\n"
+        "- Do NOT write a ## Sources section — it will be appended automatically."
+    )
+
+
 async def _articulate(
     query: str,
     knowledge: KnowledgeState,
@@ -1858,26 +2003,97 @@ async def _articulate(
     dispatch: Dispatch,
     counter: TokenCounter,
 ) -> None:
-    """Stream the final cited response."""
-    client = genai_client()
+    """Stream the final cited response via outline → citations → generate pipeline."""
+    extraction_model_name = cfg["extraction_model"]
+    extraction_model = GoogleModel(extraction_model_name, provider=google_provider())
+
+    # --- Step 1: Outline (non-streaming) ---
+    outline_prompt = (
+        f"QUESTION: {query}\n\n"
+        f"RESEARCH THREADS:\n{knowledge.format_by_thread()}\n\n"
+        "Create a structured outline for the answer."
+    )
+
+    try:
+        outline_result = await _outline_agent.run(
+            outline_prompt, model=extraction_model,
+        )
+        usage = outline_result.usage()
+        counter.input_tokens += usage.request_tokens or 0
+        counter.output_tokens += usage.response_tokens or 0
+        outline = outline_result.output
+    except Exception:
+        logger.warning("Outline agent failed, falling back to single-pass articulation")
+        outline = ArticulationOutline(
+            thesis="Answer the question based on research findings.",
+            sections=[OutlineSection(heading="Analysis", key_points=["Cover all research threads"])],
+            closing_direction="Summarize implications.",
+        )
+
+    # --- Step 2: Citations (non-streaming) ---
+    sections_text = "\n".join(
+        f"## {s.heading}\n" + "\n".join(f"- {p}" for p in s.key_points)
+        for s in outline.sections
+    )
+    citation_prompt = (
+        f"QUESTION: {query}\n\n"
+        f"OUTLINE:\nThesis: {outline.thesis}\n\n{sections_text}\n\n"
+        f"Closing: {outline.closing_direction}\n\n"
+        f"SOURCES WITH KEY FINDINGS:\n{knowledge.format_for_prompt()}\n\n"
+        "Map citations to each outline section."
+    )
+
+    try:
+        citation_result = await _citation_agent.run(
+            citation_prompt, model=extraction_model,
+        )
+        usage = citation_result.usage()
+        counter.input_tokens += usage.request_tokens or 0
+        counter.output_tokens += usage.response_tokens or 0
+        citation_plan = citation_result.output
+    except Exception:
+        logger.warning("Citation agent failed, falling back to empty citation plan")
+        citation_plan = CitationPlan(section_citations=[])
+
+    # --- Step 3: Generate (streaming) ---
+    # Merge outline + citation plan into a response plan
+    citation_map: dict[str, list[CitationRef]] = {
+        sc.heading: sc.citations for sc in citation_plan.section_citations
+    }
+    plan_parts = [f"THESIS: {outline.thesis}\n"]
+    for section in outline.sections:
+        plan_parts.append(f"## {section.heading}")
+        plan_parts.append("Key points: " + "; ".join(section.key_points))
+        refs = citation_map.get(section.heading, [])
+        if refs:
+            cite_strs = [f"[{r.source_number}] {r.fact}" for r in refs]
+            plan_parts.append("Citations: " + "; ".join(cite_strs))
+        plan_parts.append("")
+    plan_parts.append(f"CLOSING DIRECTION: {outline.closing_direction}")
+    response_plan = "\n".join(plan_parts)
 
     user_msg = (
         f"QUESTION: {query}\n\n"
         f"RESEARCH THREADS:\n{knowledge.format_by_thread()}\n\n"
         f"SOURCES:\n{knowledge.format_source_list()}\n\n"
-        f"Write the answer. Cite inline with [n]."
+        f"RESPONSE PLAN:\n{response_plan}\n\n"
+        f"Write the answer following the response plan. Cite inline with [n]."
     )
+
+    articulation_prompt = cfg.get("articulation_prompt", ARTICULATION_PROMPT)
+    system_prompt = _build_generation_prompt(articulation_prompt)
 
     thinking_level = (
         ThinkingLevel.HIGH if cfg["articulation_thinking"] == "high"
         else ThinkingLevel.MEDIUM
     )
 
+    client = genai_client()
     response = await client.aio.models.generate_content_stream(
         model=cfg["articulation_model"],
         contents=user_msg,
         config=GenerateContentConfig(
-            system_instruction=cfg.get("articulation_prompt", ARTICULATION_PROMPT),
+            system_instruction=system_prompt,
             thinking_config=ThinkingConfig(thinking_level=thinking_level),
         ),
     )
@@ -1885,6 +2101,11 @@ async def _articulate(
     async for chunk in counter.counted_stream(response):
         if chunk.text:
             await dispatch(TextEvent(text=chunk.text))
+
+    # --- Step 4: Deterministic Sources footer ---
+    source_list = knowledge.format_source_list()
+    if source_list:
+        await dispatch(TextEvent(text=f"\n\n## Sources\n{source_list}"))
 
 
 # ---------------------------------------------------------------------------

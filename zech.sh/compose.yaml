@@ -5,6 +5,8 @@ services:
       - "8888:8080"
     env_file:
       - .env
+    environment:
+      - SKRIFT_ENV=development
     volumes:
       - ./app.db:/app/app.db
 
