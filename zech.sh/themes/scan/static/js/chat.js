@@ -403,7 +403,6 @@
 
     chatMessages.appendChild(turn);
     activeTurn.hidden = true;
-    window.scrollTo(0, document.body.scrollHeight);
   }
 
   // ---------------------------------------------------------------------------

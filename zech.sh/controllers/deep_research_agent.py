@@ -332,8 +332,10 @@ information, not synthesizing or summarizing. Synthesis happens later.
 
 
 GROUNDED_PLANNING_PROMPT = """\
-You are a research planning engine. Your job is to figure out what to \
-search to get an initial understanding of the question.
+You are a research survey planner. This is NOT the research step — your \
+job is to map the landscape so the actual research knows where to dig. \
+The queries you produce should help us understand what exists, who the \
+key players are, and what the current state of things looks like.
 
 Before generating queries, think about:
 - What does the person actually need to walk away with?
@@ -350,25 +352,25 @@ should cover. Then output search queries.
 QUERIES: ["search query 1", "search query 2", ...]
 
 RULES:
-- The current date is provided in the QUESTION. Use it when crafting queries \
-that need recent or time-sensitive information.
+- DATES: The current date is in the QUESTION. NEVER use prior-year dates \
+(2025, 2024, etc.) in queries — only use the current year. If the user \
+didn't mention a specific year, prefer dropping the year entirely or using \
+"latest" over guessing. The only exception is if the user's query \
+explicitly references a prior year.
 - Write brief reasoning before the QUERIES directive
 - 4-6 search queries covering different angles of the question
+- These are survey queries — they should map the territory, not answer the \
+question. "what are the main Python async testing frameworks 2026" maps \
+the space; "best Python async testing framework" tries to answer it.
 - Queries should be specific enough to return useful results on the \
-first try. "best async Python testing" beats "Python testing." \
-Include years, version numbers, or named tools when relevant.
+first try. Include version numbers or named tools when relevant.
 - At least one query should target what practitioners or reviewers \
 say — not just official docs or marketing. Forums, benchmarks, \
 case studies, and comparisons tend to surface practical signal.
-- Include one query that stress-tests the biggest assumption in your plan. \
-Every research plan has a foundational assumption — a tool is still maintained, \
-a technology is still the standard approach, a company still exists, a policy \
-hasn't changed. Identify what your plan takes for granted and include a query \
-that would surface it if it's wrong. This query should target the most recent \
-information available — use the current year or "latest" rather than prior years.
-- Include one "what changed recently" query targeting recent shifts — \
-"[subject] news [current year]" or "[subject] major changes latest." \
-One low-yield query is cheaper than an outdated answer.
+- Include one query that checks whether the landscape has shifted \
+recently — "[subject] news [current year]" or "[subject] major changes \
+latest." The survey needs to know if conventional wisdom is outdated \
+before the deep research commits to a direction.
 - Do NOT include speculative or contrarian angles — those come later \
 after we see what exists
 - Every query must be a search for information, NOT synthesis or \
@@ -430,27 +432,26 @@ information available — use the current year or "latest" rather than prior yea
 
 
 LITE_GROUNDED_PLANNING_PROMPT = """\
-You are a research planning engine. Run a quick survey of the space \
-this question lives in — just enough to understand the landscape \
-before drilling down.
+You are a research survey planner. This is NOT the research step — your \
+job is to map the landscape so the actual research knows where to dig.
 
 Think briefly: what does this person need, and what are the 3 most \
-useful searches to map the territory? Write 1-2 sentences, then \
-output exactly 3 search queries.
+useful searches to understand what's out there? Write 1-2 sentences, \
+then output exactly 3 search queries.
 
 QUERIES: ["search query 1", "search query 2", "search query 3"]
 
 RULES:
-- The current date is provided in the QUESTION. Use it when crafting queries \
-that need recent or time-sensitive information.
+- DATES: The current date is in the QUESTION. NEVER use prior-year dates \
+(2025, 2024, etc.) in queries — only use the current year. If the user \
+didn't mention a specific year, prefer dropping the year entirely or using \
+"latest" over guessing. The only exception is if the user's query \
+explicitly references a prior year.
 - Write 1-2 sentences of reasoning before QUERIES
-- Exactly 3 search queries
-- Queries should be specific — include years, names, or versions \
-when relevant
-- This is a survey, not the deep investigation — keep it broad enough \
-to map the space
-- One query should stress-test the biggest assumption in your plan — \
-target the most recent information using the current year or "latest."
+- Exactly 3 search queries that map the territory, not answer the question
+- Queries should be specific — include names or versions when relevant
+- One query should check whether the landscape has shifted recently — \
+use the current year or "latest" to catch outdated assumptions.
 - Every query must search for information, NOT synthesize or summarize. \
 Research only — synthesis happens later.
 - QUERIES: must appear on its own line at the very end
@@ -494,6 +495,37 @@ summarizing. Synthesis happens later.
 - The JSON array must be on the same line as TOPICS:"""
 
 
+SURVEY_RECONSIDERATION_PROMPT = """\
+You are reviewing a SURVEY plan — not the final research plan. These queries \
+are meant to map the landscape so the actual deep research knows where to \
+dig. They should NOT try to answer the user's question directly.
+
+CRITICAL — DATES: The current year is stated at the top of the user message. \
+It is NOT speculative — that year is the real, actual current year. If any \
+query includes a year, it MUST match that year. Replace 2025, 2024, or any \
+prior year with the current year. The ONLY exception is if the user \
+explicitly asked about a specific prior year. When in doubt, drop the year \
+entirely rather than use a stale one.
+
+Given the user's query and the proposed survey queries, check:
+
+- Do the queries cover enough dimensions to understand what's out there? \
+If the question is a comparison, do we survey all the candidates? If it's \
+a recommendation, do we map the constraints?
+- Is there a recency query? The survey needs to know if the landscape has \
+shifted before the deep research commits to a direction. Do NOT remove this.
+- Is there anything the user takes for granted that might be wrong? The \
+survey should include at least one query that would surface it.
+- Are any queries already trying to answer the question instead of mapping \
+the space? Reframe them to survey instead.
+
+RESPOND WITH:
+1. What landscape this survey needs to map (one sentence)
+2. Whether the queries cover it: APPROVED or REVISE
+3. If REVISE: specific instructions on which queries to add, remove, or reframe
+
+Keep your response under 150 words. Be direct."""
+
 RECONSIDERATION_PROMPT = """\
 You are a research plan reviewer. You receive a user's original query and a set of proposed research threads. Your ONLY job is to check whether the threads, if researched well, would produce an answer the user would actually be satisfied with.
 
@@ -520,7 +552,6 @@ You are a research synthesizer. Turn research threads into a clear, useful answe
 STRUCTURE
 - Open with the sharpest finding, not a definition or topic overview. If the research uncovered a surprising data point, a recent structural change, or a key tension — lead with that.
 - Develop unevenly. A thread with strong evidence gets a full paragraph. A thread with only general claims gets one sentence or nothing. Don't pad thin threads to match the length of strong ones.
-- Include the "yes, but." Even in a concise answer, name the primary counterargument or obstacle. One sentence of honest pushback is worth more than three paragraphs of one-sided advocacy.
 - Close forward. End with what the reader should do, watch for, or consider — not a restatement of what you already said.
 
 EVIDENCE
@@ -569,10 +600,17 @@ LIGHT_CONFIG = {
 }
 
 EXTRACTION_PROMPT = """\
-Extract the key information relevant to the query from this document. \
-Be concise but preserve important facts, numbers, dates, and quotes. \
-Focus on what directly addresses or illuminates the query. \
-If nothing relevant, respond with "No relevant content." \
+Summarize this document in context of the query. Extract facts, numbers, \
+dates, quotes, product details, comparisons, and anything else that could \
+inform an answer — even indirectly.
+
+Only respond with "No relevant content." if the document is entirely \
+unrelated to the query's subject area OR is meaningless content (login \
+walls, empty pages, cookie notices, etc.).
+
+If the document is even loosely related, summarize what's there. Let the \
+synthesis step decide what matters — your job is to not lose information.
+
 Do not add commentary — just extract."""
 
 ARTICULATION_PROMPT = """\
@@ -701,6 +739,30 @@ _outline_agent = Agent(
     output_type=ArticulationOutline,
 )
 
+_lite_outline_agent = Agent(
+    system_prompt=(
+        "You are a research outline planner for concise, action-oriented "
+        "answers.\n\n"
+        "OPENING: Open with the sharpest thing the user needs. If they're "
+        "trying to understand something, lead with the most surprising or "
+        "important insight. If they're trying to do something, lead with the "
+        "recommendation — then immediately explain what makes it the right "
+        "choice. Context that changes the conventional wisdom belongs right "
+        "after the answer, not before it.\n\n"
+        "THESIS: Distill the opening into a single sharp statement.\n\n"
+        "SECTIONS: Keep it tight — only sections with real evidence behind "
+        "them. Thin threads get folded in or dropped, not padded.\n"
+        "- Use specific, descriptive headings, not generic ones.\n"
+        "- Each section's key_points should name specific facts or claims.\n\n"
+        "EXAMPLES: If the person would realistically copy, adapt, or "
+        "reference something directly — a command, a configuration, a "
+        "template — mark it as [EXAMPLE: what to show]. If the answer is "
+        "conceptual or comparative, no examples are needed.\n\n"
+        "CLOSING: What should the reader do or watch for next — not a summary."
+    ),
+    output_type=ArticulationOutline,
+)
+
 _citation_agent = Agent(
     system_prompt=(
         "You are a citation mapper. Given a structured outline and a numbered "
@@ -815,7 +877,7 @@ LITE_GROUNDED_CONFIG = {
     "max_iterations": 1,
     "research_budget": 0.15,
     "brave_results": 10,           # Deep phase Brave results
-    "jina_reads": 4,               # Deep phase reads
+    "jina_reads": 2,               # Deep phase reads
     "max_knowledge_chars": 50_000,
     "compress_target_chars": 35_000,
     "extract_max_chars": 1200,
@@ -944,13 +1006,12 @@ async def _filter_results(
     knowledge: KnowledgeState,
     already_fetched: set[str],
     extraction_counter: TokenCounter,
-    max_reads: int = 5,
 ) -> list[tuple[str, str]]:
-    """Use flash-lite to filter search results for quality.
+    """Use flash-lite to filter and rank search results for quality.
 
     Always runs the LLM filter to exclude low-quality results.
-    Returns a list of (url, title) tuples for results worth reading.
-    Falls back to first-5 on error.
+    Returns the full ranked list of (url, title) tuples — the caller
+    controls batch sizing.  Falls back to all candidates on error.
     """
     # Build candidate list excluding already-fetched and skip domains
     candidates: list[tuple[int, str, str, str]] = []  # (idx, url, title, snippet)
@@ -1001,21 +1062,19 @@ async def _filter_results(
                         break
 
         if filtered:
-            # Take only the top-ranked results
-            top = filtered[:max_reads]
             logger.info(
-                "Filter ranked %d/%d results, taking top %d for query %r",
-                len(filtered), len(candidates), len(top), query,
+                "Filter ranked %d/%d candidates for query %r",
+                len(filtered), len(candidates), query,
             )
-            return top
+            return filtered
 
         logger.warning("Filter returned no valid indices, falling back to naive")
 
     except Exception:
         logger.exception("Filter agent failed, falling back to naive selection")
 
-    # Fallback: first 5 candidates by rank order
-    return [(url, title) for _, url, title, _ in candidates[:5]]
+    # Fallback: all candidates by rank order
+    return [(url, title) for _, url, title, _ in candidates]
 
 
 # ---------------------------------------------------------------------------
@@ -1343,6 +1402,7 @@ async def _reconsider(
     original topics unchanged.
     """
     client = genai_client()
+    current_year = datetime.now(timezone.utc).year
 
     # Format thread list for the reviewer
     thread_list = "\n".join(
@@ -1350,15 +1410,21 @@ async def _reconsider(
     )
 
     user_msg = (
+        f"THE CURRENT YEAR IS {current_year}.\n\n"
         f"USER QUERY: {raw_query}\n\n"
         f"PROPOSED RESEARCH THREADS:\n{thread_list}"
+    )
+
+    reconsider_prompt = (
+        SURVEY_RECONSIDERATION_PROMPT if output_format == "queries"
+        else RECONSIDERATION_PROMPT
     )
 
     response = await client.aio.models.generate_content(
         model=cfg["planning_model"],
         contents=user_msg,
         config=GenerateContentConfig(
-            system_instruction=RECONSIDERATION_PROMPT,
+            system_instruction=reconsider_prompt,
         ),
     )
 
@@ -1399,6 +1465,8 @@ async def _reconsider(
         directive_name = "TOPICS"
 
     revision_prompt = (
+        f"THE CURRENT YEAR IS {current_year}. Use {current_year} in any "
+        f"date-sensitive queries, never prior years.\n\n"
         f"QUESTION: {raw_query}\n\n"
         f"ORIGINAL RESEARCH THREADS:\n{thread_list}\n\n"
         f"You just reviewed these threads and realized they have problems. "
@@ -1415,7 +1483,11 @@ async def _reconsider(
         f"then output a revised {directive_name} directive. Write in first "
         "person as a continuation of your earlier reasoning (e.g., 'I think "
         "the threads are missing...' or 'Actually, looking at this again...'). "
-        f"Keep reasoning to 2-3 sentences, then the {directive_name}: line."
+        f"Keep reasoning to 2-3 sentences, then the {directive_name}: line.\n\n"
+        f"CRITICAL — DATES: The current year is {current_year}. This is NOT "
+        f"speculative — it IS {current_year} right now. Any query that needs "
+        f"a year MUST use {current_year}. NEVER use 2025, 2024, or any prior "
+        f"year unless the user explicitly asked about that year."
     )
 
     if dispatch:
@@ -1714,71 +1786,17 @@ async def _search_and_extract_query(
         ))
         return
 
-    # --- Pick top URLs via LLM filtering ---
-    urls_to_fetch = await _filter_results(
+    # --- Pick ALL ranked candidates via LLM filtering ---
+    target_sources = cfg["jina_reads"]
+    entries_before = len(topic_entries)
+
+    all_candidates = await _filter_results(
         results, query_text, knowledge, already_fetched,
-        extraction_counter, max_reads=cfg["jina_reads"],
+        extraction_counter,
     )
 
-    # --- Filter by robots.txt ---
-    urls_allowed: list[tuple[str, str]] = []
-    for url, title in urls_to_fetch:
-        if db_session is not None:
-            try:
-                allowed, _ = await check_url_allowed(url, db_session)
-            except Exception:
-                allowed = True
-            if not allowed:
-                logger.info("Blocked by robots.txt: %s", url)
-                await dispatch(DetailEvent(
-                    type="fetch_done",
-                    payload={
-                        "topic": topic.label,
-                        "url": url,
-                        "failed": True,
-                    },
-                ))
-                continue
-        urls_allowed.append((url, title))
-
-    # Emit fetch start events
-    for url, _title in urls_allowed:
-        await dispatch(DetailEvent(
-            type="fetch",
-            payload={"topic": topic.label, "url": url},
-        ))
-
-    # --- Fetch in parallel via Jina (rate-limited) ---
-    fetch_results = await asyncio.gather(
-        *[
-            _jina_fetch(url, redis_url=redis_url)
-            for url, _ in urls_allowed
-        ],
-        return_exceptions=True,
-    )
-
-    # --- Extract knowledge from each document (parallel) ---
     source_urls: list[str] = []
-
-    # Separate successful fetches from failures
-    docs_to_extract: list[tuple[str, str, str]] = []  # (url, title, truncated)
-    for (url, title), content in zip(urls_allowed, fetch_results):
-        if isinstance(content, Exception):
-            content = None
-
-        if not content:
-            await dispatch(DetailEvent(
-                type="fetch_done",
-                payload={
-                    "topic": topic.label,
-                    "url": url,
-                    "failed": True,
-                },
-            ))
-            continue
-
-        already_fetched.add(url)
-        docs_to_extract.append((url, title, content[: cfg["fetch_max_chars"]]))
+    offset = 0
 
     async def _extract_one(url: str, title: str, truncated: str) -> None:
         extraction_prompt = (
@@ -1866,10 +1884,81 @@ async def _search_and_extract_query(
                 },
             ))
 
-    await asyncio.gather(
-        *[_extract_one(u, t, c) for u, t, c in docs_to_extract],
-        return_exceptions=True,
-    )
+    # --- Iterate through ranked candidates in batches ---
+    while (
+        offset < len(all_candidates)
+        and (len(topic_entries) - entries_before) < target_sources
+        and not budget.exhausted
+    ):
+        needed = target_sources - (len(topic_entries) - entries_before)
+        batch = all_candidates[offset:offset + needed]
+        offset += len(batch)
+
+        # --- Filter batch by robots.txt ---
+        urls_allowed: list[tuple[str, str]] = []
+        for url, title in batch:
+            if db_session is not None:
+                try:
+                    allowed, _ = await check_url_allowed(url, db_session)
+                except Exception:
+                    allowed = True
+                if not allowed:
+                    logger.info("Blocked by robots.txt: %s", url)
+                    await dispatch(DetailEvent(
+                        type="fetch_done",
+                        payload={
+                            "topic": topic.label,
+                            "url": url,
+                            "failed": True,
+                        },
+                    ))
+                    continue
+            urls_allowed.append((url, title))
+
+        if not urls_allowed:
+            continue
+
+        # Emit fetch start events
+        for url, _ in urls_allowed:
+            await dispatch(DetailEvent(
+                type="fetch",
+                payload={"topic": topic.label, "url": url},
+            ))
+
+        # --- Fetch batch in parallel via Jina (rate-limited) ---
+        fetch_results = await asyncio.gather(
+            *[
+                _jina_fetch(url, redis_url=redis_url)
+                for url, _ in urls_allowed
+            ],
+            return_exceptions=True,
+        )
+
+        # Separate successful fetches from failures
+        docs_to_extract: list[tuple[str, str, str]] = []
+        for (url, title), content in zip(urls_allowed, fetch_results):
+            if isinstance(content, BaseException):
+                content = None
+
+            if not content:
+                await dispatch(DetailEvent(
+                    type="fetch_done",
+                    payload={
+                        "topic": topic.label,
+                        "url": url,
+                        "failed": True,
+                    },
+                ))
+                continue
+
+            already_fetched.add(url)
+            docs_to_extract.append((url, title, content[: cfg["fetch_max_chars"]]))
+
+        # --- Extract knowledge from batch (parallel) ---
+        await asyncio.gather(
+            *[_extract_one(u, t, c) for u, t, c in docs_to_extract],
+            return_exceptions=True,
+        )
 
     # Collapse research group for this query
     await dispatch(DetailEvent(
@@ -2008,6 +2097,9 @@ async def _articulate(
     extraction_model = GoogleModel(extraction_model_name, provider=google_provider())
 
     # --- Step 1: Outline (non-streaming) ---
+    is_lite = cfg.get("articulation_prompt") is LIGHT_ARTICULATION_PROMPT
+    outline_agent = _lite_outline_agent if is_lite else _outline_agent
+
     outline_prompt = (
         f"QUESTION: {query}\n\n"
         f"RESEARCH THREADS:\n{knowledge.format_by_thread()}\n\n"
@@ -2015,7 +2107,7 @@ async def _articulate(
     )
 
     try:
-        outline_result = await _outline_agent.run(
+        outline_result = await outline_agent.run(
             outline_prompt, model=extraction_model,
         )
         usage = outline_result.usage()
