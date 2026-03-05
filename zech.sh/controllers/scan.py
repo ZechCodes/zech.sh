@@ -31,6 +31,8 @@ from controllers.deep_research_agent import (
     TextEvent as DeepTextEvent,
 )
 from controllers.research_agent import run_agent_research_pipeline
+from google.genai.types import GenerateContentConfig, ThinkingConfig, ThinkingLevel
+
 from controllers.llm import genai_client
 from controllers.scan_agent import (
     classify_query,
@@ -197,9 +199,15 @@ async def _generate_search_overview(query: str, results: list[dict]) -> str:
         client = genai_client()
         resp = await asyncio.to_thread(
             client.models.generate_content,
-            model="gemini-2.0-flash-lite",
+            model="gemini-3.1-flash-lite-preview",
             contents=f"Query: {query}\n\nSearch results:\n{snippets}",
-            config={"system_instruction": _OVERVIEW_SYSTEM, "temperature": 0.3},
+            config=GenerateContentConfig(
+                system_instruction=_OVERVIEW_SYSTEM,
+                temperature=0.3,
+                thinking_config=ThinkingConfig(
+                    thinking_level=ThinkingLevel.MINIMAL,
+                ),
+            ),
         )
         return resp.text or ""
     except Exception:

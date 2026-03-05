@@ -81,7 +81,7 @@ class AgentDeps:
     jina_reads: int = 5
     extract_max_chars: int = 1200
     fetch_max_chars: int = 20_000
-    extraction_model: str = "gemini-2.0-flash-lite"
+    extraction_model: str = "gemini-3.1-flash-lite-preview"
 
 
 # ---------------------------------------------------------------------------
@@ -495,10 +495,9 @@ async def research(ctx: RunContext[AgentDeps], query: str, max_sources: int = 3)
                 extract_cfg = GenerateContentConfig(
                     system_instruction=EXTRACTION_PROMPT,
                 )
-                if "lite" not in deps.extraction_model:
-                    extract_cfg.thinking_config = ThinkingConfig(
-                        thinking_level=ThinkingLevel.MINIMAL,
-                    )
+                extract_cfg.thinking_config = ThinkingConfig(
+                    thinking_level=ThinkingLevel.MINIMAL,
+                )
                 extract_resp = await client.aio.models.generate_content(
                     model=deps.extraction_model,
                     contents=extraction_prompt,
@@ -675,7 +674,7 @@ _MODE_CONFIG = {
         "jina_reads": 2,
         "extract_max_chars": 1200,
         "fetch_max_chars": 20_000,
-        "extraction_model": "gemini-2.0-flash-lite",
+        "extraction_model": "gemini-3.1-flash-lite-preview",
     },
     "deep": {
         "agent_model_fn": gemini_pro,
@@ -687,7 +686,7 @@ _MODE_CONFIG = {
         "jina_reads": 5,
         "extract_max_chars": 1200,
         "fetch_max_chars": 20_000,
-        "extraction_model": "gemini-2.0-flash-lite",
+        "extraction_model": "gemini-3.1-flash-lite-preview",
     },
 }
 

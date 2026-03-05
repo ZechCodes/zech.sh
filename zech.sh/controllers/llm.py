@@ -41,8 +41,8 @@ def gemini_flash() -> GoogleModel:
 
 @lru_cache(maxsize=1)
 def gemini_flash_lite() -> GoogleModel:
-    """Gemini 2.5 Flash Lite — fast classification."""
-    return GoogleModel("gemini-2.5-flash-lite", provider=google_provider())
+    """Gemini 3.1 Flash Lite — fast classification."""
+    return GoogleModel("gemini-3.1-flash-lite-preview", provider=google_provider())
 
 
 def calc_usage_cost(input_tokens: int, output_tokens: int, model_name: str) -> dict:
