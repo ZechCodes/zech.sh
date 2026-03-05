@@ -33,7 +33,6 @@ from controllers.llm import (
     calc_usage_cost,
     gemini_flash,
     gemini_flash_lite,
-    gemini_pro,
 )
 from controllers.deep_research_agent import _jina_fetch
 from controllers.research_agent import run_agent_research_pipeline
@@ -211,7 +210,7 @@ async def classify_query(query: str) -> str:
 async def generate_chat_title(query: str) -> str:
     """Generate a concise chat title from a user query."""
     try:
-        result = await title_agent.run(query, model=gemini_pro())
+        result = await title_agent.run(query, model=gemini_flash_lite())
         return result.output.strip()[:500]
     except Exception:
         return query[:500]

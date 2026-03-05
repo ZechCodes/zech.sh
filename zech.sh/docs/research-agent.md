@@ -142,8 +142,8 @@ Source: `controllers/domain_throttle.py`
 | Model | ID | Role |
 |---|---|---|
 | Gemini 3 Flash | `gemini-3-flash-preview` | Planning, extraction, articulation (both modes) |
-| Gemini 2.5 Flash Lite | `gemini-2.5-flash-lite` | Query classification, search result filtering, topic evaluation |
-| Gemini 3 Pro | `gemini-3-pro-preview` | Chat title generation |
+| Gemini 3.1 Flash Lite | `gemini-3.1-flash-lite-preview` | Query classification, search result filtering, topic evaluation, chat title generation |
+| Gemini 3 Pro | `gemini-3-pro-preview` | Research agent (deep mode) |
 
 All models are accessed via `google-genai` SDK (`genai.Client`) for direct API calls and `pydantic-ai` (`GoogleModel` + `GoogleProvider`) for agent-based calls. A single shared provider and client are cached via `@lru_cache`.
 
