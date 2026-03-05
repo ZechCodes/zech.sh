@@ -15,10 +15,8 @@ import io
 import logging
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Literal
 from urllib.parse import urlparse
-from zoneinfo import ZoneInfo
 
 import httpx
 from bs4 import BeautifulSoup
@@ -37,14 +35,8 @@ from controllers.llm import (
     gemini_flash_lite,
     gemini_pro,
 )
-from controllers.deep_research_agent import (
-    LIGHT_CONFIG,
-    LIGHT_PLANNING_PROMPT,
-    Dispatch,
-    ResearchPipeline,
-    _jina_fetch,
-    run_deep_research_pipeline,
-)
+from controllers.deep_research_agent import _jina_fetch
+from controllers.research_agent import run_agent_research_pipeline
 from controllers.robots import USER_AGENT, check_url_allowed
 
 logger = logging.getLogger(__name__)
@@ -487,10 +479,10 @@ async def run_research_pipeline(
     conversation_history: list[dict] | None = None,
     user_timezone: str = "",
 ) -> AsyncGenerator[PipelineEvent, None]:
-    """Run the light research pipeline using the deep research architecture.
+    """Run the light research pipeline using the agent architecture.
 
-    Uses Flash/Flash Lite models, fewer topics, and fewer reads per topic
-    for a fast but comprehensive answer.
+    Delegates to the agent-based pipeline in lite mode for fast but
+    comprehensive answers.
     """
     from controllers.deep_research_agent import (
         DetailEvent as DeepDetailEvent,
@@ -504,15 +496,14 @@ async def run_research_pipeline(
     if additional_context:
         combined_query = f"{query}\n\nAdditional context: {additional_context}"
 
-    async for event in run_deep_research_pipeline(
+    async for event in run_agent_research_pipeline(
         combined_query,
         brave_api_key,
         db_session=db_session,
         redis_url=redis_url,
         user_timezone=user_timezone,
         conversation_history=conversation_history,
-        config_override=LIGHT_CONFIG,
-        planning_prompt_override=LIGHT_PLANNING_PROMPT,
+        mode="lite",
     ):
         # Re-wrap deep events as scan_agent events for compatibility
         if isinstance(event, DeepStageEvent):

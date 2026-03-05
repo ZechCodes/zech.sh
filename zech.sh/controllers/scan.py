@@ -24,14 +24,13 @@ from skrift.lib.notifications import NotificationMode, notify_user
 
 from controllers.brave_search import brave_search
 from controllers.deep_research_agent import (
-    LITE_GROUNDED_CONFIG,
     DetailEvent as DeepDetailEvent,
     DoneEvent as DeepDoneEvent,
     ErrorEvent as DeepErrorEvent,
     StageEvent as DeepStageEvent,
     TextEvent as DeepTextEvent,
-    run_grounded_research_pipeline,
 )
+from controllers.research_agent import run_agent_research_pipeline
 from controllers.llm import genai_client
 from controllers.scan_agent import (
     classify_query,
@@ -55,7 +54,7 @@ _session_factory: async_sessionmaker | None = None
 def _get_session_factory() -> async_sessionmaker:
     global _session_factory
     if _session_factory is None:
-        engine = create_async_engine(get_settings().db.url)
+        engine = create_async_engine(get_settings().db.url, pool_pre_ping=True, pool_recycle=300)
         _session_factory = async_sessionmaker(engine, expire_on_commit=False)
     return _session_factory
 
@@ -104,25 +103,16 @@ async def _run_pipeline_bg(
                 await notify_user(uid, ntype, mode=_NM, **payload)
 
             try:
-                if chat_mode == "research":
-                    pipeline_gen = run_grounded_research_pipeline(
-                        query,
-                        brave_api_key,
-                        db_session=db_session,
-                        redis_url=redis_url,
-                        user_timezone=tz,
-                        conversation_history=history if history else None,
-                        config_override=LITE_GROUNDED_CONFIG,
-                    )
-                else:
-                    pipeline_gen = run_grounded_research_pipeline(
-                        query,
-                        brave_api_key,
-                        db_session=db_session,
-                        redis_url=redis_url,
-                        user_timezone=tz,
-                        conversation_history=history if history else None,
-                    )
+                pipeline_mode = "lite" if chat_mode == "research" else "deep"
+                pipeline_gen = run_agent_research_pipeline(
+                    query,
+                    brave_api_key,
+                    db_session=db_session,
+                    redis_url=redis_url,
+                    user_timezone=tz,
+                    conversation_history=history if history else None,
+                    mode=pipeline_mode,
+                )
                 async for event in pipeline_gen:
                     if isinstance(event, DeepStageEvent):
                         accumulated_events.append(
