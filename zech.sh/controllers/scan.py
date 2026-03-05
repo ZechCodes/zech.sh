@@ -205,7 +205,7 @@ async def _generate_search_overview(query: str, results: list[dict]) -> str:
                 system_instruction=_OVERVIEW_SYSTEM,
                 temperature=0.3,
                 thinking_config=ThinkingConfig(
-                    thinking_level=ThinkingLevel.MINIMAL,
+                    thinking_level=ThinkingLevel.HIGH,
                 ),
             ),
         )

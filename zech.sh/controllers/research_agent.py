@@ -48,7 +48,7 @@ from controllers.deep_research_agent import (
     _filter_results,
     _jina_fetch,
 )
-from controllers.llm import calc_usage_cost, gemini_flash, gemini_flash_lite, gemini_pro, genai_client
+from controllers.llm import calc_usage_cost, gemini_flash, gemini_flash_lite, genai_client
 from controllers.robots import check_url_allowed
 
 logger = logging.getLogger(__name__)
@@ -677,7 +677,7 @@ _MODE_CONFIG = {
         "extraction_model": "gemini-3.1-flash-lite-preview",
     },
     "deep": {
-        "agent_model_fn": gemini_pro,
+        "agent_model_fn": gemini_flash,
         "system_prompt": _DEEP_SYSTEM_PROMPT,
         "max_research_calls": 15,
         "max_verify_calls": 5,
@@ -814,10 +814,7 @@ class AgentResearchPipeline:
 
             # --- Usage reporting ---
             agent_usage = result.usage()
-            agent_model_name = (
-                "gemini-3-flash-preview" if self.mode == "lite"
-                else "gemini-3-pro-preview"
-            )
+            agent_model_name = "gemini-3-flash-preview"
             self.budget.add(
                 agent_usage.request_tokens or 0,
                 agent_usage.response_tokens or 0,

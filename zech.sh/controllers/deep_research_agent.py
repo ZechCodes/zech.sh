@@ -24,7 +24,7 @@ from pydantic_ai import Agent
 
 from controllers.brave_search import brave_search as _shared_brave_search
 from controllers.domain_throttle import cache_response, get_cached_response
-from controllers.llm import calc_usage_cost, gemini_flash_lite
+from controllers.llm import FLASH_LITE_THINKING_SETTINGS, calc_usage_cost, gemini_flash_lite
 from controllers.robots import USER_AGENT
 
 logger = logging.getLogger(__name__)
@@ -478,7 +478,7 @@ async def _filter_results(
     )
 
     try:
-        result = await _filter_agent.run(prompt, model=gemini_flash_lite())
+        result = await _filter_agent.run(prompt, model=gemini_flash_lite(), model_settings=FLASH_LITE_THINKING_SETTINGS)
         usage = result.usage()
         extraction_counter.input_tokens += usage.request_tokens or 0
         extraction_counter.output_tokens += usage.response_tokens or 0

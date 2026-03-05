@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from controllers.brave_search import brave_search as _brave_search_raw
 from controllers.domain_throttle import wait_for_rate_limit
 from controllers.llm import (
+    FLASH_LITE_THINKING_SETTINGS,
     calc_usage_cost,
     gemini_flash,
     gemini_flash_lite,
@@ -200,7 +201,7 @@ research_agent = Agent(
 
 async def classify_query(query: str) -> str:
     """Classify a query using Pydantic AI + Gemini Flash."""
-    result = await classify_agent.run(query, model=gemini_flash_lite())
+    result = await classify_agent.run(query, model=gemini_flash_lite(), model_settings=FLASH_LITE_THINKING_SETTINGS)
     text = result.output.strip().upper()
     if text not in ("URL", "SEARCH", "RESEARCH"):
         return "SEARCH"
@@ -210,7 +211,7 @@ async def classify_query(query: str) -> str:
 async def generate_chat_title(query: str) -> str:
     """Generate a concise chat title from a user query."""
     try:
-        result = await title_agent.run(query, model=gemini_flash_lite())
+        result = await title_agent.run(query, model=gemini_flash_lite(), model_settings=FLASH_LITE_THINKING_SETTINGS)
         return result.output.strip()[:500]
     except Exception:
         return query[:500]
@@ -220,7 +221,7 @@ async def generate_suggestions(query: str, mode: str) -> list[str]:
     """Generate autocomplete suggestions for a partial query."""
     try:
         prompt = f"Mode: {mode}\nPartial query: {query}"
-        result = await suggest_agent.run(prompt, model=gemini_flash_lite())
+        result = await suggest_agent.run(prompt, model=gemini_flash_lite(), model_settings=FLASH_LITE_THINKING_SETTINGS)
         return result.output.suggestions
     except Exception:
         logger.exception("Failed to generate suggestions for %r", query)
@@ -394,7 +395,7 @@ async def fetch_and_extract(
         run_usage = run_result.usage()
         deps.extraction_usage.incr(run_usage)
         return calc_usage_cost(
-            run_usage.input_tokens, run_usage.output_tokens, "gemini-3-flash-preview",
+            run_usage.input_tokens, run_usage.output_tokens, "gemini-3.1-flash-lite-preview",
         )
 
     # --- Try Jina Reader first (handles HTML → markdown, has Redis cache) ---
@@ -402,7 +403,7 @@ async def fetch_and_extract(
     logger.info("Jina fetch for %s: %s", url, f"{len(jina_text)} chars" if jina_text else "None")
     if jina_text:
         prompt = f"Query: {query}\n\nDocument:\n{jina_text[:_MAX_DOC_CHARS]}"
-        result = await extraction_agent.run(prompt, model=gemini_flash())
+        result = await extraction_agent.run(prompt, model=gemini_flash(), model_settings=FLASH_LITE_THINKING_SETTINGS)
         return ExtractionResult(output=result.output, usage=_track(result))
 
     # --- Jina failed — fall back to direct fetch (PDFs, images, etc.) ---
@@ -439,7 +440,7 @@ async def fetch_and_extract(
     else:
         return ExtractionResult(output=f"Unsupported content type: {content_type}")
 
-    result = await extraction_agent.run(prompt, model=gemini_flash())
+    result = await extraction_agent.run(prompt, model=gemini_flash(), model_settings=FLASH_LITE_THINKING_SETTINGS)
     return ExtractionResult(output=result.output, usage=_track(result))
 
 

@@ -17,6 +17,12 @@ from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
 
+FLASH_LITE_THINKING_SETTINGS = {
+    "google_thinking_config": {"thinking_level": "HIGH"},
+}
+"""Model settings to enable HIGH thinking on Flash Lite agents."""
+
+
 @lru_cache(maxsize=1)
 def google_provider() -> GoogleProvider:
     return GoogleProvider(api_key=os.environ["GOOGLE_API_KEY"])
@@ -29,13 +35,13 @@ def genai_client() -> genai.Client:
 
 @lru_cache(maxsize=1)
 def gemini_pro() -> GoogleModel:
-    """Gemini 3 Pro — research agent, title generation."""
-    return GoogleModel("gemini-3-pro-preview", provider=google_provider())
+    """Gemini 3.1 Flash Lite (testing replacement for Pro)."""
+    return GoogleModel("gemini-3.1-flash-lite-preview", provider=google_provider())
 
 
 @lru_cache(maxsize=1)
 def gemini_flash() -> GoogleModel:
-    """Gemini 3 Flash — extraction and evaluation."""
+    """Gemini 3 Flash — main agent model."""
     return GoogleModel("gemini-3-flash-preview", provider=google_provider())
 
 
@@ -48,10 +54,16 @@ def gemini_flash_lite() -> GoogleModel:
 def calc_usage_cost(input_tokens: int, output_tokens: int, model_name: str) -> dict:
     """Calculate cost for a model call and return a usage dict."""
     usage = GenAIUsage(input_tokens=input_tokens, output_tokens=output_tokens)
-    price = calc_price(usage, model_name)
+    try:
+        price = calc_price(usage, model_name)
+        input_cost = f"{price.input_price:.4f}"
+        output_cost = f"{price.output_price:.4f}"
+    except LookupError:
+        input_cost = "0.0000"
+        output_cost = "0.0000"
     return {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
-        "input_cost": f"{price.input_price:.4f}",
-        "output_cost": f"{price.output_price:.4f}",
+        "input_cost": input_cost,
+        "output_cost": output_cost,
     }
