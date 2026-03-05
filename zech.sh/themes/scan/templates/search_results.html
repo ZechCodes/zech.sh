@@ -29,6 +29,11 @@
     <div class="search-overview">
         <div class="search-overview-label">AI OVERVIEW</div>
         <div class="search-overview-text">{{ overview }}</div>
+        <div class="search-overview-links">
+            <a href="/search?q={{ query | urlencode }}&mode=discover">Discover</a>
+            <span class="search-overview-links-sep">/</span>
+            <a href="/search?q={{ query | urlencode }}&mode=deep">Deep research</a>
+        </div>
     </div>
     {% endif %}
 

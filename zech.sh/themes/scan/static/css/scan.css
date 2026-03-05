@@ -1587,6 +1587,30 @@ textarea.scan-input-auto {
   color: var(--zech-text);
 }
 
+.search-overview-links {
+  margin-top: 0.75rem;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+}
+
+.search-overview-links a {
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.search-overview-links a:hover {
+  opacity: 1;
+}
+
+.search-overview-links-sep {
+  color: var(--zech-text-dim);
+  opacity: 0.3;
+  margin: 0 0.25rem;
+}
+
 /* Results list */
 .search-results-list {
   display: flex;
