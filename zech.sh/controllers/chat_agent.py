@@ -20,11 +20,11 @@ import httpx
 from google.genai import types as genai_types
 
 from controllers.brave_search import brave_search as _brave_search
-from controllers.llm import genai_client
+from controllers.llm import calc_usage_cost, genai_client
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "gemini-3.1-flash-lite-preview"
+_MODEL = "gemini-3-flash-preview"
 _MAX_HISTORY_TOKENS = 100_000
 _COMPACT_TOKENS = 50_000
 _MAX_FETCH_CHARS = 80_000
@@ -52,6 +52,7 @@ class ToolDoneEvent:
     """Agent finished using a tool."""
     tool: str
     summary: str
+    result: str = ""
 
 
 @dataclass
@@ -76,7 +77,7 @@ class CompactEvent:
 @dataclass
 class DoneEvent:
     """Generation complete."""
-    pass
+    usage: dict | None = None
 
 
 @dataclass
@@ -210,15 +211,55 @@ _NOTES_SYSTEM = (
 )
 
 _SYSTEM_PROMPT = """\
-You are Zech's AI assistant on zech.sh. You are helpful, knowledgeable, and \
-concise. You have access to tools for searching the web and reading web pages.
+You are Zech's AI assistant on zech.sh. You are helpful and concise. You have \
+access to tools for searching the web and reading web pages.
 
-When the user asks questions that need current information or facts you don't \
-know, use the web_search tool. When the user shares a URL or you need to read \
-a specific page from search results, use the open_url tool.
+IMPORTANT: Your training data is outdated. Always use web_search to verify \
+facts, look up details, and get current information before answering. Do NOT \
+rely on your own knowledge for specific claims, stats, versions, dates, names, \
+or technical details — search first, then answer based on what you find. When \
+constructing search queries, use the user's own words or go generic rather \
+than inserting specific details from your training data that may be wrong.
 
-Be direct and clear in your responses. Use markdown formatting when helpful. \
-Keep responses focused and avoid unnecessary filler."""
+When the user shares a URL or you find a relevant page in search results, use \
+the open_url tool to read it before summarizing or answering questions about it.
+
+NEVER punt to the user with "check the website for details" or "visit the \
+pricing page for current info." If the user asked a question, YOU go get the \
+answer. Use open_url to read pricing pages, feature lists, documentation, or \
+whatever is needed to give a complete answer with real data. If a search result \
+links to a page with the details the user wants, open it and extract the facts. \
+Do the legwork — the user is asking you so they don't have to look it up \
+themselves.
+
+## Response guidelines
+
+Match your response format to the type of request:
+
+- **Comparisons** ("X vs Y", "which is better", "differences between"): Use a \
+markdown table with clear columns. Summarize a recommendation below the table.
+- **How-to / tutorials**: Numbered step-by-step instructions. Include commands \
+or code snippets in fenced code blocks where relevant.
+- **"What is" / explainers**: Lead with a one-sentence definition, then expand \
+with key details. Use bullet points for features or characteristics.
+- **Lists / recommendations** ("best X", "top Y", "options for"): Bulleted or \
+numbered list with a brief note on each item. Bold the name/title.
+- **Current events / news**: Lead with the latest facts. Include dates. Cite \
+sources with inline links.
+- **Debugging / errors**: Identify the cause first, then give the fix. Use code \
+blocks for any code or commands.
+- **Opinion / advice**: Be direct — state a clear recommendation, then explain \
+the reasoning. Acknowledge trade-offs.
+- **Math / calculations**: Show your work step by step. Use code blocks for \
+formulas if complex.
+
+Whenever you mention a tool, project, library, article, product, place, or \
+anything the user might want to explore further, make it a markdown link to \
+the relevant URL. Prefer linking to official sites, docs, or the source you \
+found it from. Don't just name-drop — linkify it so the user can click through.
+
+Keep responses focused and avoid unnecessary filler. Be direct — lead with the \
+answer, not the preamble."""
 
 # ---------------------------------------------------------------------------
 # Token estimation
@@ -312,6 +353,7 @@ async def run_chat(
     user_message: str,
     history: list[dict],
     memory_notes: str = "",
+    user_timezone: str = "",
 ) -> AsyncGenerator[ChatEvent, None]:
     """Run a single chat turn with tool use, streaming events.
 
@@ -319,6 +361,7 @@ async def run_chat(
         user_message: The user's new message.
         history: Previous messages as list of {"role": "user"|"model", "content": str}.
         memory_notes: Current memory notes to include as context.
+        user_timezone: IANA timezone string (e.g. "America/New_York") for date/time context.
 
     Yields ChatEvent instances.
     """
@@ -337,8 +380,19 @@ async def run_chat(
         except Exception as exc:
             logger.exception("History compaction failed")
 
-    # Build system instruction with memory notes
+    # Build system instruction with memory notes and current time
     system = _SYSTEM_PROMPT
+    try:
+        from datetime import datetime, timezone as tz
+        import zoneinfo
+        if user_timezone:
+            user_tz = zoneinfo.ZoneInfo(user_timezone)
+        else:
+            user_tz = tz.utc
+        now = datetime.now(user_tz)
+        system += f"\n\nCurrent date and time: {now.strftime('%A, %B %d, %Y at %I:%M %p')} ({user_timezone or 'UTC'})"
+    except Exception:
+        pass
     if memory_notes:
         system += f"\n\n## Memory Notes\nThese are your notes from the conversation so far:\n{memory_notes}"
 
@@ -371,58 +425,84 @@ async def run_chat(
     accumulated_text = ""
     max_tool_rounds = 10
     round_num = 0
+    total_input_tokens = 0
+    total_output_tokens = 0
 
     try:
         while round_num < max_tool_rounds:
             round_num += 1
             has_tool_calls = False
 
+            # Collect all parts from the streamed response so we can
+            # preserve thought_signature on function_call parts.
+            response_parts: list[genai_types.Part] = []
+            pending_tool_calls: list[tuple[genai_types.Part, str, dict]] = []
+            last_usage_meta = None
+
             async for chunk in await client.aio.models.generate_content_stream(
                 model=_MODEL,
                 contents=contents,
                 config=config,
             ):
+                meta = getattr(chunk, "usage_metadata", None)
+                if meta:
+                    last_usage_meta = meta
+
                 if not chunk.candidates:
                     continue
 
                 for part in chunk.candidates[0].content.parts:
                     if hasattr(part, "thought") and part.thought:
                         yield ThinkingEvent(thinking=part.text or "")
+                        response_parts.append(part)
                     elif hasattr(part, "function_call") and part.function_call:
                         has_tool_calls = True
                         fc = part.function_call
                         tool_name = fc.name
                         tool_args = dict(fc.args) if fc.args else {}
                         yield ToolStartEvent(tool=tool_name, args=tool_args)
-
-                        # Execute the tool
-                        result = await _execute_tool(tool_name, tool_args)
-
-                        # Summarize for display
-                        if tool_name == "web_search":
-                            summary = f"Searched '{tool_args.get('query', '')}'"
-                        else:
-                            summary = f"Read '{tool_args.get('url', '')}'"
-                        yield ToolDoneEvent(tool=tool_name, summary=summary)
-
-                        # Add assistant's function call and result to contents
-                        contents.append(genai_types.Content(
-                            role="model",
-                            parts=[genai_types.Part(function_call=genai_types.FunctionCall(
-                                name=tool_name,
-                                args=tool_args,
-                            ))],
-                        ))
-                        contents.append(genai_types.Content(
-                            role="user",
-                            parts=[genai_types.Part(function_response=genai_types.FunctionResponse(
-                                name=tool_name,
-                                response={"result": result},
-                            ))],
-                        ))
+                        response_parts.append(part)
+                        pending_tool_calls.append((part, tool_name, tool_args))
                     elif part.text:
                         accumulated_text += part.text
                         yield TextEvent(text=part.text)
+                        response_parts.append(part)
+
+            # Accumulate token counts from this round
+            if last_usage_meta:
+                total_input_tokens += last_usage_meta.prompt_token_count or 0
+                total_output_tokens += last_usage_meta.candidates_token_count or 0
+
+            # Process tool calls after the full response is collected
+            if pending_tool_calls:
+                # Add the model's full response (preserving thought_signature)
+                contents.append(genai_types.Content(
+                    role="model",
+                    parts=response_parts,
+                ))
+
+                # Execute tools and add results
+                tool_response_parts: list[genai_types.Part] = []
+                for _part, tool_name, tool_args in pending_tool_calls:
+                    result = await _execute_tool(tool_name, tool_args)
+
+                    if tool_name == "web_search":
+                        summary = f"Searched '{tool_args.get('query', '')}'"
+                    else:
+                        summary = f"Read '{tool_args.get('url', '')}'"
+                    yield ToolDoneEvent(tool=tool_name, summary=summary, result=result)
+
+                    tool_response_parts.append(genai_types.Part(
+                        function_response=genai_types.FunctionResponse(
+                            name=tool_name,
+                            response={"result": result},
+                        )
+                    ))
+
+                contents.append(genai_types.Content(
+                    role="user",
+                    parts=tool_response_parts,
+                ))
 
             if not has_tool_calls:
                 break
@@ -443,13 +523,18 @@ async def run_chat(
                     max_output_tokens=500,
                 ),
             )
+            notes_meta = getattr(notes_resp, "usage_metadata", None)
+            if notes_meta:
+                total_input_tokens += notes_meta.prompt_token_count or 0
+                total_output_tokens += notes_meta.candidates_token_count or 0
             new_notes = notes_resp.text or ""
             if new_notes.strip():
                 yield NotesEvent(notes=new_notes.strip())
         except Exception:
             logger.exception("Memory notes update failed")
 
-        yield DoneEvent()
+        usage = calc_usage_cost(total_input_tokens, total_output_tokens, _MODEL)
+        yield DoneEvent(usage=usage)
 
     except Exception as exc:
         logger.exception("Chat agent error")

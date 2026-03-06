@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}SCAN.ZECH.SH — {{ chat.title[:60] }}{% endblock %}
+
+{% block head %}
+<link rel="search" type="application/opensearchdescription+xml" title="Scan" href="/opensearch.xml">
+{% endblock %}
+
+{% block content %}
+<section class="agent-chat-section">
+    <div class="scan-label">CHAT.AGENT</div>
+
+    <div class="chat-messages" id="chatMessages">
+        {% if not messages %}
+        <div class="chat-welcome" id="chatWelcome">
+            <h2 class="chat-welcome-title">AGENT.READY</h2>
+            <p class="chat-welcome-desc">I can search the web, read pages, and maintain context across our conversation.</p>
+        </div>
+        {% endif %}
+
+        {% for msg in messages %}
+        <div class="chat-msg chat-msg-{{ msg.role }}{% if msg.role == 'assistant' %} chat-msg-model{% endif %}">
+            {% if msg.role == 'user' %}
+            <div class="chat-msg-label">YOU</div>
+            <div class="chat-msg-content">{{ msg.content }}</div>
+            {% else %}
+            <div class="chat-msg-label">AGENT</div>
+            {% if msg.events %}
+            <div class="chat-tool-pills">
+                {% for ev in msg.events %}
+                <div class="chat-tool-pill" data-tool="{{ ev.tool }}">
+                    <div class="chat-tool-pill-header"{% if ev.result %} style="cursor:pointer"{% endif %}>
+                        {% if ev.tool == 'web_search' %}
+                        <span class="chat-tool-pill-icon">SEARCH</span>
+                        {% else %}
+                        <span class="chat-tool-pill-icon">READ</span>
+                        {% endif %}
+                        <span class="chat-tool-pill-text">{{ ev.summary }}</span>
+                    </div>
+                    {% if ev.result %}
+                    <div class="chat-tool-pill-body" hidden>{{ ev.result }}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="chat-msg-content">{{ msg.content }}</div>
+            {% if msg.usage and msg.usage.input_tokens %}
+            <div class="chat-usage">
+                <span class="chat-usage-tokens">{{ msg.usage.input_tokens | int }} in / {{ msg.usage.output_tokens | int }} out</span>
+                <span class="chat-usage-cost">${{ "%.4f" | format(msg.usage.input_cost | float + msg.usage.output_cost | float) }}</span>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="chat-status-area" id="chatStatusArea" hidden>
+        <div class="chat-thinking-pulse" id="chatThinkingPulse">
+            <div class="pulse-bar"></div>
+            <div class="pulse-bar"></div>
+            <div class="pulse-bar"></div>
+        </div>
+        <div class="chat-status-text" id="chatStatusText"></div>
+        <div class="chat-tool-events" id="chatToolEvents"></div>
+    </div>
+
+    <form class="chat-input-form" id="chatForm" autocomplete="off">
+        <div class="chat-input-wrap">
+            <textarea
+                class="chat-input"
+                id="chatInput"
+                name="message"
+                placeholder="Ask anything..."
+                rows="1"
+                autofocus
+            ></textarea>
+            <button class="chat-send-btn" id="chatSend" type="submit" title="Send message">SEND</button>
+        </div>
+    </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script
+  src="{{ theme_url('js/chat-agent.js') }}"
+  data-chat-id="{{ chat.id }}"
+  data-needs-stream="{{ 'true' if needs_stream else 'false' }}"
+  data-last-notification-at="{{ last_notification_at or 0 }}"
+></script>
+{% endblock %}

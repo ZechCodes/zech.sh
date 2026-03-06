@@ -24,6 +24,17 @@ from skrift.db.models.user import User
 from skrift.lib.notifications import NotificationMode, notify_user
 
 from controllers.brave_search import brave_search
+from controllers.chat_agent import (
+    CompactEvent as ChatCompactEvent,
+    DoneEvent as ChatDoneEvent,
+    ErrorEvent as ChatErrorEvent,
+    NotesEvent as ChatNotesEvent,
+    TextEvent as ChatTextEvent,
+    ThinkingEvent as ChatThinkingEvent,
+    ToolDoneEvent as ChatToolDoneEvent,
+    ToolStartEvent as ChatToolStartEvent,
+    run_chat,
+)
 from controllers.deep_research_agent import (
     DetailEvent as DeepDetailEvent,
     DoneEvent as DeepDoneEvent,
@@ -63,6 +74,140 @@ def _get_session_factory() -> async_sessionmaker:
 
 
 _active_research: dict[UUID, asyncio.Task] = {}
+_active_chats: dict[UUID, asyncio.Task] = {}
+
+_NOTES_SESSION_PREFIX = "chat_notes:"
+
+
+def _get_notes(request: Request, chat_id: UUID) -> str:
+    return request.session.get(f"{_NOTES_SESSION_PREFIX}{chat_id}", "")
+
+
+def _set_notes(request: Request, chat_id: UUID, notes: str) -> None:
+    request.session[f"{_NOTES_SESSION_PREFIX}{chat_id}"] = notes
+
+
+# ---------------------------------------------------------------------------
+# Background chat agent task
+# ---------------------------------------------------------------------------
+
+
+async def _run_chat_bg(
+    user_id: UUID,
+    chat_id: UUID,
+    memory_notes: str = "",
+    tz: str = "",
+) -> None:
+    """Run the chat agent as a background task, pushing notifications."""
+    uid = str(user_id)
+    cid = str(chat_id)
+
+    async def _notify(ntype: str, **payload: object) -> None:
+        payload["chat_id"] = cid
+        await notify_user(uid, ntype, mode=_NM, **payload)
+
+    try:
+        async with _get_session_factory()() as db_session:
+            result = await db_session.execute(
+                select(ChatMessage)
+                .where(ChatMessage.chat_id == chat_id)
+                .order_by(ChatMessage.created_at.asc())
+            )
+            messages = list(result.scalars().all())
+            if not messages or messages[-1].role != "user":
+                return
+
+            user_message = messages[-1].content
+            history = []
+            for msg in messages[:-1]:
+                role = "model" if msg.role == "assistant" else msg.role
+                if msg.content:
+                    history.append({"role": role, "content": msg.content})
+
+            accumulated_text = ""
+            accumulated_events: list[dict] = []
+            new_notes = memory_notes
+
+            try:
+                async for event in run_chat(user_message, history, memory_notes, user_timezone=tz):
+                    if isinstance(event, ChatThinkingEvent):
+                        await _notify("chat:thinking", thinking=event.thinking)
+                    elif isinstance(event, ChatToolStartEvent):
+                        await _notify(
+                            "chat:tool_start",
+                            tool=event.tool,
+                            args=event.args,
+                        )
+                    elif isinstance(event, ChatToolDoneEvent):
+                        accumulated_events.append({
+                            "tool": event.tool,
+                            "summary": event.summary,
+                            "result": event.result,
+                        })
+                        await _notify(
+                            "chat:tool_done",
+                            tool=event.tool,
+                            summary=event.summary,
+                            result=event.result,
+                        )
+                    elif isinstance(event, ChatTextEvent):
+                        accumulated_text += event.text
+                        await _notify("chat:text", text=event.text)
+                    elif isinstance(event, ChatNotesEvent):
+                        new_notes = event.notes
+                    elif isinstance(event, ChatCompactEvent):
+                        await _notify(
+                            "chat:compact",
+                            removed_messages=event.removed_messages,
+                            summary_tokens=event.summary_tokens,
+                        )
+                    elif isinstance(event, ChatDoneEvent):
+                        usage_data = event.usage or {}
+                        assistant_msg = ChatMessage(
+                            chat_id=chat_id,
+                            role="assistant",
+                            content=accumulated_text,
+                            events_json=json.dumps(accumulated_events),
+                            usage_json=json.dumps(usage_data),
+                        )
+                        db_session.add(assistant_msg)
+                        chat_result = await db_session.execute(
+                            select(ChatSession).where(ChatSession.id == chat_id)
+                        )
+                        chat_obj = chat_result.scalar_one_or_none()
+                        if chat_obj:
+                            chat_obj.last_notification_at = time.time()
+                        await db_session.commit()
+                        await _notify(
+                            "chat:done",
+                            events=accumulated_events,
+                            notes=new_notes,
+                            usage=usage_data,
+                        )
+                    elif isinstance(event, ChatErrorEvent):
+                        await _notify("chat:error", error=event.error)
+            except Exception as exc:
+                logger.exception("Chat agent error for chat %s", cid)
+                await _notify("chat:error", error=str(exc))
+    except Exception:
+        logger.exception("Chat background task error for chat %s", cid)
+        try:
+            await _notify("chat:error", error="Internal error")
+        except Exception:
+            pass
+    finally:
+        _active_chats.pop(chat_id, None)
+
+
+def _start_chat_task(
+    user_id: UUID, chat_id: UUID, memory_notes: str = "", tz: str = ""
+) -> None:
+    """Create and register a background chat task."""
+    if chat_id in _active_chats:
+        return
+    task = asyncio.create_task(_run_chat_bg(user_id, chat_id, memory_notes, tz=tz))
+    _active_chats[chat_id] = task
+
 
 # ---------------------------------------------------------------------------
 # Pre-buffered AI overview generation
@@ -385,6 +530,26 @@ class ScanController(Controller):
             if not q.strip():
                 return Redirect(path="/")
 
+            if mode == "chat":
+                title = await generate_chat_title(q.strip())
+                chat = ChatSession(user_id=user.id, title=title, mode="chat")
+                db_session.add(chat)
+                await db_session.flush()
+                user_msg = ChatMessage(
+                    chat_id=chat.id, role="user", content=q.strip()
+                )
+                db_session.add(user_msg)
+                await db_session.commit()
+                _start_chat_task(user.id, chat.id)
+                chat_url = f"/chat/{chat.id}"
+                accept = request.headers.get("accept", "")
+                if "application/json" in accept:
+                    return Response(
+                        content={"url": chat_url, "type": "chat"},
+                        status_code=200,
+                    )
+                return Redirect(path=chat_url)
+
             if mode == "deep":
                 classification = "DEEP_RESEARCH"
             elif mode == "discover":
@@ -548,6 +713,48 @@ class ScanController(Controller):
 
             needs_stream = bool(messages) and messages[-1].role == "user"
 
+            if chat.mode == "chat":
+                notes = _get_notes(request, chat_id)
+                # Crash recovery
+                if needs_stream and chat_id not in _active_chats:
+                    _start_chat_task(user.id, chat_id, notes)
+
+                # Convert messages to dicts with parsed events for template
+                msg_dicts = []
+                for msg in messages:
+                    events = []
+                    if msg.events_json and msg.events_json != "[]":
+                        try:
+                            events = json.loads(msg.events_json)
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                    usage = {}
+                    if msg.usage_json and msg.usage_json != "{}":
+                        try:
+                            usage = json.loads(msg.usage_json)
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                    msg_dicts.append({
+                        "role": msg.role,
+                        "content": msg.content,
+                        "events": events,
+                        "usage": usage,
+                    })
+
+                return TemplateResponse(
+                    "agent_chat.html",
+                    context={
+                        "user": user,
+                        "chat": chat,
+                        "messages": msg_dicts,
+                        "needs_stream": needs_stream,
+                        "recent_chats": recent_chats,
+                        "last_notification_at": chat.last_notification_at or 0,
+                        "notes": notes,
+                    },
+                )
+
+            # Research / deep_research modes
             # Crash recovery: needs_stream but no active task → restart pipeline
             if needs_stream and chat_id not in _active_research:
                 _start_pipeline_task(user.id, chat_id, chat.mode)
@@ -596,8 +803,15 @@ class ScanController(Controller):
         chat.updated_at = datetime.now(timezone.utc)
         await db_session.commit()
 
-        tz = body.get("tz", "")
-        _start_pipeline_task(user.id, chat_id, chat.mode, tz=tz)
+        if chat.mode == "chat":
+            notes = body.get("notes", "") or _get_notes(request, chat_id)
+            if notes:
+                _set_notes(request, chat_id, notes)
+            msg_tz = body.get("tz", "")
+            _start_chat_task(user.id, chat_id, notes, tz=msg_tz)
+        else:
+            tz = body.get("tz", "")
+            _start_pipeline_task(user.id, chat_id, chat.mode, tz=tz)
 
         return Response(
             content={"id": str(msg.id), "content": content, "started": True},
@@ -707,7 +921,7 @@ class ScanController(Controller):
             return Response(content={"suggestions": []}, status_code=200)
         if len(q.strip()) < 2:
             return Response(content={"suggestions": []}, status_code=200)
-        if mode not in ("launch", "discover", "deep", "search"):
+        if mode not in ("launch", "discover", "deep", "search", "chat"):
             mode = "launch"
         suggestions = await _get_suggestions(q.strip(), mode)
         return Response(content={"suggestions": suggestions}, status_code=200)

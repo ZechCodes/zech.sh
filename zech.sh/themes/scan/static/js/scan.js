@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Mode dropdown
-    var modeLabels = { launch: 'LAUNCH', discover: 'DISCOVER', deep: 'DEEP', search: 'SEARCH' };
+    var modeLabels = { launch: 'LAUNCH', discover: 'DISCOVER', deep: 'DEEP', search: 'SEARCH', chat: 'CHAT' };
     var currentMode = localStorage.getItem('scanMode') || 'launch';
     if (!modeLabels[currentMode]) currentMode = 'launch';
 
