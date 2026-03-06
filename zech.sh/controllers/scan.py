@@ -12,6 +12,7 @@ from uuid import UUID
 from litestar import Controller, Request, get, post
 from litestar.response import Redirect, Response
 from litestar.response import Template as TemplateResponse
+from litestar.response.sse import ServerSentEvent, ServerSentEventMessage
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -62,6 +63,53 @@ def _get_session_factory() -> async_sessionmaker:
 
 
 _active_research: dict[UUID, asyncio.Task] = {}
+
+# ---------------------------------------------------------------------------
+# Pre-buffered AI overview generation
+# ---------------------------------------------------------------------------
+
+
+class _OverviewBuffer:
+    __slots__ = ("chunks", "done", "error", "_event", "created_at")
+
+    def __init__(self) -> None:
+        self.chunks: list[str] = []
+        self.done: bool = False
+        self.error: str | None = None
+        self._event: asyncio.Event = asyncio.Event()
+        self.created_at: float = time.monotonic()
+
+
+_overview_buffers: dict[str, _OverviewBuffer] = {}
+_OVERVIEW_BUFFER_TTL = 30  # seconds
+
+
+async def _fill_overview_buffer(query: str, results: list[dict], buf: _OverviewBuffer) -> None:
+    """Background task: stream LLM chunks into the buffer."""
+    try:
+        async for text in _stream_search_overview(query, results):
+            buf.chunks.append(text)
+            buf._event.set()
+            buf._event.clear()
+    except Exception as exc:
+        logger.exception("Overview buffer error for %r", query)
+        buf.error = str(exc)
+    finally:
+        buf.done = True
+        buf._event.set()
+    # Auto-cleanup after TTL
+    await asyncio.sleep(_OVERVIEW_BUFFER_TTL)
+    _overview_buffers.pop(query, None)
+
+
+def _start_overview_task(query: str, results: list[dict]) -> None:
+    key = query.strip()
+    if key in _overview_buffers:
+        return
+    buf = _OverviewBuffer()
+    _overview_buffers[key] = buf
+    asyncio.create_task(_fill_overview_buffer(key, results, buf))
+
 
 _NM = NotificationMode.TIMESERIES
 
@@ -189,30 +237,26 @@ _OVERVIEW_SYSTEM = (
 )
 
 
-async def _generate_search_overview(query: str, results: list[dict]) -> str:
-    """Generate a short AI overview from search result snippets using Flash Lite."""
-    try:
-        snippets = "\n".join(
-            f"- {r.get('title', '')}: {r.get('description', '')}"
-            for r in results[:10]
-        )
-        client = genai_client()
-        resp = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-3.1-flash-lite-preview",
-            contents=f"Query: {query}\n\nSearch results:\n{snippets}",
-            config=GenerateContentConfig(
-                system_instruction=_OVERVIEW_SYSTEM,
-                temperature=0.3,
-                thinking_config=ThinkingConfig(
-                    thinking_level=ThinkingLevel.LOW,
-                ),
+async def _stream_search_overview(query: str, results: list[dict]):
+    """Async generator that streams AI overview chunks from Flash Lite."""
+    snippets = "\n".join(
+        f"- {r.get('title', '')}: {r.get('description', '')}"
+        for r in results[:10]
+    )
+    client = genai_client()
+    async for chunk in await client.aio.models.generate_content_stream(
+        model="gemini-3.1-flash-lite-preview",
+        contents=f"Query: {query}\n\nSearch results:\n{snippets}",
+        config=GenerateContentConfig(
+            system_instruction=_OVERVIEW_SYSTEM,
+            temperature=0.3,
+            thinking_config=ThinkingConfig(
+                thinking_level=ThinkingLevel.LOW,
             ),
-        )
-        return resp.text or ""
-    except Exception:
-        logger.exception("Failed to generate search overview")
-        return ""
+        ),
+    ):
+        if chunk.text:
+            yield chunk.text
 
 
 OPENSEARCH_XML = """\
@@ -387,9 +431,8 @@ class ScanController(Controller):
             offset = (page - 1) * count
             results = await brave_search(q.strip(), brave_api_key, count=count, offset=offset)
 
-            overview = ""
             if page == 1 and results:
-                overview = await _generate_search_overview(q.strip(), results)
+                _start_overview_task(q.strip(), results)
 
             has_next = len(results) >= count
             recent_chats = await _get_recent_chats(user.id, db_session)
@@ -398,7 +441,7 @@ class ScanController(Controller):
                 return Response(
                     content={
                         "results": results,
-                        "overview": overview,
+                        "overview": "",
                         "query": q.strip(),
                         "page": page,
                         "has_next": has_next,
@@ -411,7 +454,7 @@ class ScanController(Controller):
                     "user": user,
                     "query": q.strip(),
                     "results": results,
-                    "overview": overview,
+                    "overview": "",
                     "page": page,
                     "has_next": has_next,
                     "recent_chats": recent_chats,
@@ -420,6 +463,65 @@ class ScanController(Controller):
         except Exception:
             logger.exception("Error in search")
             raise
+
+    @get("/search/overview")
+    async def search_overview(
+        self,
+        request: Request,
+        db_session: AsyncSession,
+        q: str = "",
+    ) -> ServerSentEvent:
+        async def _stream():
+            user = await _get_user(request, db_session)
+            if not user or not await _has_scan_permission(user.id, db_session):
+                yield ServerSentEventMessage(event="error", data="unauthorized")
+                return
+            query = q.strip()
+            if not query:
+                yield ServerSentEventMessage(event="done", data="")
+                return
+
+            buf = _overview_buffers.get(query)
+            if buf is None:
+                # Fallback: no pre-buffered data (direct hit or expired) — generate inline
+                try:
+                    brave_api_key = os.environ.get("BRAVE_API_KEY", "")
+                    results = await brave_search(query, brave_api_key, count=10, offset=0)
+                    if not results:
+                        yield ServerSentEventMessage(event="done", data="")
+                        return
+                    async for text in _stream_search_overview(query, results):
+                        yield ServerSentEventMessage(event="text", data=text)
+                    yield ServerSentEventMessage(event="done", data="")
+                except Exception:
+                    logger.exception("SSE overview error (inline fallback)")
+                    yield ServerSentEventMessage(event="error", data="generation failed")
+                return
+
+            # Consume pre-buffered chunks
+            try:
+                cursor = 0
+                while True:
+                    # Replay any chunks accumulated since last read
+                    while cursor < len(buf.chunks):
+                        yield ServerSentEventMessage(event="text", data=buf.chunks[cursor])
+                        cursor += 1
+                    if buf.done:
+                        break
+                    buf._event.clear()
+                    await buf._event.wait()
+
+                if buf.error:
+                    yield ServerSentEventMessage(event="error", data=buf.error)
+                else:
+                    yield ServerSentEventMessage(event="done", data="")
+            except Exception:
+                logger.exception("SSE overview error (buffered)")
+                yield ServerSentEventMessage(event="error", data="generation failed")
+            finally:
+                _overview_buffers.pop(query, None)
+
+        return ServerSentEvent(_stream())
 
     @get("/chat/{chat_id:uuid}")
     async def chat_view(

@@ -25,16 +25,44 @@
         </div>
     </form>
 
-    {% if overview %}
-    <div class="search-overview">
+    {% if page == 1 and results %}
+    <div class="search-overview" id="overviewContainer">
         <div class="search-overview-label">AI OVERVIEW</div>
-        <div class="search-overview-text">{{ overview }}</div>
-        <div class="search-overview-links">
+        <div class="search-overview-text" id="overviewText"><span class="overview-loading">Generating overview</span></div>
+        <div class="search-overview-links" id="overviewLinks" hidden>
             <a href="/search?q={{ query | urlencode }}&mode=discover">Discover</a>
             <span class="search-overview-links-sep">/</span>
             <a href="/search?q={{ query | urlencode }}&mode=deep">Deep research</a>
         </div>
     </div>
+    <script nonce="{{ csp_nonce() }}">
+    (function() {
+        var container = document.getElementById('overviewContainer');
+        var textEl = document.getElementById('overviewText');
+        var linksEl = document.getElementById('overviewLinks');
+        var received = false;
+        var es = new EventSource('/search/overview?q=' + encodeURIComponent('{{ query | replace("'", "\\'") }}'));
+        es.addEventListener('text', function(e) {
+            if (!received) {
+                textEl.textContent = '';
+                received = true;
+            }
+            textEl.textContent += e.data;
+        });
+        es.addEventListener('done', function() {
+            es.close();
+            if (received) {
+                linksEl.hidden = false;
+            } else {
+                container.hidden = true;
+            }
+        });
+        es.addEventListener('error', function() {
+            es.close();
+            container.hidden = true;
+        });
+    })();
+    </script>
     {% endif %}
 
     {% if results %}
