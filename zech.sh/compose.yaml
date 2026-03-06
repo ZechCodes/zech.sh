@@ -9,6 +9,8 @@ services:
       - SKRIFT_ENV=development
     volumes:
       - ./app.db:/app/app.db
+      - ./app.yaml:/app/app.yaml
+      - ./app.development.yaml:/app/app.development.yaml
       - ./controllers:/app/controllers
       - ./models:/app/models
       - ./templates:/app/templates
@@ -27,6 +29,8 @@ services:
       - SKRIFT_ENV=development
     volumes:
       - ./app.db:/app/app.db
+      - ./app.yaml:/app/app.yaml
+      - ./app.development.yaml:/app/app.development.yaml
       - ./controllers:/app/controllers
       - ./models:/app/models
       - ./templates:/app/templates

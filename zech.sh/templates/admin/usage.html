@@ -1,0 +1,228 @@
+{% extends "admin/base.html" %}
+{% block title %}Usage - Admin - {{ site_name() }}{% endblock %}
+
+{% block head %}
+<style nonce="{{ csp_nonce() }}">
+.usage-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.usage-cards article {
+    text-align: center;
+    margin: 0;
+}
+.usage-cards h3 {
+    margin-bottom: 0.25rem;
+}
+.usage-filter {
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.usage-filter input,
+.usage-filter select {
+    margin-bottom: 0;
+    max-width: 280px;
+}
+th[data-sort] {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+th[data-sort]:hover {
+    text-decoration: underline;
+}
+th[data-sort].asc::after {
+    content: " \25B2";
+}
+th[data-sort].desc::after {
+    content: " \25BC";
+}
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<hgroup>
+    <h1>Usage Dashboard</h1>
+    <p>Token usage and cost across all chat sessions</p>
+</hgroup>
+
+<div class="usage-cards">
+    <article>
+        <h3>{{ "{:,}".format(grand_totals.input_tokens + grand_totals.output_tokens) }}</h3>
+        <small>Total Tokens</small>
+    </article>
+    <article>
+        <h3>${{ "%.4f" | format(grand_totals.total_cost) }}</h3>
+        <small>Total Cost</small>
+    </article>
+    <article>
+        <h3>{{ grand_totals.session_count }}</h3>
+        <small>Sessions</small>
+    </article>
+    <article>
+        <h3>{{ grand_totals.response_count }}</h3>
+        <small>Responses</small>
+    </article>
+</div>
+
+<h2>Usage by User</h2>
+{% if user_data %}
+<div class="usage-filter">
+    <input type="search" id="user-search" placeholder="Filter users...">
+</div>
+<figure>
+    <table id="user-table">
+        <thead>
+            <tr>
+                <th data-sort="string">User</th>
+                <th data-sort="number">Sessions</th>
+                <th data-sort="number">Responses</th>
+                <th data-sort="number">Input Tokens</th>
+                <th data-sort="number">Output Tokens</th>
+                <th data-sort="number">Input Cost</th>
+                <th data-sort="number">Output Cost</th>
+                <th data-sort="number">Total Cost</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in user_data %}
+            <tr>
+                <td>{{ user.name }}</td>
+                <td>{{ user.session_count }}</td>
+                <td>{{ user.response_count }}</td>
+                <td>{{ "{:,}".format(user.input_tokens) }}</td>
+                <td>{{ "{:,}".format(user.output_tokens) }}</td>
+                <td>${{ "%.4f" | format(user.input_cost) }}</td>
+                <td>${{ "%.4f" | format(user.output_cost) }}</td>
+                <td>${{ "%.4f" | format(user.total_cost) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</figure>
+{% else %}
+<p>No usage data yet.</p>
+{% endif %}
+
+<h2>Usage by Chat Session</h2>
+{% if chat_data %}
+<div class="usage-filter">
+    <input type="search" id="chat-search" placeholder="Filter sessions...">
+    <select id="chat-mode-filter">
+        <option value="">All modes</option>
+        {% for mode in chat_data | map(attribute='mode') | unique | sort %}
+        <option value="{{ mode }}">{{ mode }}</option>
+        {% endfor %}
+    </select>
+</div>
+<figure>
+    <table id="chat-table">
+        <thead>
+            <tr>
+                <th data-sort="string">Title</th>
+                <th data-sort="string">Mode</th>
+                <th data-sort="string">Created</th>
+                <th data-sort="number">Responses</th>
+                <th data-sort="number">Input Tokens</th>
+                <th data-sort="number">Output Tokens</th>
+                <th data-sort="number">Total Cost</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for chat in chat_data %}
+            <tr data-mode="{{ chat.mode }}">
+                <td>{{ chat.title }}</td>
+                <td>{{ chat.mode }}</td>
+                <td>{{ chat.created_at.strftime('%Y-%m-%d') }}</td>
+                <td>{{ chat.response_count }}</td>
+                <td>{{ "{:,}".format(chat.input_tokens) }}</td>
+                <td>{{ "{:,}".format(chat.output_tokens) }}</td>
+                <td>${{ "%.4f" | format(chat.total_cost) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</figure>
+{% else %}
+<p>No chat sessions with usage data yet.</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce() }}">
+(function() {
+    function parseValue(text, type) {
+        text = text.trim();
+        if (type === 'number') {
+            return parseFloat(text.replace(/[$,]/g, '')) || 0;
+        }
+        return text.toLowerCase();
+    }
+
+    function sortTable(table, colIndex, type) {
+        const tbody = table.tBodies[0];
+        const rows = Array.from(tbody.rows);
+        const th = table.tHead.rows[0].cells[colIndex];
+        const isAsc = th.classList.contains('asc');
+        const dir = isAsc ? -1 : 1;
+
+        table.querySelectorAll('th[data-sort]').forEach(h => h.classList.remove('asc', 'desc'));
+        th.classList.add(isAsc ? 'desc' : 'asc');
+
+        rows.sort((a, b) => {
+            const va = parseValue(a.cells[colIndex].textContent, type);
+            const vb = parseValue(b.cells[colIndex].textContent, type);
+            if (va < vb) return -1 * dir;
+            if (va > vb) return 1 * dir;
+            return 0;
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+        th.addEventListener('click', function() {
+            const table = this.closest('table');
+            const colIndex = Array.from(this.parentNode.cells).indexOf(this);
+            sortTable(table, colIndex, this.dataset.sort);
+        });
+    });
+
+    function filterTable(tableId, searchText, modeValue) {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        const rows = table.tBodies[0].rows;
+        const query = searchText.toLowerCase();
+
+        for (const row of rows) {
+            const text = row.textContent.toLowerCase();
+            const matchesSearch = !query || text.includes(query);
+            const matchesMode = !modeValue || row.dataset.mode === modeValue;
+            row.style.display = (matchesSearch && matchesMode) ? '' : 'none';
+        }
+    }
+
+    const userSearch = document.getElementById('user-search');
+    if (userSearch) {
+        userSearch.addEventListener('input', function() {
+            filterTable('user-table', this.value, '');
+        });
+    }
+
+    const chatSearch = document.getElementById('chat-search');
+    const chatMode = document.getElementById('chat-mode-filter');
+
+    function filterChats() {
+        filterTable('chat-table', chatSearch ? chatSearch.value : '', chatMode ? chatMode.value : '');
+    }
+
+    if (chatSearch) chatSearch.addEventListener('input', filterChats);
+    if (chatMode) chatMode.addEventListener('change', filterChats);
+})();
+</script>
+{% endblock %}

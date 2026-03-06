@@ -9,6 +9,7 @@ controllers:
   - skrift.controllers.auth:AuthController
   - controllers.admin_import_posts:ImportPostsAdminController
   - controllers.admin_integrations:IntegrationsAdminController
+  - controllers.admin_usage:UsageAdminController
   - controllers.admin_api_keys:ApiKeysAdminController
   - skrift.admin.controller:AdminController
   - controllers.redirects:RedirectsController
