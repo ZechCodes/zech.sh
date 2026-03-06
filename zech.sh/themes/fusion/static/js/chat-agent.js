@@ -1,6 +1,21 @@
-// CHAT AGENT: Conversational AI with tools, thinking display, and streaming
+// CHAT AGENT: Notification-driven conversational AI with tools
+// Uses Skrift's time-series notification system for resilient streaming.
 (function () {
   "use strict";
+
+  // ---------------------------------------------------------------------------
+  // Script data attributes
+  // ---------------------------------------------------------------------------
+
+  var scriptEl = document.currentScript;
+  var chatId = scriptEl && scriptEl.getAttribute("data-chat-id");
+  var needsStream = scriptEl && scriptEl.getAttribute("data-needs-stream") === "true";
+  var lastNotificationAt = scriptEl && scriptEl.getAttribute("data-last-notification-at");
+
+  // Prevent premature notification replay before our listener is ready
+  if (needsStream && window.__skriftNotifications) {
+    window.__skriftNotifications._disconnect();
+  }
 
   // ---------------------------------------------------------------------------
   // Markdown renderer setup
@@ -46,15 +61,9 @@
   var statusArea = document.getElementById("chatStatusArea");
   var thinkingPulse = document.getElementById("chatThinkingPulse");
   var statusText = document.getElementById("chatStatusText");
-  var toolEvents = document.getElementById("chatToolEvents");
+  var toolEventsEl = document.getElementById("chatToolEvents");
 
   if (!chatForm || !chatInput) return;
-
-  // ---------------------------------------------------------------------------
-  // Chat ID state
-  // ---------------------------------------------------------------------------
-
-  var chatId = window.__chatId || null;
 
   // ---------------------------------------------------------------------------
   // Render existing messages as markdown
@@ -67,7 +76,6 @@
     }
   });
 
-  // Auto-scroll to bottom on load
   chatMessages.scrollTop = chatMessages.scrollHeight;
 
   // ---------------------------------------------------------------------------
@@ -97,7 +105,7 @@
     statusArea.hidden = !active;
     if (active) {
       statusText.textContent = "THINKING";
-      toolEvents.innerHTML = "";
+      toolEventsEl.innerHTML = "";
       thinkingPulse.style.display = "flex";
     } else {
       thinkingPulse.style.display = "none";
@@ -155,7 +163,7 @@
     ev.innerHTML =
       '<span class="chat-tool-event-icon">' + iconLabel + "</span>" +
       '<span class="chat-tool-event-text">' + escapeHtml(text) + "</span>";
-    toolEvents.appendChild(ev);
+    toolEventsEl.appendChild(ev);
     statusArea.scrollIntoView({ behavior: "smooth", block: "nearest" });
     return ev;
   }
@@ -168,19 +176,122 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Send message & stream response
+  // Notification-driven streaming
+  // ---------------------------------------------------------------------------
+
+  var activeMsgEls = null;
+  var activeBuffer = "";
+  var activeToolEvents = [];
+  var activeToolEventEl = null;
+  var cleanupListener = null;
+
+  function connectStream() {
+    setStreaming(true);
+
+    if (!activeMsgEls) {
+      activeMsgEls = createAssistantMessage();
+    }
+    activeBuffer = "";
+    activeToolEvents = [];
+    activeToolEventEl = null;
+
+    function handler(e) {
+      var data = e.detail;
+      if (data.chat_id !== chatId) return;
+      e.preventDefault();
+
+      var ntype = data.type;
+
+      if (ntype === "chat:thinking") {
+        statusText.textContent = "THINKING";
+        thinkingPulse.style.display = "flex";
+
+      } else if (ntype === "chat:tool_start") {
+        var toolText =
+          data.tool === "web_search"
+            ? "Searching '" + (data.args.query || "") + "'"
+            : "Reading " + (data.args.url || "");
+        statusText.textContent = data.tool === "web_search" ? "SEARCHING" : "READING";
+        activeToolEventEl = addStatusToolEvent(data.tool, toolText, true);
+
+      } else if (ntype === "chat:tool_done") {
+        if (activeToolEventEl) {
+          activeToolEventEl.classList.remove("is-running");
+          activeToolEventEl.classList.add("is-done");
+          activeToolEventEl.querySelector(".chat-tool-event-text").textContent = data.summary;
+        }
+        activeToolEvents.push({ tool: data.tool, summary: data.summary });
+        statusText.textContent = "THINKING";
+        activeToolEventEl = null;
+
+      } else if (ntype === "chat:text") {
+        thinkingPulse.style.display = "none";
+        statusText.textContent = "RESPONDING";
+        activeBuffer += data.text;
+        activeMsgEls.content.innerHTML = renderMarkdown(activeBuffer);
+        scrollToBottom();
+
+      } else if (ntype === "chat:compact") {
+        addCompactNotice(data.removed_messages);
+
+      } else if (ntype === "chat:done") {
+        // Render tool pills inline in the message
+        for (var i = 0; i < activeToolEvents.length; i++) {
+          addToolPill(activeMsgEls.pills, activeToolEvents[i].tool, activeToolEvents[i].summary);
+        }
+        // Save notes to session via data attribute for future use
+        if (data.notes) {
+          // Notes are persisted server-side via the background task
+        }
+        setStreaming(false);
+        scrollToBottom();
+        activeMsgEls = null;
+        cleanup();
+
+      } else if (ntype === "chat:error") {
+        setStreaming(false);
+        if (activeMsgEls) {
+          activeMsgEls.content.innerHTML =
+            '<p style="color: #ff6b6b;">Error: ' +
+            escapeHtml(data.error || "Connection lost") +
+            "</p>";
+        }
+        scrollToBottom();
+        activeMsgEls = null;
+        cleanup();
+      }
+    }
+
+    document.addEventListener("sk:notification", handler);
+
+    function cleanup() {
+      document.removeEventListener("sk:notification", handler);
+      cleanupListener = null;
+    }
+    cleanupListener = cleanup;
+
+    // Reconnect Skrift notifications to trigger replay
+    var sn = window.__skriftNotifications;
+    if (sn) {
+      sn.configure({ persistConnection: true });
+      if (lastNotificationAt) {
+        sn.lastSeen = parseFloat(lastNotificationAt);
+      }
+      sn._disconnect();
+      sn._connect();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Send message
   // ---------------------------------------------------------------------------
 
   function sendMessage(text) {
     if (!text.trim() || isStreaming) return;
 
     addUserMessage(text);
+    activeMsgEls = createAssistantMessage();
     setStreaming(true);
-
-    var msgEls = createAssistantMessage();
-    var buffer = "";
-    var currentToolEvent = null;
-    var toolEventsData = [];
 
     fetch("/chat/send", {
       method: "POST",
@@ -190,107 +301,24 @@
     })
       .then(function (response) {
         if (!response.ok) throw new Error("HTTP " + response.status);
-        var reader = response.body.getReader();
-        var decoder = new TextDecoder();
-        var sseBuffer = "";
-
-        function processSSE(line) {
-          if (!line.trim()) return;
-
-          if (line.startsWith("event:")) {
-            processSSE._currentEvent = line.slice(6).trim();
-            return;
-          }
-
-          if (line.startsWith("data:")) {
-            var eventType = processSSE._currentEvent || "message";
-            var dataStr = line.slice(5).trim();
-            processSSE._currentEvent = null;
-
-            if (eventType === "chat_created") {
-              var created = JSON.parse(dataStr);
-              chatId = created.chat_id;
-              window.history.replaceState(null, "", "/chat/" + chatId);
-            } else if (eventType === "thinking") {
-              statusText.textContent = "THINKING";
-              thinkingPulse.style.display = "flex";
-            } else if (eventType === "tool_start") {
-              var toolData = JSON.parse(dataStr);
-              var toolText =
-                toolData.tool === "web_search"
-                  ? "Searching '" + (toolData.args.query || "") + "'"
-                  : "Reading " + (toolData.args.url || "");
-              statusText.textContent = toolData.tool === "web_search" ? "SEARCHING" : "READING";
-              currentToolEvent = addStatusToolEvent(toolData.tool, toolText, true);
-            } else if (eventType === "tool_done") {
-              var doneData = JSON.parse(dataStr);
-              if (currentToolEvent) {
-                currentToolEvent.classList.remove("is-running");
-                currentToolEvent.classList.add("is-done");
-                currentToolEvent.querySelector(".chat-tool-event-text").textContent = doneData.summary;
-              }
-              toolEventsData.push({ tool: doneData.tool, summary: doneData.summary });
-              statusText.textContent = "THINKING";
-              currentToolEvent = null;
-            } else if (eventType === "text") {
-              thinkingPulse.style.display = "none";
-              statusText.textContent = "RESPONDING";
-              var textData = JSON.parse(dataStr);
-              buffer += textData.text;
-              msgEls.content.innerHTML = renderMarkdown(buffer);
-              scrollToBottom();
-            } else if (eventType === "compact") {
-              var compactData = JSON.parse(dataStr);
-              addCompactNotice(compactData.removed_messages);
-            } else if (eventType === "done") {
-              // Render tool pills inline in the message
-              for (var i = 0; i < toolEventsData.length; i++) {
-                addToolPill(msgEls.pills, toolEventsData[i].tool, toolEventsData[i].summary);
-              }
-              // Update chatId from done event
-              try {
-                var doneInfo = JSON.parse(dataStr);
-                if (doneInfo.chat_id) chatId = doneInfo.chat_id;
-              } catch (_) {}
-              setStreaming(false);
-              scrollToBottom();
-            } else if (eventType === "error") {
-              setStreaming(false);
-              var errData = {};
-              try { errData = JSON.parse(dataStr); } catch (_) {}
-              msgEls.content.innerHTML =
-                '<p style="color: #ff6b6b;">Error: ' +
-                escapeHtml(errData.error || "Connection lost") +
-                "</p>";
-              scrollToBottom();
-            }
-          }
+        return response.json();
+      })
+      .then(function (result) {
+        chatId = result.chat_id;
+        if (result.is_new_chat) {
+          window.history.replaceState(null, "", "/chat/" + chatId);
         }
-        processSSE._currentEvent = null;
-
-        function pump() {
-          return reader.read().then(function (result) {
-            if (result.done) {
-              if (isStreaming) setStreaming(false);
-              return;
-            }
-
-            sseBuffer += decoder.decode(result.value, { stream: true });
-            var lines = sseBuffer.split("\n");
-            sseBuffer = lines.pop();
-
-            lines.forEach(processSSE);
-            return pump();
-          });
-        }
-
-        return pump();
+        // Now connect to notifications to receive the response
+        connectStream();
       })
       .catch(function (err) {
         setStreaming(false);
-        msgEls.content.innerHTML =
-          '<p style="color: #ff6b6b;">Error: ' + escapeHtml(err.message) + "</p>";
+        if (activeMsgEls) {
+          activeMsgEls.content.innerHTML =
+            '<p style="color: #ff6b6b;">Error: ' + escapeHtml(err.message) + "</p>";
+        }
         scrollToBottom();
+        activeMsgEls = null;
       });
   }
 
@@ -307,7 +335,6 @@
     sendMessage(text);
   });
 
-  // Enter to send, Shift+Enter for newline
   chatInput.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -326,4 +353,13 @@
     if (document.activeElement && document.activeElement.tagName === "TEXTAREA") return;
     if (e.key.length === 1 && !isStreaming) chatInput.focus();
   });
+
+  // ---------------------------------------------------------------------------
+  // Start stream on page load if needed (e.g. page refresh during generation)
+  // ---------------------------------------------------------------------------
+
+  if (needsStream && chatId) {
+    activeMsgEls = createAssistantMessage();
+    connectStream();
+  }
 })();

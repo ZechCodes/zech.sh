@@ -113,12 +113,14 @@
     </div>
 </section>
 
-<script>
-  window.__chatId = {{ chat_id | tojson }};
-</script>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ theme_url('js/marked.min.js') }}"></script>
-<script src="{{ theme_url('js/chat-agent.js') }}"></script>
+<script
+  src="{{ theme_url('js/chat-agent.js') }}"
+  data-chat-id="{{ chat_id or '' }}"
+  data-needs-stream="{{ 'true' if needs_stream else 'false' }}"
+  data-last-notification-at="{{ last_notification_at or 0 }}"
+></script>
 {% endblock %}
