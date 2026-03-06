@@ -139,11 +139,16 @@ classify_agent = Agent(
         "You are a query classifier. Given a user input, classify it as exactly one of:\n\n"
         "URL — The input looks like a domain name, IP address, or URL (with or without a protocol). "
         'Examples: "github.com", "docs.python.org/3/library/asyncio", "192.168.1.1"\n\n'
-        "SEARCH — The input is a simple web search query looking for results/links. "
-        'Examples: "python list comprehension", "best pizza near me", "litestar framework"\n\n'
-        "RESEARCH — The input is a question or request that needs a comprehensive, direct answer "
-        "or in-depth analysis rather than a list of links. "
-        'Examples: "how does TCP congestion control work?", "compare React vs Svelte for SPAs"\n\n'
+        "SEARCH — The input is a web search query. This is the DEFAULT for almost everything: "
+        "lookups, definitions, factual questions, product searches, how-to queries, and anything "
+        "a normal search engine handles well. When in doubt, classify as SEARCH. "
+        'Examples: "python list comprehension", "define avant garde", "best pizza near me", '
+        '"what is kubernetes", "how to center a div", "litestar framework"\n\n'
+        "RESEARCH — The input explicitly asks for deep analysis, comparison, or a synthesized "
+        "answer that requires reading and combining multiple sources. Reserve this for queries "
+        "that clearly need multi-source investigation, not simple questions with direct answers. "
+        'Examples: "compare React vs Svelte for SPAs in 2026", '
+        '"what are the tradeoffs between microservices and monoliths for a 10-person team"\n\n'
         "Respond with exactly one word: URL, SEARCH, or RESEARCH. Nothing else."
     ),
 )
