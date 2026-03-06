@@ -74,6 +74,7 @@
     var raw = el.textContent;
     if (raw && raw.trim()) {
       el.innerHTML = renderMarkdown(raw);
+      el.parentElement.appendChild(createCopyButton(raw));
     }
   });
 
@@ -197,6 +198,26 @@
     return ev;
   }
 
+  function createCopyButton(markdown) {
+    var row = document.createElement("div");
+    row.className = "response-actions";
+    var copyBtn = document.createElement("button");
+    copyBtn.className = "response-action-btn";
+    copyBtn.title = "Copy as Markdown";
+    copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    copyBtn.addEventListener("click", function () {
+      navigator.clipboard.writeText(markdown).then(function () {
+        var fb = document.createElement("span");
+        fb.className = "response-actions-feedback";
+        fb.textContent = "Copied!";
+        row.appendChild(fb);
+        setTimeout(function () { fb.remove(); }, 1500);
+      });
+    });
+    row.appendChild(copyBtn);
+    return row;
+  }
+
   function addCompactNotice(removed) {
     var notice = document.createElement("div");
     notice.className = "chat-compact-notice";
@@ -277,6 +298,10 @@
             '<span class="chat-usage-tokens">' + data.usage.input_tokens + " in / " + data.usage.output_tokens + " out</span>" +
             '<span class="chat-usage-cost">$' + cost + "</span>";
           activeMsgEls.el.appendChild(usageEl);
+        }
+        // Copy button
+        if (activeBuffer) {
+          activeMsgEls.el.appendChild(createCopyButton(activeBuffer));
         }
         // Store notes for next message round-trip
         if (data.notes) {
