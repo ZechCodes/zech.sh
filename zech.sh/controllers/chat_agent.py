@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 
 import httpx
-from bs4 import BeautifulSoup
 from google.genai import types as genai_types
 
 from controllers.brave_search import brave_search as _brave_search
@@ -29,8 +28,6 @@ _MODEL = "gemini-3.1-flash-lite-preview"
 _MAX_HISTORY_TOKENS = 100_000
 _COMPACT_TOKENS = 50_000
 _MAX_FETCH_CHARS = 80_000
-
-_CHAT_USER_AGENT = "zech-sh-chat/1.0 (+https://zech.sh; admin@zech.sh)"
 
 # ---------------------------------------------------------------------------
 # SSE event types
@@ -164,30 +161,24 @@ async def _exec_web_search(query: str) -> str:
 
 
 async def _exec_open_url(url: str) -> str:
-    """Fetch a URL and extract text content."""
+    """Fetch a URL via Jina Reader and return extracted text."""
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
             return "Error: Only HTTP/HTTPS URLs are supported."
 
+        jina_url = f"https://r.jina.ai/{url}"
         async with httpx.AsyncClient(
             follow_redirects=True,
-            timeout=15.0,
-            headers={"User-Agent": _CHAT_USER_AGENT},
+            timeout=30.0,
+            headers={
+                "Accept": "text/plain",
+                "X-No-Cache": "true",
+            },
         ) as client:
-            resp = await client.get(url)
+            resp = await client.get(jina_url)
             resp.raise_for_status()
-            content_type = resp.headers.get("content-type", "")
-
-            if "text/html" in content_type:
-                soup = BeautifulSoup(resp.text, "html.parser")
-                for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-                    tag.decompose()
-                text = soup.get_text(separator="\n", strip=True)
-            elif "text/plain" in content_type or "application/json" in content_type:
-                text = resp.text
-            else:
-                return f"Fetched {url} but content type '{content_type}' is not readable text."
+            text = resp.text
 
         if len(text) > _MAX_FETCH_CHARS:
             text = text[:_MAX_FETCH_CHARS] + "\n\n[Content truncated]"
