@@ -17,8 +17,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Mode dropdown
     var modeLabels = { launch: 'LAUNCH', discover: 'DISCOVER', deep: 'DEEP', search: 'SEARCH', chat: 'CHAT' };
-    var currentMode = localStorage.getItem('scanMode') || 'launch';
-    if (!modeLabels[currentMode]) currentMode = 'launch';
+    var formEl = document.querySelector('.scan-form:not(#chatFollowup):not(#searchBar)');
+    var allowedModes = ['search'];
+    try {
+        var raw = formEl && formEl.dataset.allowedModes;
+        if (raw) allowedModes = JSON.parse(raw);
+    } catch(e) {}
+    var currentMode = localStorage.getItem('scanMode') || 'search';
+    if (!modeLabels[currentMode] || allowedModes.indexOf(currentMode) === -1) currentMode = 'search';
 
     var modeSplit = document.querySelector('.scan-mode-split');
     var modeLabel = document.querySelector('.scan-mode-label');
@@ -26,9 +32,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var modeMenu = document.querySelector('.scan-mode-menu');
 
     function setMode(mode) {
+        if (allowedModes.indexOf(mode) === -1) mode = 'search';
         currentMode = mode;
         localStorage.setItem('scanMode', mode);
-        if (modeLabel) modeLabel.textContent = modeLabels[mode] || 'LAUNCH';
+        if (modeLabel) modeLabel.textContent = modeLabels[mode] || 'SEARCH';
         if (modeMenu) {
             modeMenu.querySelectorAll('.scan-mode-option').forEach(function(opt) {
                 opt.classList.toggle('active', opt.dataset.mode === mode);
@@ -69,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Search form — fetch classification then navigate via JS to avoid CSP form-action restriction
-    var form = document.querySelector('.scan-form:not(#chatFollowup):not(#searchBar)');
+    var form = formEl;
     if (form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();

@@ -9,7 +9,7 @@
 {% block content %}
 <section class="scan-search-section">
     <div class="scan-label">QUERY.RELAY</div>
-    <form class="scan-form" autocomplete="off">
+    <form class="scan-form" autocomplete="off" data-allowed-modes='{{ allowed_modes | tojson }}'>
         <div class="scan-form-row">
             <textarea
                 class="scan-input scan-input-auto"
@@ -21,33 +21,41 @@
             ></textarea>
             <div class="scan-mode-split">
                 <button type="submit" class="scan-mode-submit">
-                    <span class="scan-mode-label">LAUNCH</span>
+                    <span class="scan-mode-label">SEARCH</span>
                 </button>
                 <div class="scan-mode-divider"></div>
                 <button type="button" class="scan-mode-toggle">
                     <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
                 <div class="scan-mode-menu" hidden>
-                    <button type="button" class="scan-mode-option active" data-mode="launch">
+                    {% if "launch" in allowed_modes %}
+                    <button type="button" class="scan-mode-option" data-mode="launch">
                         <span class="scan-mode-option-name">LAUNCH</span>
                         <span class="scan-mode-option-desc">Smart query router</span>
                     </button>
+                    {% endif %}
+                    {% if "discover" in allowed_modes %}
                     <button type="button" class="scan-mode-option" data-mode="discover">
                         <span class="scan-mode-option-name">DISCOVER</span>
                         <span class="scan-mode-option-desc">Research agent</span>
                     </button>
+                    {% endif %}
+                    {% if "deep" in allowed_modes %}
                     <button type="button" class="scan-mode-option" data-mode="deep">
                         <span class="scan-mode-option-name">DEEP</span>
                         <span class="scan-mode-option-desc">Deep research agent</span>
                     </button>
+                    {% endif %}
                     <button type="button" class="scan-mode-option" data-mode="search">
                         <span class="scan-mode-option-name">SEARCH</span>
                         <span class="scan-mode-option-desc">Web search</span>
                     </button>
+                    {% if "chat" in allowed_modes %}
                     <button type="button" class="scan-mode-option" data-mode="chat">
                         <span class="scan-mode-option-name">CHAT</span>
                         <span class="scan-mode-option-desc">Conversational AI agent</span>
                     </button>
+                    {% endif %}
                 </div>
             </div>
         </div>

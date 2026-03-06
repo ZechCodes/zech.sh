@@ -10,19 +10,37 @@ from litestar.response import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from skrift.auth.guards import Permission
+from skrift.auth.guards import ADMINISTRATOR_PERMISSION
+from skrift.auth.services import get_user_permissions
 
 from controllers.api_auth import api_key_guard, get_api_user_id
 from controllers.scan import _active_research, _start_pipeline_task
 from controllers.scan_agent import generate_chat_title
 from models.chat import ChatMessage, ChatSession
 
+_API_MODE_PERMISSION: dict[str, str] = {
+    "lite": "use-research",
+    "deep": "use-deep-research",
+}
+
+_CHAT_MODE_PERMISSION: dict[str, str] = {
+    "research": "use-research",
+    "deep_research": "use-deep-research",
+}
+
+
+async def _check_api_permission(user_id: UUID, db_session: AsyncSession, permission: str) -> bool:
+    perms = await get_user_permissions(db_session, str(user_id))
+    if ADMINISTRATOR_PERMISSION in perms.permissions:
+        return True
+    return permission in perms.permissions
+
 
 class ResearchApiController(Controller):
     """API endpoints for triggering and retrieving research results."""
 
     path = "/api"
-    guards = [api_key_guard, Permission("scan")]
+    guards = [api_key_guard]
 
     @post("/research")
     async def create_research(
@@ -48,6 +66,10 @@ class ResearchApiController(Controller):
                 content={"error": "mode must be 'lite' or 'deep'"},
                 status_code=400,
             )
+
+        required_perm = _API_MODE_PERMISSION.get(mode)
+        if required_perm and not await _check_api_permission(user_id, db_session, required_perm):
+            return Response(content={"error": "forbidden"}, status_code=403)
 
         title = await generate_chat_title(query)
         chat = ChatSession(user_id=user_id, title=title, mode=chat_mode)
@@ -87,6 +109,10 @@ class ResearchApiController(Controller):
             return Response(
                 content={"error": "not found"}, status_code=404
             )
+
+        required_perm = _CHAT_MODE_PERMISSION.get(chat.mode)
+        if required_perm and not await _check_api_permission(user_id, db_session, required_perm):
+            return Response(content={"error": "forbidden"}, status_code=403)
 
         # Fetch messages
         msg_result = await db_session.execute(

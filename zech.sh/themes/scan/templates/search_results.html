@@ -30,9 +30,15 @@
         <div class="search-overview-label">AI OVERVIEW</div>
         <div class="search-overview-text" id="overviewText"><span class="overview-loading">Generating overview</span></div>
         <div class="search-overview-links" id="overviewLinks" hidden>
+            {% if "discover" in allowed_modes %}
             <a href="/search?q={{ query | urlencode }}&mode=discover">Discover</a>
+            {% endif %}
+            {% if "discover" in allowed_modes and "deep" in allowed_modes %}
             <span class="search-overview-links-sep">/</span>
+            {% endif %}
+            {% if "deep" in allowed_modes %}
             <a href="/search?q={{ query | urlencode }}&mode=deep">Deep research</a>
+            {% endif %}
         </div>
     </div>
     <script nonce="{{ csp_nonce() }}">

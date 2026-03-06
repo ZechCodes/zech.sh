@@ -17,6 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from skrift.auth.guards import ADMINISTRATOR_PERMISSION
+from skrift.auth.roles import register_role
 from skrift.auth.services import get_user_permissions
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
@@ -446,15 +447,69 @@ async def _get_chat_messages(
     return list(result.scalars().all())
 
 
-_SCAN_PERMISSION = "scan"
+# ---------------------------------------------------------------------------
+# Role-based access control
+# ---------------------------------------------------------------------------
+
+register_role(
+    "chatter", "use-chat",
+    display_name="Chatter",
+    description="Access to Chat mode",
+)
+register_role(
+    "researcher", "use-chat", "use-research",
+    display_name="Researcher",
+    description="Access to Chat + Discover modes",
+)
+register_role(
+    "deep-researcher", "use-chat", "use-research", "use-deep-research",
+    display_name="Deep Researcher",
+    description="Access to Chat + Discover + Deep modes",
+)
+
+_MODE_PERMISSION_MAP: dict[str, str] = {
+    "chat": "use-chat",
+    "discover": "use-research",
+    "deep": "use-deep-research",
+}
+
+_CHAT_MODE_PERMISSION_MAP: dict[str, str] = {
+    "chat": "use-chat",
+    "research": "use-research",
+    "deep_research": "use-deep-research",
+}
 
 
-async def _has_scan_permission(user_id: UUID, db_session: AsyncSession) -> bool:
-    """Check whether a user has the 'scan' permission."""
+async def _get_allowed_modes(user_id: UUID | None, db_session: AsyncSession) -> set[str]:
+    """Return the set of scan modes a user may access."""
+    allowed = {"search"}
+    if user_id is None:
+        return allowed
+    perms = await get_user_permissions(db_session, str(user_id))
+    if ADMINISTRATOR_PERMISSION in perms.permissions:
+        return {"search", "launch", "chat", "discover", "deep"}
+    allowed.add("launch")
+    for mode, perm in _MODE_PERMISSION_MAP.items():
+        if perm in perms.permissions:
+            allowed.add(mode)
+    return allowed
+
+
+def _can_use_mode(mode: str, allowed_modes: set[str]) -> bool:
+    return mode in allowed_modes
+
+
+async def _has_chat_mode_permission(
+    chat_mode: str, user_id: UUID, db_session: AsyncSession
+) -> bool:
+    """Check if user has permission for a chat session's mode."""
     perms = await get_user_permissions(db_session, str(user_id))
     if ADMINISTRATOR_PERMISSION in perms.permissions:
         return True
-    return _SCAN_PERMISSION in perms.permissions
+    perm = _CHAT_MODE_PERMISSION_MAP.get(chat_mode)
+    if perm is None:
+        return True
+    return perm in perms.permissions
 
 
 # ---------------------------------------------------------------------------
@@ -500,13 +555,17 @@ class ScanController(Controller):
     ) -> TemplateResponse:
         try:
             user = await _get_user(request, db_session)
-            if not user:
-                return TemplateResponse("unauthorized.html")
-            if not await _has_scan_permission(user.id, db_session):
-                return TemplateResponse("unauthorized.html")
-            recent_chats = await _get_recent_chats(user.id, db_session)
+            user_id = user.id if user else None
+            allowed_modes = await _get_allowed_modes(user_id, db_session)
+            recent_chats = await _get_recent_chats(user.id, db_session) if user else []
             return TemplateResponse(
-                "index.html", context={"user": user, "recent_chats": recent_chats, "hide_sidebar": True}
+                "index.html",
+                context={
+                    "user": user,
+                    "recent_chats": recent_chats,
+                    "hide_sidebar": True,
+                    "allowed_modes": sorted(allowed_modes),
+                },
             )
         except Exception:
             logger.exception("Error in index")
@@ -523,14 +582,19 @@ class ScanController(Controller):
     ) -> Response | Redirect | TemplateResponse:
         try:
             user = await _get_user(request, db_session)
-            if not user:
-                return TemplateResponse("unauthorized.html")
-            if not await _has_scan_permission(user.id, db_session):
-                return TemplateResponse("unauthorized.html")
+            user_id = user.id if user else None
+            allowed_modes = await _get_allowed_modes(user_id, db_session)
+
             if not q.strip():
                 return Redirect(path="/")
 
+            # If a gated mode is requested without permission, fall back to search
+            if mode and not _can_use_mode(mode, allowed_modes):
+                mode = "search"
+
             if mode == "chat":
+                if not user:
+                    return TemplateResponse("unauthorized.html")
                 title = await generate_chat_title(q.strip())
                 chat = ChatSession(user_id=user.id, title=title, mode="chat")
                 db_session.add(chat)
@@ -558,10 +622,18 @@ class ScanController(Controller):
                 classification = "SEARCH"
             else:
                 classification = await classify_query(q)
+                # If classifier picks a gated mode the user can't access, fall back
+                if classification == "RESEARCH" and not _can_use_mode("discover", allowed_modes):
+                    classification = "SEARCH"
+                elif classification == "DEEP_RESEARCH" and not _can_use_mode("deep", allowed_modes):
+                    classification = "SEARCH"
+
             accept = request.headers.get("accept", "")
             is_json = "application/json" in accept
 
             if classification in ("RESEARCH", "DEEP_RESEARCH"):
+                if not user:
+                    return TemplateResponse("unauthorized.html")
                 chat_mode = "deep_research" if classification == "DEEP_RESEARCH" else "research"
                 title = await generate_chat_title(q.strip())
                 chat = ChatSession(user_id=user.id, title=title, mode=chat_mode)
@@ -600,7 +672,7 @@ class ScanController(Controller):
                 _start_overview_task(q.strip(), results)
 
             has_next = len(results) >= count
-            recent_chats = await _get_recent_chats(user.id, db_session)
+            recent_chats = await _get_recent_chats(user.id, db_session) if user else []
 
             if is_json:
                 return Response(
@@ -623,6 +695,7 @@ class ScanController(Controller):
                     "page": page,
                     "has_next": has_next,
                     "recent_chats": recent_chats,
+                    "allowed_modes": sorted(allowed_modes),
                 },
             )
         except Exception:
@@ -637,10 +710,6 @@ class ScanController(Controller):
         q: str = "",
     ) -> ServerSentEvent:
         async def _stream():
-            user = await _get_user(request, db_session)
-            if not user or not await _has_scan_permission(user.id, db_session):
-                yield ServerSentEventMessage(event="error", data="unauthorized")
-                return
             query = q.strip()
             if not query:
                 yield ServerSentEventMessage(event="done", data="")
@@ -696,8 +765,6 @@ class ScanController(Controller):
             user = await _get_user(request, db_session)
             if not user:
                 return TemplateResponse("unauthorized.html")
-            if not await _has_scan_permission(user.id, db_session):
-                return TemplateResponse("unauthorized.html")
 
             result = await db_session.execute(
                 select(ChatSession).where(
@@ -707,6 +774,9 @@ class ScanController(Controller):
             chat = result.scalar_one_or_none()
             if not chat:
                 return Redirect(path="/")
+
+            if not await _has_chat_mode_permission(chat.mode, user.id, db_session):
+                return TemplateResponse("unauthorized.html")
 
             messages = await _get_chat_messages(chat_id, db_session)
             recent_chats = await _get_recent_chats(user.id, db_session)
@@ -781,8 +851,6 @@ class ScanController(Controller):
         user = await _get_user(request, db_session)
         if not user:
             return Response(content={"error": "unauthorized"}, status_code=401)
-        if not await _has_scan_permission(user.id, db_session):
-            return Response(content={"error": "forbidden"}, status_code=403)
 
         result = await db_session.execute(
             select(ChatSession).where(
@@ -792,6 +860,9 @@ class ScanController(Controller):
         chat = result.scalar_one_or_none()
         if not chat:
             return Response(content={"error": "not found"}, status_code=404)
+
+        if not await _has_chat_mode_permission(chat.mode, user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
 
         body = await request.json()
         content = body.get("content", "").strip()
@@ -825,8 +896,6 @@ class ScanController(Controller):
         try:
             user = await _get_user(request, db_session)
             if not user:
-                return TemplateResponse("unauthorized.html")
-            if not await _has_scan_permission(user.id, db_session):
                 return TemplateResponse("unauthorized.html")
 
             if page < 1:
@@ -916,9 +985,6 @@ class ScanController(Controller):
         q: str = "",
         mode: str = "launch",
     ) -> Response:
-        user = await _get_user(request, db_session)
-        if not user or not await _has_scan_permission(user.id, db_session):
-            return Response(content={"suggestions": []}, status_code=200)
         if len(q.strip()) < 2:
             return Response(content={"suggestions": []}, status_code=200)
         if mode not in ("launch", "discover", "deep", "search", "chat"):
