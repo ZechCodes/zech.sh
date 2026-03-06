@@ -1,0 +1,618 @@
+/* ==========================================================================
+   CHAT — Fusion-themed conversational AI interface
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Layout
+   -------------------------------------------------------------------------- */
+
+.zech-chat {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-top: 4rem;
+}
+
+.chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 1.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   2. Header
+   -------------------------------------------------------------------------- */
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(0,229,255,0.08);
+  margin-bottom: 0;
+}
+
+.chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.chat-header-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+  text-shadow: 0 0 10px rgba(0,229,255,0.3);
+  white-space: nowrap;
+}
+
+.chat-header-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  color: var(--zech-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-new-btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--zech-text-dim);
+  background: none;
+  border: 1px solid rgba(0,229,255,0.1);
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.3s;
+  text-decoration: none;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+
+.chat-new-btn:hover {
+  color: var(--zech-primary);
+  border-color: rgba(0,229,255,0.3);
+  background: rgba(0,229,255,0.05);
+}
+
+/* --------------------------------------------------------------------------
+   2b. Chat history bar
+   -------------------------------------------------------------------------- */
+
+.chat-history-bar {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem 0;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(0,229,255,0.06);
+  margin-bottom: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,229,255,0.15) transparent;
+}
+
+.chat-history-bar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.chat-history-bar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-history-bar::-webkit-scrollbar-thumb {
+  background: rgba(0,229,255,0.15);
+  border-radius: 2px;
+}
+
+.chat-history-item {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--zech-text-dim);
+  background: rgba(0,229,255,0.03);
+  border: 1px solid rgba(0,229,255,0.08);
+  padding: 0.25rem 0.6rem;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: all 0.2s;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-history-item:hover {
+  color: var(--zech-primary);
+  border-color: rgba(0,229,255,0.2);
+  background: rgba(0,229,255,0.06);
+}
+
+.chat-history-item.is-active {
+  color: var(--zech-primary);
+  border-color: rgba(0,229,255,0.3);
+  background: rgba(0,229,255,0.08);
+}
+
+/* --------------------------------------------------------------------------
+   3. Messages area
+   -------------------------------------------------------------------------- */
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  scroll-behavior: smooth;
+}
+
+/* Welcome screen */
+.chat-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6rem 2rem;
+  opacity: 0;
+  animation: fadeIn 0.6s 0.2s forwards;
+}
+
+.chat-welcome-icon {
+  color: var(--zech-primary);
+  margin-bottom: 1.5rem;
+  opacity: 0.6;
+}
+
+.chat-welcome h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--zech-text);
+  margin-bottom: 0.75rem;
+}
+
+.chat-welcome p {
+  color: var(--zech-text-dim);
+  font-size: 0.95rem;
+  max-width: 400px;
+}
+
+/* Message bubbles */
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  animation: msgSlideIn 0.3s ease-out forwards;
+}
+
+.chat-msg-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  margin-bottom: 0.4rem;
+}
+
+.chat-msg-user .chat-msg-label {
+  color: var(--zech-secondary);
+  text-shadow: 0 0 8px rgba(180,199,255,0.3);
+}
+
+.chat-msg-model .chat-msg-label {
+  color: var(--zech-primary);
+  text-shadow: 0 0 8px rgba(0,229,255,0.3);
+}
+
+.chat-msg-content {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--zech-text);
+}
+
+.chat-msg-user .chat-msg-content {
+  padding: 0.8rem 1.2rem;
+  background: rgba(180,199,255,0.04);
+  border: 1px solid rgba(180,199,255,0.08);
+  border-left: 2px solid rgba(180,199,255,0.2);
+}
+
+.chat-msg-model .chat-msg-content {
+  padding: 0.8rem 0;
+}
+
+/* Markdown inside messages */
+.chat-msg-content h1,
+.chat-msg-content h2,
+.chat-msg-content h3 {
+  font-family: 'Orbitron', sans-serif;
+  margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.chat-msg-content h1 { font-size: 1.3rem; }
+.chat-msg-content h2 { font-size: 1.1rem; }
+.chat-msg-content h3 { font-size: 0.95rem; }
+
+.chat-msg-content p {
+  margin-bottom: 0.6rem;
+  color: var(--zech-text);
+}
+
+.chat-msg-content ul,
+.chat-msg-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+  color: var(--zech-text);
+}
+
+.chat-msg-content li {
+  margin-bottom: 0.3rem;
+}
+
+.chat-msg-content pre {
+  background: rgba(0,229,255,0.03);
+  border: 1px solid rgba(0,229,255,0.1);
+  padding: 0.8rem 1rem;
+  overflow-x: auto;
+  margin: 0.8rem 0;
+  font-size: 0.85rem;
+}
+
+.chat-msg-content code {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8em;
+  color: var(--zech-secondary);
+  background: rgba(0,229,255,0.05);
+  padding: 0.1em 0.3em;
+  border: 1px solid rgba(0,229,255,0.1);
+}
+
+.chat-msg-content pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--zech-text);
+}
+
+.chat-msg-content a {
+  color: var(--zech-primary);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(0,229,255,0.2);
+  transition: all 0.3s;
+}
+
+.chat-msg-content a:hover {
+  border-bottom-color: var(--zech-primary);
+  text-shadow: 0 0 8px rgba(0,229,255,0.4);
+}
+
+.chat-msg-content blockquote {
+  border-left: 2px solid var(--zech-primary);
+  padding-left: 1rem;
+  margin: 0.8rem 0;
+  color: var(--zech-text-dim);
+}
+
+.chat-msg-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8rem 0;
+  font-size: 0.9rem;
+}
+
+.chat-msg-content th,
+.chat-msg-content td {
+  border: 1px solid rgba(0,229,255,0.1);
+  padding: 0.5rem 0.8rem;
+  text-align: left;
+}
+
+.chat-msg-content th {
+  background: rgba(0,229,255,0.05);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--zech-primary);
+}
+
+/* --------------------------------------------------------------------------
+   3b. Inline tool pills (collapsed tool events within messages)
+   -------------------------------------------------------------------------- */
+
+.chat-tool-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.chat-tool-pills:empty {
+  display: none;
+}
+
+.chat-tool-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--zech-text-dim);
+  background: rgba(0,229,255,0.03);
+  border: 1px solid rgba(0,229,255,0.1);
+  padding: 0.2rem 0.5rem;
+  animation: toolSlideIn 0.2s ease-out forwards;
+  max-width: 100%;
+}
+
+.chat-tool-pill-icon {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--zech-primary);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.chat-tool-pill-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   4. Status area — thinking pulse & tool events
+   -------------------------------------------------------------------------- */
+
+.chat-status-area {
+  padding: 0.8rem 0;
+  border-top: 1px solid rgba(0,229,255,0.06);
+}
+
+/* Pulsing bars animation */
+.chat-thinking-pulse {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0.5rem 0;
+}
+
+.pulse-bar {
+  width: 3px;
+  height: 14px;
+  background: var(--zech-primary);
+  border-radius: 1px;
+  animation: pulseBar 1.2s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba(0,229,255,0.4);
+}
+
+.pulse-bar:nth-child(2) {
+  animation-delay: 0.15s;
+  height: 20px;
+}
+
+.pulse-bar:nth-child(3) {
+  animation-delay: 0.3s;
+  height: 10px;
+}
+
+@keyframes pulseBar {
+  0%, 100% {
+    transform: scaleY(0.4);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.chat-status-text {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  padding: 0.25rem 0;
+  min-height: 1.2rem;
+}
+
+/* Tool events list */
+.chat-tool-events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.3rem 0;
+}
+
+.chat-tool-event {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--zech-text-dim);
+  animation: toolSlideIn 0.2s ease-out forwards;
+}
+
+.chat-tool-event-icon {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid rgba(0,229,255,0.15);
+  color: var(--zech-primary);
+  white-space: nowrap;
+}
+
+.chat-tool-event.is-running .chat-tool-event-icon {
+  animation: toolPulse 1.5s ease-in-out infinite;
+}
+
+.chat-tool-event.is-done .chat-tool-event-icon {
+  border-color: rgba(0,229,255,0.25);
+  color: var(--zech-primary);
+  opacity: 0.7;
+}
+
+.chat-tool-event-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes toolPulse {
+  0%, 100% { opacity: 0.5; box-shadow: none; }
+  50% { opacity: 1; box-shadow: 0 0 8px rgba(0,229,255,0.2); }
+}
+
+@keyframes toolSlideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes msgSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --------------------------------------------------------------------------
+   5. Input form
+   -------------------------------------------------------------------------- */
+
+.chat-input-form {
+  padding: 0.5rem 0;
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(to top, var(--zech-bg) 80%, transparent);
+  padding-top: 1.5rem;
+}
+
+.chat-input-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  border: 1px solid rgba(0,229,255,0.15);
+  background: rgba(0,229,255,0.02);
+  padding: 0.5rem 0.75rem;
+  transition: all 0.3s;
+}
+
+.chat-input-wrap:focus-within {
+  border-color: var(--zech-primary);
+  box-shadow: 0 0 20px rgba(0,229,255,0.1);
+}
+
+.chat-input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--zech-text);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  resize: none;
+  padding: 0.25rem 0;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.chat-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.chat-input::placeholder {
+  color: var(--zech-text-dim);
+  opacity: 0.5;
+}
+
+.chat-send-btn {
+  background: none;
+  border: none;
+  color: var(--zech-primary);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  opacity: 0.6;
+}
+
+.chat-send-btn:hover {
+  opacity: 1;
+  text-shadow: 0 0 10px rgba(0,229,255,0.5);
+  transform: scale(1.1);
+}
+
+.chat-send-btn:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   6. Compact notification
+   -------------------------------------------------------------------------- */
+
+.chat-compact-notice {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  text-align: center;
+  padding: 0.6rem 1rem;
+  border: 1px solid rgba(0,229,255,0.06);
+  background: rgba(0,229,255,0.02);
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* --------------------------------------------------------------------------
+   7. Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+  .chat-container {
+    padding: 0.75rem 1rem 1rem;
+  }
+
+  .chat-welcome {
+    padding: 3rem 1rem;
+  }
+
+  .chat-msg-user .chat-msg-content {
+    padding: 0.6rem 0.8rem;
+  }
+
+  .chat-history-bar {
+    gap: 0.3rem;
+  }
+
+  .chat-history-item {
+    max-width: 140px;
+    font-size: 0.7rem;
+  }
+}

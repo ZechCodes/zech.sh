@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}ZECH.SH — Chat{% endblock %}
+
+{% block seo_meta %}
+<meta name="description" content="Chat with Zech's AI assistant — powered by Gemini.">
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ theme_url('css/chat.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="zech-chat">
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="chat-header-left">
+                <div class="chat-header-label">CHAT.AGENT</div>
+                {% if chat_id %}
+                <span class="chat-header-title">{{ chat_title or '' }}</span>
+                {% endif %}
+            </div>
+            <div class="chat-header-actions">
+                <a href="/chat/" class="chat-new-btn" title="New chat">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    NEW
+                </a>
+            </div>
+        </div>
+
+        {% if recent_chats %}
+        <div class="chat-history-bar" id="chatHistoryBar">
+            {% for chat in recent_chats %}
+            <a href="/chat/{{ chat.id }}" class="chat-history-item{% if chat_id and chat_id == chat.id|string %} is-active{% endif %}" title="{{ chat.title }}">
+                {{ chat.title }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="chat-messages" id="chatMessages">
+            {% if not messages %}
+            <div class="chat-welcome" id="chatWelcome">
+                <div class="chat-welcome-icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </div>
+                <h2>AGENT.READY</h2>
+                <p>I can search the web, read pages, and maintain context across our conversation.</p>
+            </div>
+            {% endif %}
+
+            {% for msg in messages %}
+            <div class="chat-msg chat-msg-{{ msg.role }}{% if msg.role == 'assistant' %} chat-msg-model{% endif %}">
+                {% if msg.role == 'user' %}
+                <div class="chat-msg-label">YOU</div>
+                <div class="chat-msg-content">{{ msg.content }}</div>
+                {% else %}
+                <div class="chat-msg-label">AGENT</div>
+                {% if msg.events %}
+                <div class="chat-tool-pills">
+                    {% for ev in msg.events %}
+                    <span class="chat-tool-pill" data-tool="{{ ev.tool }}">
+                        {% if ev.tool == 'web_search' %}
+                        <span class="chat-tool-pill-icon">SEARCH</span>
+                        {% else %}
+                        <span class="chat-tool-pill-icon">READ</span>
+                        {% endif %}
+                        <span class="chat-tool-pill-text">{{ ev.summary }}</span>
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="chat-msg-content">{{ msg.content }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="chat-status-area" id="chatStatusArea" hidden>
+            <div class="chat-thinking-pulse" id="chatThinkingPulse">
+                <div class="pulse-bar"></div>
+                <div class="pulse-bar"></div>
+                <div class="pulse-bar"></div>
+            </div>
+            <div class="chat-status-text" id="chatStatusText"></div>
+            <div class="chat-tool-events" id="chatToolEvents"></div>
+        </div>
+
+        <form class="chat-input-form" id="chatForm" autocomplete="off">
+            <div class="chat-input-wrap">
+                <textarea
+                    class="chat-input"
+                    id="chatInput"
+                    name="message"
+                    placeholder="Ask anything..."
+                    rows="1"
+                    autofocus
+                ></textarea>
+                <button class="chat-send-btn" id="chatSend" type="submit" title="Send message">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </form>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ theme_url('js/marked.min.js') }}"></script>
+<script
+  src="{{ theme_url('js/chat-agent.js') }}"
+  data-chat-id="{{ chat_id or '' }}"
+  data-needs-stream="{{ 'true' if needs_stream else 'false' }}"
+  data-last-notification-at="{{ last_notification_at or 0 }}"
+></script>
+{% endblock %}
