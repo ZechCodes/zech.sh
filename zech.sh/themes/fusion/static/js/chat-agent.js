@@ -94,6 +94,7 @@
   // ---------------------------------------------------------------------------
 
   var isStreaming = false;
+  var memoryNotes = "";
 
   // ---------------------------------------------------------------------------
   // UI helpers
@@ -239,9 +240,9 @@
         for (var i = 0; i < activeToolEvents.length; i++) {
           addToolPill(activeMsgEls.pills, activeToolEvents[i].tool, activeToolEvents[i].summary);
         }
-        // Save notes to session via data attribute for future use
+        // Store notes for next message round-trip
         if (data.notes) {
-          // Notes are persisted server-side via the background task
+          memoryNotes = data.notes;
         }
         setStreaming(false);
         scrollToBottom();
@@ -297,7 +298,7 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ message: text, chat_id: chatId || "" }),
+      body: JSON.stringify({ message: text, chat_id: chatId || "", notes: memoryNotes }),
     })
       .then(function (response) {
         if (!response.ok) throw new Error("HTTP " + response.status);

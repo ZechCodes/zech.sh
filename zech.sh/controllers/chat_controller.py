@@ -365,8 +365,11 @@ class ChatController(Controller):
         db_session.add(user_msg)
         await db_session.commit()
 
-        # Get memory notes and start background task
-        notes = _get_notes(request, chat_id)
+        # Get memory notes — prefer client-sent notes (from previous chat:done),
+        # fall back to session-stored notes
+        notes = body.get("notes", "") or _get_notes(request, chat_id)
+        if notes:
+            _set_notes(request, chat_id, notes)
         _start_chat_task(user.id, chat_id, notes)
 
         return Response(
