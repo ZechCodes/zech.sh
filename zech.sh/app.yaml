@@ -12,7 +12,6 @@ controllers:
   - controllers.admin_api_keys:ApiKeysAdminController
   - skrift.admin.controller:AdminController
   - controllers.chat_controller:ChatController
-  - skrift.controllers.notifications:NotificationsController
   - controllers.redirects:RedirectsController
   - skrift.controllers.web:WebController
   - controllers.health:HealthController
