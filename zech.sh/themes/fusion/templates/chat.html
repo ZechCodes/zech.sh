@@ -15,20 +15,35 @@
 <section class="zech-chat">
     <div class="chat-container">
         <div class="chat-header">
-            <div class="chat-header-label">CHAT.AGENT</div>
+            <div class="chat-header-left">
+                <div class="chat-header-label">CHAT.AGENT</div>
+                {% if chat_id %}
+                <span class="chat-header-title">{{ chat_title or '' }}</span>
+                {% endif %}
+            </div>
             <div class="chat-header-actions">
-                <button class="chat-clear-btn" id="chatClear" title="Clear chat history">
+                <a href="/chat/" class="chat-new-btn" title="New chat">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
                     </svg>
-                    CLEAR
-                </button>
+                    NEW
+                </a>
             </div>
         </div>
 
+        {% if recent_chats %}
+        <div class="chat-history-bar" id="chatHistoryBar">
+            {% for chat in recent_chats %}
+            <a href="/chat/{{ chat.id }}" class="chat-history-item{% if chat_id and chat_id == chat.id|string %} is-active{% endif %}" title="{{ chat.title }}">
+                {{ chat.title }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <div class="chat-messages" id="chatMessages">
-            {% if not history %}
+            {% if not messages %}
             <div class="chat-welcome" id="chatWelcome">
                 <div class="chat-welcome-icon">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -40,14 +55,29 @@
             </div>
             {% endif %}
 
-            {% for msg in history %}
-            <div class="chat-msg chat-msg-{{ msg.role }}">
+            {% for msg in messages %}
+            <div class="chat-msg chat-msg-{{ msg.role }}{% if msg.role == 'assistant' %} chat-msg-model{% endif %}">
                 {% if msg.role == 'user' %}
                 <div class="chat-msg-label">YOU</div>
+                <div class="chat-msg-content">{{ msg.content }}</div>
                 {% else %}
                 <div class="chat-msg-label">AGENT</div>
+                {% if msg.events %}
+                <div class="chat-tool-pills">
+                    {% for ev in msg.events %}
+                    <span class="chat-tool-pill" data-tool="{{ ev.tool }}">
+                        {% if ev.tool == 'web_search' %}
+                        <span class="chat-tool-pill-icon">SEARCH</span>
+                        {% else %}
+                        <span class="chat-tool-pill-icon">READ</span>
+                        {% endif %}
+                        <span class="chat-tool-pill-text">{{ ev.summary }}</span>
+                    </span>
+                    {% endfor %}
+                </div>
                 {% endif %}
                 <div class="chat-msg-content">{{ msg.content }}</div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -82,6 +112,10 @@
         </form>
     </div>
 </section>
+
+<script>
+  window.__chatId = {{ chat_id | tojson }};
+</script>
 {% endblock %}
 
 {% block scripts %}

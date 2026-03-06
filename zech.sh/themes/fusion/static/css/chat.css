@@ -35,7 +35,14 @@
   align-items: center;
   padding: 1rem 0;
   border-bottom: 1px solid rgba(0,229,255,0.08);
-  margin-bottom: 1rem;
+  margin-bottom: 0;
+}
+
+.chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
 }
 
 .chat-header-label {
@@ -46,9 +53,24 @@
   text-transform: uppercase;
   color: var(--zech-primary);
   text-shadow: 0 0 10px rgba(0,229,255,0.3);
+  white-space: nowrap;
 }
 
-.chat-clear-btn {
+.chat-header-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  color: var(--zech-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-new-btn {
   font-family: 'Orbitron', sans-serif;
   font-size: 0.55rem;
   font-weight: 600;
@@ -62,13 +84,70 @@
   align-items: center;
   gap: 0.4rem;
   transition: all 0.3s;
+  text-decoration: none;
   clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
 }
 
-.chat-clear-btn:hover {
-  color: #ff6b6b;
-  border-color: rgba(255,107,107,0.3);
-  background: rgba(255,107,107,0.05);
+.chat-new-btn:hover {
+  color: var(--zech-primary);
+  border-color: rgba(0,229,255,0.3);
+  background: rgba(0,229,255,0.05);
+}
+
+/* --------------------------------------------------------------------------
+   2b. Chat history bar
+   -------------------------------------------------------------------------- */
+
+.chat-history-bar {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem 0;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(0,229,255,0.06);
+  margin-bottom: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,229,255,0.15) transparent;
+}
+
+.chat-history-bar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.chat-history-bar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-history-bar::-webkit-scrollbar-thumb {
+  background: rgba(0,229,255,0.15);
+  border-radius: 2px;
+}
+
+.chat-history-item {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--zech-text-dim);
+  background: rgba(0,229,255,0.03);
+  border: 1px solid rgba(0,229,255,0.08);
+  padding: 0.25rem 0.6rem;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: all 0.2s;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-history-item:hover {
+  color: var(--zech-primary);
+  border-color: rgba(0,229,255,0.2);
+  background: rgba(0,229,255,0.06);
+}
+
+.chat-history-item.is-active {
+  color: var(--zech-primary);
+  border-color: rgba(0,229,255,0.3);
+  background: rgba(0,229,255,0.08);
 }
 
 /* --------------------------------------------------------------------------
@@ -254,6 +333,50 @@
   font-weight: 600;
   letter-spacing: 1px;
   color: var(--zech-primary);
+}
+
+/* --------------------------------------------------------------------------
+   3b. Inline tool pills (collapsed tool events within messages)
+   -------------------------------------------------------------------------- */
+
+.chat-tool-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.chat-tool-pills:empty {
+  display: none;
+}
+
+.chat-tool-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--zech-text-dim);
+  background: rgba(0,229,255,0.03);
+  border: 1px solid rgba(0,229,255,0.1);
+  padding: 0.2rem 0.5rem;
+  animation: toolSlideIn 0.2s ease-out forwards;
+  max-width: 100%;
+}
+
+.chat-tool-pill-icon {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--zech-primary);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.chat-tool-pill-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------
@@ -482,5 +605,14 @@
 
   .chat-msg-user .chat-msg-content {
     padding: 0.6rem 0.8rem;
+  }
+
+  .chat-history-bar {
+    gap: 0.3rem;
+  }
+
+  .chat-history-item {
+    max-width: 140px;
+    font-size: 0.7rem;
   }
 }

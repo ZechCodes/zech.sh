@@ -400,9 +400,9 @@ async def run_chat(
 
                         # Summarize for display
                         if tool_name == "web_search":
-                            summary = f'Searched for "{tool_args.get("query", "")}"'
+                            summary = f"Searched '{tool_args.get('query', '')}'"
                         else:
-                            summary = f'Opened {tool_args.get("url", "")}'
+                            summary = f"Read '{tool_args.get('url', '')}'"
                         yield ToolDoneEvent(tool=tool_name, summary=summary)
 
                         # Add assistant's function call and result to contents

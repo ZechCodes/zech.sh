@@ -43,13 +43,18 @@
   var chatForm = document.getElementById("chatForm");
   var chatInput = document.getElementById("chatInput");
   var chatSend = document.getElementById("chatSend");
-  var chatClear = document.getElementById("chatClear");
   var statusArea = document.getElementById("chatStatusArea");
   var thinkingPulse = document.getElementById("chatThinkingPulse");
   var statusText = document.getElementById("chatStatusText");
   var toolEvents = document.getElementById("chatToolEvents");
 
   if (!chatForm || !chatInput) return;
+
+  // ---------------------------------------------------------------------------
+  // Chat ID state
+  // ---------------------------------------------------------------------------
+
+  var chatId = window.__chatId || null;
 
   // ---------------------------------------------------------------------------
   // Render existing messages as markdown
@@ -123,27 +128,39 @@
     msg.className = "chat-msg chat-msg-model";
     msg.innerHTML =
       '<div class="chat-msg-label">AGENT</div>' +
+      '<div class="chat-tool-pills"></div>' +
       '<div class="chat-msg-content"></div>';
     chatMessages.appendChild(msg);
-    return msg.querySelector(".chat-msg-content");
+    return {
+      pills: msg.querySelector(".chat-tool-pills"),
+      content: msg.querySelector(".chat-msg-content"),
+    };
   }
 
-  function addToolEvent(tool, text, isRunning) {
+  function addToolPill(pillsEl, tool, summary) {
+    var pill = document.createElement("span");
+    pill.className = "chat-tool-pill";
+    pill.setAttribute("data-tool", tool);
+    var iconLabel = tool === "web_search" ? "SEARCH" : "READ";
+    pill.innerHTML =
+      '<span class="chat-tool-pill-icon">' + iconLabel + "</span>" +
+      '<span class="chat-tool-pill-text">' + escapeHtml(summary) + "</span>";
+    pillsEl.appendChild(pill);
+  }
+
+  function addStatusToolEvent(tool, text, isRunning) {
     var ev = document.createElement("div");
     ev.className = "chat-tool-event" + (isRunning ? " is-running" : " is-done");
-
-    var iconLabel = tool === "web_search" ? "SEARCH" : "FETCH";
+    var iconLabel = tool === "web_search" ? "SEARCH" : "READ";
     ev.innerHTML =
       '<span class="chat-tool-event-icon">' + iconLabel + "</span>" +
       '<span class="chat-tool-event-text">' + escapeHtml(text) + "</span>";
     toolEvents.appendChild(ev);
-
-    // Scroll status area into view
     statusArea.scrollIntoView({ behavior: "smooth", block: "nearest" });
     return ev;
   }
 
-  function addCompactNotice(removed, summaryTokens) {
+  function addCompactNotice(removed) {
     var notice = document.createElement("div");
     notice.className = "chat-compact-notice";
     notice.textContent = "// MEMORY COMPACTED — " + removed + " messages summarized";
@@ -160,15 +177,16 @@
     addUserMessage(text);
     setStreaming(true);
 
-    var contentEl = createAssistantMessage();
+    var msgEls = createAssistantMessage();
     var buffer = "";
     var currentToolEvent = null;
+    var toolEventsData = [];
 
     fetch("/chat/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({ message: text, chat_id: chatId || "" }),
     })
       .then(function (response) {
         if (!response.ok) throw new Error("HTTP " + response.status);
@@ -189,17 +207,21 @@
             var dataStr = line.slice(5).trim();
             processSSE._currentEvent = null;
 
-            if (eventType === "thinking") {
+            if (eventType === "chat_created") {
+              var created = JSON.parse(dataStr);
+              chatId = created.chat_id;
+              window.history.replaceState(null, "", "/chat/" + chatId);
+            } else if (eventType === "thinking") {
               statusText.textContent = "THINKING";
               thinkingPulse.style.display = "flex";
             } else if (eventType === "tool_start") {
               var toolData = JSON.parse(dataStr);
               var toolText =
                 toolData.tool === "web_search"
-                  ? 'Searching "' + (toolData.args.query || "") + '"'
-                  : "Opening " + (toolData.args.url || "");
-              statusText.textContent = toolData.tool === "web_search" ? "SEARCHING" : "FETCHING";
-              currentToolEvent = addToolEvent(toolData.tool, toolText, true);
+                  ? "Searching '" + (toolData.args.query || "") + "'"
+                  : "Reading " + (toolData.args.url || "");
+              statusText.textContent = toolData.tool === "web_search" ? "SEARCHING" : "READING";
+              currentToolEvent = addStatusToolEvent(toolData.tool, toolText, true);
             } else if (eventType === "tool_done") {
               var doneData = JSON.parse(dataStr);
               if (currentToolEvent) {
@@ -207,6 +229,7 @@
                 currentToolEvent.classList.add("is-done");
                 currentToolEvent.querySelector(".chat-tool-event-text").textContent = doneData.summary;
               }
+              toolEventsData.push({ tool: doneData.tool, summary: doneData.summary });
               statusText.textContent = "THINKING";
               currentToolEvent = null;
             } else if (eventType === "text") {
@@ -214,19 +237,28 @@
               statusText.textContent = "RESPONDING";
               var textData = JSON.parse(dataStr);
               buffer += textData.text;
-              contentEl.innerHTML = renderMarkdown(buffer);
+              msgEls.content.innerHTML = renderMarkdown(buffer);
               scrollToBottom();
             } else if (eventType === "compact") {
               var compactData = JSON.parse(dataStr);
-              addCompactNotice(compactData.removed_messages, compactData.summary_tokens);
+              addCompactNotice(compactData.removed_messages);
             } else if (eventType === "done") {
+              // Render tool pills inline in the message
+              for (var i = 0; i < toolEventsData.length; i++) {
+                addToolPill(msgEls.pills, toolEventsData[i].tool, toolEventsData[i].summary);
+              }
+              // Update chatId from done event
+              try {
+                var doneInfo = JSON.parse(dataStr);
+                if (doneInfo.chat_id) chatId = doneInfo.chat_id;
+              } catch (_) {}
               setStreaming(false);
               scrollToBottom();
             } else if (eventType === "error") {
               setStreaming(false);
               var errData = {};
               try { errData = JSON.parse(dataStr); } catch (_) {}
-              contentEl.innerHTML =
+              msgEls.content.innerHTML =
                 '<p style="color: #ff6b6b;">Error: ' +
                 escapeHtml(errData.error || "Connection lost") +
                 "</p>";
@@ -245,7 +277,7 @@
 
             sseBuffer += decoder.decode(result.value, { stream: true });
             var lines = sseBuffer.split("\n");
-            sseBuffer = lines.pop(); // Keep incomplete line
+            sseBuffer = lines.pop();
 
             lines.forEach(processSSE);
             return pump();
@@ -256,7 +288,7 @@
       })
       .catch(function (err) {
         setStreaming(false);
-        contentEl.innerHTML =
+        msgEls.content.innerHTML =
           '<p style="color: #ff6b6b;">Error: ' + escapeHtml(err.message) + "</p>";
         scrollToBottom();
       });
@@ -282,25 +314,6 @@
       chatForm.dispatchEvent(new Event("submit"));
     }
   });
-
-  // ---------------------------------------------------------------------------
-  // Clear chat
-  // ---------------------------------------------------------------------------
-
-  if (chatClear) {
-    chatClear.addEventListener("click", function () {
-      fetch("/chat/clear", {
-        method: "POST",
-        credentials: "same-origin",
-      })
-        .then(function (r) {
-          if (r.ok) window.location.reload();
-        })
-        .catch(function () {
-          window.location.reload();
-        });
-    });
-  }
 
   // ---------------------------------------------------------------------------
   // Focus input when typing
