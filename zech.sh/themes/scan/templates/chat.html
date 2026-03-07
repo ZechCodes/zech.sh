@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}SCAN.ZECH.SH — {{ chat.title[:60] }}{% endblock %}
+{% block title %}SCAN.ZECH.SH — {% if chat.title %}{{ chat.title[:60] }}{% else %}...{% endif %}{% endblock %}
 
 {% block head %}
 <link rel="search" type="application/opensearchdescription+xml" title="Scan" href="/opensearch.xml">
@@ -55,7 +55,7 @@
     src="{{ theme_url('js/chat.js') }}"
     data-chat-id="{{ chat.id }}"
     data-chat-mode="{{ chat.mode }}"
-    data-chat-title="{{ chat.title }}"
+    data-chat-title="{{ chat.title or '' }}"
     data-needs-stream="{{ 'true' if needs_stream else 'false' }}"
     data-last-notification-at="{{ last_notification_at or '' }}"
 ></script>

@@ -833,6 +833,16 @@ textarea.scan-input-auto {
   50% { opacity: 0; }
 }
 
+.title-cursor {
+  display: inline-block;
+  width: 6px;
+  height: 0.9em;
+  background: var(--zech-primary);
+  vertical-align: text-bottom;
+  animation: cursor-blink 0.8s step-end infinite;
+  margin-left: 2px;
+}
+
 /* --------------------------------------------------------------------------
    Research Pipeline
    -------------------------------------------------------------------------- */
