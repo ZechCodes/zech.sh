@@ -121,6 +121,23 @@ async def _run_chat_bg(
                 return
 
             user_message = messages[-1].content
+
+            # Generate title asynchronously for the first message only
+            if len(messages) == 1:
+                async def _generate_and_send_title():
+                    try:
+                        title = await generate_chat_title(user_message)
+                        async with _get_session_factory()() as title_db:
+                            chat = await title_db.get(ChatSession, chat_id)
+                            if chat and not chat.title:
+                                chat.title = title
+                                await title_db.commit()
+                        await _notify("chat:title", title=title)
+                    except Exception:
+                        logger.debug("Title generation failed for chat %s", cid)
+
+                asyncio.create_task(_generate_and_send_title())
+
             history = []
             for msg in messages[:-1]:
                 role = "model" if msg.role == "assistant" else msg.role
@@ -325,6 +342,22 @@ async def _run_pipeline_bg(
             async def _notify(ntype: str, **payload: object) -> None:
                 payload["chat_id"] = cid
                 await notify_user(uid, ntype, mode=_NM, **payload)
+
+            # Generate title asynchronously for the first message only
+            if len(messages) == 1:
+                async def _generate_and_send_title():
+                    try:
+                        title = await generate_chat_title(query)
+                        async with _get_session_factory()() as title_db:
+                            chat = await title_db.get(ChatSession, chat_id)
+                            if chat and not chat.title:
+                                chat.title = title
+                                await title_db.commit()
+                        await _notify("chat:title", title=title)
+                    except Exception:
+                        logger.debug("Title generation failed for chat %s", cid)
+
+                asyncio.create_task(_generate_and_send_title())
 
             try:
                 pipeline_mode = "lite" if chat_mode == "research" else "deep"
@@ -628,7 +661,7 @@ class ScanController(Controller):
             if mode == "chat":
                 if not user:
                     return TemplateResponse("unauthorized.html")
-                title = await generate_chat_title(q.strip())
+                title = ""
                 chat = ChatSession(user_id=user.id, title=title, mode="chat")
                 db_session.add(chat)
                 await db_session.flush()
@@ -668,7 +701,7 @@ class ScanController(Controller):
                 if not user:
                     return TemplateResponse("unauthorized.html")
                 chat_mode = "deep_research" if classification == "DEEP_RESEARCH" else "research"
-                title = await generate_chat_title(q.strip())
+                title = ""
                 chat = ChatSession(user_id=user.id, title=title, mode=chat_mode)
                 db_session.add(chat)
                 await db_session.flush()

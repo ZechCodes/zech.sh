@@ -29,7 +29,7 @@
             <div class="nav-recent-divider"></div>
             <div class="nav-recent-label">RECENT</div>
             {% for chat in recent_chats[:5] %}
-            <a href="/chat/{{ chat.id }}" class="nav-recent-item" title="{{ chat.title }}">{{ chat.title[:50] }}{% if chat.title | length > 50 %}&hellip;{% endif %}</a>
+            <a href="/chat/{{ chat.id }}" class="nav-recent-item" title="{{ chat.title }}">{{ chat.title[:50] or 'Generating...' }}{% if chat.title | length > 50 %}&hellip;{% endif %}</a>
             {% endfor %}
             <a href="/history" class="nav-recent-item nav-history-link">// VIEW ALL HISTORY</a>
             {% endif %}
@@ -62,7 +62,7 @@
     <div class="sidebar-chats">
         {% for chat in recent_chats %}
         <a href="/chat/{{ chat.id }}" class="sidebar-chat-item" title="{{ chat.title }}">
-            {{ chat.title[:50] }}{% if chat.title | length > 50 %}&hellip;{% endif %}
+            {{ chat.title[:50] or 'Generating...' }}{% if chat.title | length > 50 %}&hellip;{% endif %}
         </a>
         {% endfor %}
         {% if not recent_chats %}

@@ -532,6 +532,63 @@
 
   if (needsStream) connectStream();
 
+  // ---------------------------------------------------------------------------
+  // chat:title notification handler — types title in with blinking cursor
+  // ---------------------------------------------------------------------------
+
+  (function () {
+    var titleEl = document.querySelector("title");
+    var PREFIX = "SCAN.ZECH.SH \u2014 ";
+
+    function typeTitle(title) {
+      chatTitle = title;
+      var i = 0;
+      // Add cursor to page title element
+      var pageTitleEl = document.getElementById("pageTitle");
+      if (pageTitleEl) {
+        pageTitleEl.textContent = "";
+        var cursorSpan = document.createElement("span");
+        cursorSpan.className = "title-cursor";
+        pageTitleEl.appendChild(cursorSpan);
+      }
+
+      function tick() {
+        if (i < title.length) {
+          i++;
+          var typed = title.slice(0, i);
+          if (titleEl) titleEl.textContent = PREFIX + typed;
+          if (pageTitleEl) {
+            pageTitleEl.textContent = "";
+            pageTitleEl.appendChild(document.createTextNode(typed));
+            var c = document.createElement("span");
+            c.className = "title-cursor";
+            pageTitleEl.appendChild(c);
+          }
+          // Update sidebar link for this chat
+          var sidebarLink = document.querySelector('.sidebar-chat-item[href="/chat/' + chatId + '"]');
+          if (sidebarLink) sidebarLink.textContent = typed.slice(0, 50) + (typed.length > 50 ? "\u2026" : "");
+          var navLink = document.querySelector('.nav-recent-item[href="/chat/' + chatId + '"]');
+          if (navLink) navLink.textContent = typed.slice(0, 50) + (typed.length > 50 ? "\u2026" : "");
+          setTimeout(tick, 30);
+        } else {
+          // Done typing — remove cursor
+          if (pageTitleEl) {
+            var cursor = pageTitleEl.querySelector(".title-cursor");
+            if (cursor) cursor.remove();
+          }
+        }
+      }
+      tick();
+    }
+
+    document.addEventListener("sk:notification", function (e) {
+      var d = e.detail;
+      if (!d || d.type !== "chat:title") return;
+      if (d.chat_id !== chatId) return;
+      if (d.title) typeTitle(d.title);
+    });
+  })();
+
   if (followupInput) {
     document.addEventListener("keydown", function (e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;

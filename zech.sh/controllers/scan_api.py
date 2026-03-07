@@ -15,7 +15,6 @@ from skrift.auth.services import get_user_permissions
 
 from controllers.api_auth import api_key_guard, get_api_user_id
 from controllers.scan import _active_research, _start_pipeline_task
-from controllers.scan_agent import generate_chat_title
 from models.chat import ChatMessage, ChatSession
 
 _API_MODE_PERMISSION: dict[str, str] = {
@@ -71,7 +70,7 @@ class ResearchApiController(Controller):
         if required_perm and not await _check_api_permission(user_id, db_session, required_perm):
             return Response(content={"error": "forbidden"}, status_code=403)
 
-        title = await generate_chat_title(query)
+        title = ""
         chat = ChatSession(user_id=user_id, title=title, mode=chat_mode)
         db_session.add(chat)
         await db_session.flush()

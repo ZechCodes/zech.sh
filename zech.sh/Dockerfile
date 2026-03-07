@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 8080
 
 # Run the application
-CMD ["uv", "run", "skrift", "serve", "--host", "0.0.0.0", "--port", "8080"]
+CMD [".venv/bin/skrift", "serve", "--host", "0.0.0.0", "--port", "8080"]

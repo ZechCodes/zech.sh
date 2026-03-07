@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}SCAN.ZECH.SH — {{ chat.title[:60] }}{% endblock %}
+{% block title %}SCAN.ZECH.SH — {% if chat.title %}{{ chat.title[:60] }}{% else %}...{% endif %}{% endblock %}
 
 {% block head %}
 <link rel="search" type="application/opensearchdescription+xml" title="Scan" href="/opensearch.xml">

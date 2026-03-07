@@ -22,7 +22,7 @@ services:
     build: .
     ports:
       - "8889:8080"
-    command: ["uv", "run", "skrift", "serve", "--host", "0.0.0.0", "--port", "8080", "--subdomain", "scan"]
+    command: [".venv/bin/skrift", "serve", "--host", "0.0.0.0", "--port", "8080", "--subdomain", "scan"]
     env_file:
       - .env
     environment:
