@@ -616,15 +616,7 @@ class AgentResearchPipeline:
         self.budget = CostBudget(limit=self.cfg["budget_limit"])
 
     def _build_full_query(self) -> str:
-        try:
-            tz = ZoneInfo(self.user_timezone) if self.user_timezone else timezone.utc
-        except (KeyError, ValueError):
-            tz = timezone.utc
-        now = datetime.now(tz)
-        full_query = (
-            f"Current date/time: {now.strftime('%A, %B %d, %Y %H:%M')} "
-            f"({self.user_timezone or 'UTC'})\n\n{self.query}"
-        )
+        full_query = self.query
         if self.conversation_history:
             parts = ["Previous conversation:"]
             for msg in self.conversation_history:
@@ -632,6 +624,17 @@ class AgentResearchPipeline:
                 parts.append(f"{role}: {msg['content']}")
             full_query = "\n".join(parts) + "\n\n" + full_query
         return full_query
+
+    def _build_system_prompt(self, base_prompt: str) -> str:
+        try:
+            tz = ZoneInfo(self.user_timezone) if self.user_timezone else timezone.utc
+        except (KeyError, ValueError):
+            tz = timezone.utc
+        now = datetime.now(tz)
+        return (
+            base_prompt
+            + f"\n\nCurrent date and time: {now.strftime('%A, %B %d, %Y %H:%M')} ({self.user_timezone or 'UTC'})"
+        )
 
     async def run(self) -> None:
         cfg = self.cfg
@@ -662,11 +665,12 @@ class AgentResearchPipeline:
 
             # --- Run the agent with streaming ---
             agent_model = cfg["agent_model_fn"]()
+            system_prompt = self._build_system_prompt(cfg["system_prompt"])
             async with research_agent.iter(
                 full_query,
                 model=agent_model,
                 deps=deps,
-                instructions=cfg["system_prompt"],
+                instructions=system_prompt,
             ) as agent_run:
                 async for node in agent_run:
                     if isinstance(node, ModelRequestNode):
