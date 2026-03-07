@@ -36,3 +36,4 @@ class ChatMessage(Base):
     content: Mapped[str] = mapped_column(Text, default="", nullable=False)
     events_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     usage_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    agent_messages_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)

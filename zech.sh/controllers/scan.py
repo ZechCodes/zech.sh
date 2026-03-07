@@ -43,6 +43,8 @@ from controllers.deep_research_agent import (
     StageEvent as DeepStageEvent,
     TextEvent as DeepTextEvent,
 )
+from pydantic_ai import ModelMessagesTypeAdapter
+
 from controllers.research_agent import run_agent_research_pipeline
 from google.genai.types import GenerateContentConfig, ThinkingConfig, ThinkingLevel
 
@@ -297,10 +299,35 @@ async def _run_pipeline_bg(
                 return
 
             query = messages[-1].content
-            history = []
+
+            # Collect prior agent message history and fetched URLs
+            prior_agent_messages = None
+            prior_fetched_urls: set[str] = set()
+            all_prior: list = []
             for msg in messages[:-1]:
-                if msg.content:
-                    history.append({"role": msg.role, "content": msg.content})
+                if msg.role == "assistant":
+                    if msg.agent_messages_json and msg.agent_messages_json != "[]":
+                        try:
+                            prior = ModelMessagesTypeAdapter.validate_json(
+                                msg.agent_messages_json
+                            )
+                            all_prior.extend(prior)
+                        except Exception:
+                            logger.warning("Failed to parse agent_messages_json")
+                    if msg.events_json:
+                        try:
+                            events = json.loads(msg.events_json)
+                            for ev in events:
+                                if (
+                                    ev.get("detail_type") == "fetch_done"
+                                    and not ev.get("failed")
+                                    and ev.get("url")
+                                ):
+                                    prior_fetched_urls.add(ev["url"])
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+            if all_prior:
+                prior_agent_messages = all_prior
 
             brave_api_key = os.environ.get("BRAVE_API_KEY", "")
             redis_url = get_settings().redis.url
@@ -310,6 +337,7 @@ async def _run_pipeline_bg(
             accumulated_text = ""
             accumulated_events: list[dict] = []
             usage_data: dict = {}
+            agent_messages_json = "[]"
 
             async def _notify(ntype: str, **payload: object) -> None:
                 payload["chat_id"] = cid
@@ -339,7 +367,8 @@ async def _run_pipeline_bg(
                     db_session=db_session,
                     redis_url=redis_url,
                     user_timezone=tz,
-                    conversation_history=history if history else None,
+                    prior_agent_messages=prior_agent_messages,
+                    prior_fetched_urls=prior_fetched_urls or None,
                     mode=pipeline_mode,
                 )
                 async for event in pipeline_gen:
@@ -349,6 +378,9 @@ async def _run_pipeline_bg(
                         )
                         await _notify("scan:stage", stage=event.stage)
                     elif isinstance(event, DeepDetailEvent):
+                        if event.type == "agent_messages":
+                            agent_messages_json = event.payload.get("json", "[]")
+                            continue
                         accumulated_events.append(
                             {"type": "detail", "detail_type": event.type, **event.payload}
                         )
@@ -365,6 +397,7 @@ async def _run_pipeline_bg(
                             content=accumulated_text,
                             events_json=json.dumps(accumulated_events),
                             usage_json=json.dumps(usage_data),
+                            agent_messages_json=agent_messages_json,
                         )
                         db_session.add(assistant_msg)
                         # Update last_notification_at for replay cursor
