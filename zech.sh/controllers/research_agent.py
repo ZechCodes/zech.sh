@@ -21,13 +21,17 @@ from zoneinfo import ZoneInfo
 
 from google.genai.types import GenerateContentConfig, ThinkingConfig, ThinkingLevel
 from pydantic import BaseModel
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
 from pydantic_ai._agent_graph import CallToolsNode, ModelRequestNode
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
+    ModelMessage,
+    ModelRequest,
     PartDeltaEvent,
     TextPartDelta,
     ThinkingPartDelta,
+    ToolReturnPart,
+    UserPromptPart,
 )
 
 from controllers.deep_research_agent import (
@@ -692,6 +696,71 @@ _MODE_CONFIG = {
 
 
 # ---------------------------------------------------------------------------
+# Message history compaction
+# ---------------------------------------------------------------------------
+
+_COMPACT_TOKEN_THRESHOLD = 100_000
+
+
+def _compact_history(
+    messages: list[ModelMessage],
+    request_tokens: int,
+) -> list[ModelMessage]:
+    """Compact older runs in message history when tokens exceed threshold.
+
+    Keeps the most recent run's messages intact and replaces older runs'
+    tool call/return pairs with a condensed summary.
+    """
+    if request_tokens <= _COMPACT_TOKEN_THRESHOLD:
+        return messages
+
+    # Find run boundaries — each run starts with a ModelRequest containing a UserPromptPart
+    run_starts: list[int] = []
+    for i, msg in enumerate(messages):
+        if isinstance(msg, ModelRequest):
+            for part in msg.parts:
+                if isinstance(part, UserPromptPart):
+                    run_starts.append(i)
+                    break
+
+    # Need at least 2 runs to compact (keep the last one intact)
+    if len(run_starts) < 2:
+        return messages
+
+    # Split: older runs to compact, latest run to keep
+    last_run_start = run_starts[-1]
+    older_messages = messages[:last_run_start]
+    latest_messages = messages[last_run_start:]
+
+    # Build a summary from older messages' tool interactions
+    summaries: list[str] = []
+    for msg in older_messages:
+        if isinstance(msg, ModelRequest):
+            for part in msg.parts:
+                if isinstance(part, ToolReturnPart):
+                    # Truncate long tool returns
+                    content = str(part.content)
+                    if len(content) > 500:
+                        content = content[:500] + "..."
+                    summaries.append(
+                        f"[{part.tool_name}] {content}"
+                    )
+
+    if not summaries:
+        return messages
+
+    summary_text = (
+        "Summary of prior research (compacted to save context):\n"
+        + "\n".join(summaries)
+    )
+    summary_msg = ModelRequest(
+        parts=[UserPromptPart(content=summary_text)],
+    )
+
+    return [summary_msg] + latest_messages
+
+
+# ---------------------------------------------------------------------------
 # Pipeline class
 # ---------------------------------------------------------------------------
 
@@ -706,7 +775,8 @@ class AgentResearchPipeline:
         db_session: object | None = None,
         redis_url: str = "",
         user_timezone: str = "",
-        conversation_history: list[dict] | None = None,
+        prior_agent_messages: list[ModelMessage] | None = None,
+        prior_fetched_urls: set[str] | None = None,
         mode: str = "deep",
     ) -> None:
         self.query = query
@@ -715,13 +785,13 @@ class AgentResearchPipeline:
         self.db_session = db_session
         self.redis_url = redis_url
         self.user_timezone = user_timezone
-        self.conversation_history = conversation_history
+        self.prior_agent_messages = prior_agent_messages
         self.mode = mode
         self.cfg = _MODE_CONFIG[mode]
 
         # Pipeline state
         self.knowledge = KnowledgeState()
-        self.already_fetched: set[str] = set()
+        self.already_fetched: set[str] = set(prior_fetched_urls) if prior_fetched_urls else set()
         self.extraction_counter = TokenCounter()
         self.budget = CostBudget(limit=self.cfg["budget_limit"])
 
@@ -731,17 +801,10 @@ class AgentResearchPipeline:
         except (KeyError, ValueError):
             tz = timezone.utc
         now = datetime.now(tz)
-        full_query = (
+        return (
             f"Current date/time: {now.strftime('%A, %B %d, %Y %H:%M')} "
             f"({self.user_timezone or 'UTC'})\n\n{self.query}"
         )
-        if self.conversation_history:
-            parts = ["Previous conversation:"]
-            for msg in self.conversation_history:
-                role = "User" if msg["role"] == "user" else "Assistant"
-                parts.append(f"{role}: {msg['content']}")
-            full_query = "\n".join(parts) + "\n\n" + full_query
-        return full_query
 
     async def run(self) -> None:
         cfg = self.cfg
@@ -777,6 +840,7 @@ class AgentResearchPipeline:
                 model=agent_model,
                 deps=deps,
                 instructions=cfg["system_prompt"],
+                message_history=self.prior_agent_messages or None,
             ) as agent_run:
                 async for node in agent_run:
                     if isinstance(node, ModelRequestNode):
@@ -812,8 +876,18 @@ class AgentResearchPipeline:
             answer = result.output
             await self.dispatch(TextEvent(text=answer))
 
-            # --- Usage reporting ---
+            # --- Emit agent message history for replay on follow-ups ---
             agent_usage = result.usage()
+            all_messages = result.all_messages()
+            request_tokens = agent_usage.request_tokens or 0
+            compacted = _compact_history(all_messages, request_tokens)
+            compacted_json = ModelMessagesTypeAdapter.dump_json(compacted).decode()
+            await self.dispatch(DetailEvent(
+                type="agent_messages",
+                payload={"json": compacted_json},
+            ))
+
+            # --- Usage reporting ---
             agent_model_name = "gemini-3-flash-preview"
             self.budget.add(
                 agent_usage.request_tokens or 0,
@@ -887,7 +961,8 @@ async def run_agent_research_pipeline(
     db_session: object | None = None,
     redis_url: str = "",
     user_timezone: str = "",
-    conversation_history: list[dict] | None = None,
+    prior_agent_messages: list[ModelMessage] | None = None,
+    prior_fetched_urls: set[str] | None = None,
     mode: str = "deep",
 ) -> AsyncGenerator[PipelineEvent, None]:
     """Run the agent research pipeline, yielding SSE-compatible events.
@@ -903,7 +978,8 @@ async def run_agent_research_pipeline(
         db_session=db_session,
         redis_url=redis_url,
         user_timezone=user_timezone,
-        conversation_history=conversation_history,
+        prior_agent_messages=prior_agent_messages,
+        prior_fetched_urls=prior_fetched_urls,
         mode=mode,
     )
 
