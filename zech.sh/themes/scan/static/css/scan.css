@@ -32,8 +32,8 @@ body {
   left: 0;
   bottom: 0;
   width: 240px;
-  background: rgba(8, 12, 20, 0.97);
-  border-right: 1px solid rgba(0, 229, 255, 0.1);
+  background: rgba(8, 6, 0, 0.97);
+  border-right: 1px solid rgba(255, 85, 0, 0.1);
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -51,13 +51,13 @@ body {
   text-decoration: none;
   padding: 0.75rem 1.25rem;
   margin: 0 0.75rem 0.5rem;
-  border: 1px solid rgba(0, 229, 255, 0.2);
+  border: 1px solid rgba(255, 85, 0, 0.2);
   text-align: center;
   transition: background 0.2s, border-color 0.2s;
 }
 
 .sidebar-new-chat:hover {
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
   border-color: var(--zech-primary);
 }
 
@@ -96,7 +96,7 @@ body {
 .sidebar-chat-item:hover {
   color: var(--zech-text);
   border-left-color: var(--zech-primary);
-  background: rgba(0, 229, 255, 0.03);
+  background: rgba(255, 85, 0, 0.03);
 }
 
 .sidebar-empty {
@@ -117,7 +117,7 @@ body {
   color: var(--zech-text-dim);
   text-decoration: none;
   padding: 0.75rem 1.25rem;
-  border-top: 1px solid rgba(0, 229, 255, 0.08);
+  border-top: 1px solid rgba(255, 85, 0, 0.08);
   text-align: center;
   transition: color 0.2s;
 }
@@ -139,7 +139,7 @@ body:has(.scan-sidebar) .zech-footer {
 
 .nav-recent-divider {
   height: 1px;
-  background: rgba(0, 229, 255, 0.08);
+  background: rgba(255, 85, 0, 0.08);
   margin: 0.25rem 0;
 }
 
@@ -215,7 +215,7 @@ body:has(.scan-sidebar) .zech-footer {
   color: var(--zech-text-dim);
   text-decoration: none;
   padding: 0.5rem 0;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 85, 0, 0.06);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -277,8 +277,8 @@ body:has(.scan-sidebar) .zech-footer {
 .scan-form-row {
   display: flex;
   align-items: stretch;
-  border: 1px solid rgba(0, 229, 255, 0.15);
-  background: rgba(0, 229, 255, 0.04);
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  background: rgba(255, 85, 0, 0.04);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
@@ -286,8 +286,8 @@ body:has(.scan-sidebar) .zech-footer {
 
 .scan-form-row:focus-within {
   border-color: var(--zech-primary);
-  background: rgba(0, 229, 255, 0.06);
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.1), inset 0 0 20px rgba(0, 229, 255, 0.03);
+  background: rgba(255, 85, 0, 0.06);
+  box-shadow: 0 0 20px rgba(255, 85, 0, 0.1), inset 0 0 20px rgba(255, 85, 0, 0.03);
 }
 
 .scan-form-row .scan-input {
@@ -325,12 +325,12 @@ body:has(.scan-sidebar) .zech-footer {
 }
 
 .scan-mode-submit:hover {
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
 }
 
 .scan-mode-divider {
   width: 1px;
-  background: rgba(0, 229, 255, 0.15);
+  background: rgba(255, 85, 0, 0.15);
   align-self: stretch;
 }
 
@@ -352,7 +352,7 @@ body:has(.scan-sidebar) .zech-footer {
 }
 
 .scan-mode-toggle:hover {
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
 }
 
 .scan-mode-toggle svg {
@@ -367,11 +367,11 @@ body:has(.scan-sidebar) .zech-footer {
   position: absolute;
   top: calc(100% + 5px);
   right: 0;
-  background: rgba(8, 12, 20, 0.97);
-  border: 1px solid rgba(0, 229, 255, 0.2);
+  background: rgba(8, 6, 0, 0.97);
+  border: 1px solid rgba(255, 85, 0, 0.2);
   min-width: 200px;
   z-index: 100;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 229, 255, 0.05);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 85, 0, 0.05);
 }
 
 .scan-mode-menu[hidden] {
@@ -385,7 +385,7 @@ body:has(.scan-sidebar) .zech-footer {
   padding: 0.6rem 0.75rem;
   border: none;
   border-left: 2px solid transparent;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 85, 0, 0.06);
   background: none;
   text-align: left;
   cursor: pointer;
@@ -397,11 +397,11 @@ body:has(.scan-sidebar) .zech-footer {
 }
 
 .scan-mode-option:hover {
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
 }
 
 .scan-mode-option.active {
-  background: rgba(0, 229, 255, 0.08);
+  background: rgba(255, 85, 0, 0.08);
   border-left-color: var(--zech-primary);
 }
 
@@ -433,8 +433,8 @@ body:has(.scan-sidebar) .zech-footer {
   font-size: 1.2rem;
   font-weight: 500;
   color: var(--zech-text);
-  background: rgba(0, 229, 255, 0.03);
-  border: 1px solid rgba(0, 229, 255, 0.15);
+  background: rgba(255, 85, 0, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.15);
   outline: none;
   transition: border-color 0.3s, box-shadow 0.3s;
   box-sizing: border-box;
@@ -447,7 +447,7 @@ body:has(.scan-sidebar) .zech-footer {
 
 .scan-input:focus {
   border-color: var(--zech-primary);
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.1), inset 0 0 20px rgba(0, 229, 255, 0.03);
+  box-shadow: 0 0 20px rgba(255, 85, 0, 0.1), inset 0 0 20px rgba(255, 85, 0, 0.03);
 }
 
 textarea.scan-input-auto {
@@ -467,11 +467,11 @@ textarea.scan-input-auto {
   top: calc(100% + 1px);
   left: -1px;
   right: -1px;
-  background: rgba(8, 12, 20, 0.97);
-  border: 1px solid rgba(0, 229, 255, 0.2);
+  background: rgba(8, 6, 0, 0.97);
+  border: 1px solid rgba(255, 85, 0, 0.2);
   border-top: none;
   z-index: 200;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 229, 255, 0.05);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 85, 0, 0.05);
 }
 
 .scan-suggest-dropdown[hidden] {
@@ -494,7 +494,7 @@ textarea.scan-input-auto {
 .scan-suggest-item.is-selected {
   color: var(--zech-text);
   border-left-color: var(--zech-primary);
-  background: rgba(0, 229, 255, 0.03);
+  background: rgba(255, 85, 0, 0.03);
 }
 
 /* --------------------------------------------------------------------------
@@ -550,7 +550,7 @@ textarea.scan-input-auto {
   color: var(--zech-text);
   padding-bottom: 0.75rem;
   margin-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 85, 0, 0.1);
 }
 
 .chat-assistant-events {
@@ -589,7 +589,7 @@ textarea.scan-input-auto {
 .chat-assistant-response a {
   color: var(--zech-primary);
   text-decoration: none;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 85, 0, 0.2);
   transition: border-color 0.2s;
 }
 
@@ -600,14 +600,14 @@ textarea.scan-input-auto {
 .chat-assistant-response code {
   font-family: monospace;
   font-size: 0.9em;
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
   padding: 0.15em 0.4em;
-  border: 1px solid rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(255, 85, 0, 0.1);
 }
 
 .chat-assistant-response pre.research-code {
-  background: rgba(0, 229, 255, 0.03);
-  border: 1px solid rgba(0, 229, 255, 0.1);
+  background: rgba(255, 85, 0, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.1);
   padding: 1rem;
   overflow-x: auto;
   margin: 1em 0;
@@ -656,11 +656,11 @@ textarea.scan-input-auto {
 .chat-assistant-response th,
 .chat-assistant-response td {
   padding: 0.5em 0.75em;
-  border: 1px solid rgba(0, 229, 255, 0.15);
+  border: 1px solid rgba(255, 85, 0, 0.15);
 }
 
 .chat-assistant-response th {
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
   color: var(--zech-text);
   font-weight: 600;
   font-size: 0.85em;
@@ -669,7 +669,7 @@ textarea.scan-input-auto {
 }
 
 .chat-assistant-response td {
-  background: rgba(0, 229, 255, 0.02);
+  background: rgba(255, 85, 0, 0.02);
 }
 
 .chat-active-turn[hidden] {
@@ -679,7 +679,7 @@ textarea.scan-input-auto {
 .chat-followup {
   margin-top: 2rem;
   padding-top: 1.5rem;
-  border-top: 1px solid rgba(0, 229, 255, 0.1);
+  border-top: 1px solid rgba(255, 85, 0, 0.1);
 }
 
 /* --------------------------------------------------------------------------
@@ -700,7 +700,7 @@ textarea.scan-input-auto {
   color: var(--zech-text);
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 85, 0, 0.1);
 }
 
 .research-response {
@@ -736,7 +736,7 @@ textarea.scan-input-auto {
 .research-response a {
   color: var(--zech-primary);
   text-decoration: none;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 85, 0, 0.2);
   transition: border-color 0.2s;
 }
 
@@ -747,14 +747,14 @@ textarea.scan-input-auto {
 .research-response code {
   font-family: monospace;
   font-size: 0.9em;
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
   padding: 0.15em 0.4em;
-  border: 1px solid rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(255, 85, 0, 0.1);
 }
 
 .research-response pre.research-code {
-  background: rgba(0, 229, 255, 0.03);
-  border: 1px solid rgba(0, 229, 255, 0.1);
+  background: rgba(255, 85, 0, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.1);
   padding: 1rem;
   overflow-x: auto;
   margin: 1em 0;
@@ -803,11 +803,11 @@ textarea.scan-input-auto {
 .research-response th,
 .research-response td {
   padding: 0.5em 0.75em;
-  border: 1px solid rgba(0, 229, 255, 0.15);
+  border: 1px solid rgba(255, 85, 0, 0.15);
 }
 
 .research-response th {
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
   color: var(--zech-text);
   font-weight: 600;
   font-size: 0.85em;
@@ -816,7 +816,7 @@ textarea.scan-input-auto {
 }
 
 .research-response td {
-  background: rgba(0, 229, 255, 0.02);
+  background: rgba(255, 85, 0, 0.02);
 }
 
 .research-cursor {
@@ -878,8 +878,8 @@ textarea.scan-input-auto {
   font-size: 0.85rem;
   color: var(--zech-text-dim);
   padding: 0.3rem 0.6rem;
-  background: rgba(0, 229, 255, 0.03);
-  border-left: 2px solid rgba(0, 229, 255, 0.15);
+  background: rgba(255, 85, 0, 0.03);
+  border-left: 2px solid rgba(255, 85, 0, 0.15);
   opacity: 0;
   animation: detail-fade-in 0.3s forwards;
 }
@@ -902,7 +902,7 @@ textarea.scan-input-auto {
    -------------------------------------------------------------------------- */
 
 .tool-group {
-  border-left: 2px solid rgba(0, 229, 255, 0.15);
+  border-left: 2px solid rgba(255, 85, 0, 0.15);
   padding: 0.4rem 0 0.4rem 0.6rem;
   margin-bottom: 0.35rem;
   opacity: 0;
@@ -914,7 +914,7 @@ textarea.scan-input-auto {
 }
 
 .tool-group.is-done {
-  border-left-color: rgba(0, 229, 255, 0.15);
+  border-left-color: rgba(255, 85, 0, 0.15);
 }
 
 .tool-group.is-done .tool-header {
@@ -969,7 +969,7 @@ textarea.scan-input-auto {
   display: inline-block;
   width: 12px;
   height: 12px;
-  border: 2px solid rgba(0, 229, 255, 0.2);
+  border: 2px solid rgba(255, 85, 0, 0.2);
   border-top-color: var(--zech-primary);
   border-radius: 50%;
   animation: tool-spin 0.7s linear infinite;
@@ -980,7 +980,7 @@ textarea.scan-input-auto {
   display: inline-block;
   width: 10px;
   height: 10px;
-  border: 1.5px solid rgba(0, 229, 255, 0.2);
+  border: 1.5px solid rgba(255, 85, 0, 0.2);
   border-top-color: var(--zech-primary);
   border-radius: 50%;
   animation: tool-spin 0.7s linear infinite;
@@ -1114,8 +1114,8 @@ textarea.scan-input-auto {
   font-size: 0.78rem;
   line-height: 1.5;
   color: var(--zech-text-dim);
-  background: rgba(0, 229, 255, 0.03);
-  border: 1px solid rgba(0, 229, 255, 0.08);
+  background: rgba(255, 85, 0, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.08);
   border-radius: 2px;
   padding: 0.5rem 0.6rem;
   margin-top: 0.25rem;
@@ -1146,7 +1146,7 @@ textarea.scan-input-auto {
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0.6rem;
-  border-left: 2px solid rgba(0, 229, 255, 0.15);
+  border-left: 2px solid rgba(255, 85, 0, 0.15);
   cursor: pointer;
   transition: border-color 0.2s;
 }
@@ -1198,7 +1198,7 @@ textarea.scan-input-auto {
   opacity: 0.6;
   margin-top: 0.5rem;
   padding: 0.4rem 0.6rem;
-  border-top: 1px solid rgba(0, 229, 255, 0.08);
+  border-top: 1px solid rgba(255, 85, 0, 0.08);
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -1207,8 +1207,8 @@ textarea.scan-input-auto {
 .pipeline-clarification {
   margin-top: 0.75rem;
   padding: 0.75rem;
-  border: 1px solid rgba(0, 229, 255, 0.2);
-  background: rgba(0, 229, 255, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.2);
+  background: rgba(255, 85, 0, 0.03);
 }
 
 .clarification-question {
@@ -1230,7 +1230,7 @@ textarea.scan-input-auto {
 .research-followup {
   margin-top: 2rem;
   padding-top: 1.5rem;
-  border-top: 1px solid rgba(0, 229, 255, 0.1);
+  border-top: 1px solid rgba(255, 85, 0, 0.1);
 }
 
 .research-error {
@@ -1247,7 +1247,7 @@ textarea.scan-input-auto {
   gap: 0.35rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(0, 229, 255, 0.08);
+  border-top: 1px solid rgba(255, 85, 0, 0.08);
 }
 
 .response-action-btn {
@@ -1258,7 +1258,7 @@ textarea.scan-input-auto {
   height: 28px;
   padding: 0;
   background: transparent;
-  border: 1px solid rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(255, 85, 0, 0.1);
   color: var(--zech-text-dim);
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
@@ -1267,7 +1267,7 @@ textarea.scan-input-auto {
 .response-action-btn:hover {
   color: var(--zech-primary);
   border-color: var(--zech-primary);
-  box-shadow: 0 0 8px rgba(0, 229, 255, 0.15);
+  box-shadow: 0 0 8px rgba(255, 85, 0, 0.15);
 }
 
 .response-actions-feedback {
@@ -1292,7 +1292,7 @@ textarea.scan-input-auto {
 .deep-iteration {
   padding: 0.4rem 0.6rem;
   margin: 0.5rem 0 0.25rem;
-  border-left: 2px solid rgba(0, 229, 255, 0.3);
+  border-left: 2px solid rgba(255, 85, 0, 0.3);
   opacity: 0;
   animation: detail-fade-in 0.3s forwards;
 }
@@ -1314,8 +1314,8 @@ textarea.scan-input-auto {
   gap: 0.5rem;
   padding: 0.5rem 0.6rem;
   margin: 0.25rem 0 0.5rem;
-  border-left: 2px solid rgba(0, 229, 255, 0.15);
-  background: rgba(0, 229, 255, 0.02);
+  border-left: 2px solid rgba(255, 85, 0, 0.15);
+  background: rgba(255, 85, 0, 0.02);
   opacity: 0;
   animation: detail-fade-in 0.3s forwards;
 }
@@ -1384,7 +1384,7 @@ textarea.scan-input-auto {
 .history-item:hover {
   color: var(--zech-text);
   border-left-color: var(--zech-primary);
-  background: rgba(0, 229, 255, 0.03);
+  background: rgba(255, 85, 0, 0.03);
 }
 
 .history-item-title {
@@ -1424,7 +1424,7 @@ textarea.scan-input-auto {
   gap: 1.5rem;
   margin-top: 2rem;
   padding-top: 1.5rem;
-  border-top: 1px solid rgba(0, 229, 255, 0.08);
+  border-top: 1px solid rgba(255, 85, 0, 0.08);
 }
 
 .history-page-link {
@@ -1524,8 +1524,8 @@ textarea.scan-input-auto {
 .search-bar .scan-form-row {
   display: flex;
   align-items: stretch;
-  border: 1px solid rgba(0, 229, 255, 0.15);
-  background: rgba(0, 229, 255, 0.04);
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  background: rgba(255, 85, 0, 0.04);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
@@ -1533,8 +1533,8 @@ textarea.scan-input-auto {
 
 .search-bar .scan-form-row:focus-within {
   border-color: var(--zech-primary);
-  background: rgba(0, 229, 255, 0.06);
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.1), inset 0 0 20px rgba(0, 229, 255, 0.03);
+  background: rgba(255, 85, 0, 0.06);
+  box-shadow: 0 0 20px rgba(255, 85, 0, 0.1), inset 0 0 20px rgba(255, 85, 0, 0.03);
 }
 
 .search-bar .scan-input {
@@ -1555,22 +1555,22 @@ textarea.scan-input-auto {
   color: var(--zech-primary);
   background: transparent;
   border: none;
-  border-left: 1px solid rgba(0, 229, 255, 0.15);
+  border-left: 1px solid rgba(255, 85, 0, 0.15);
   cursor: pointer;
   transition: background 0.2s;
   white-space: nowrap;
 }
 
 .search-bar-submit:hover {
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
 }
 
 /* AI Overview */
 .search-overview {
   margin-bottom: 2rem;
   padding: 1.25rem 1.5rem;
-  border: 1px solid rgba(0, 229, 255, 0.12);
-  background: rgba(0, 229, 255, 0.02);
+  border: 1px solid rgba(255, 85, 0, 0.12);
+  background: rgba(255, 85, 0, 0.02);
   position: relative;
 }
 
@@ -1654,7 +1654,7 @@ textarea.scan-input-auto {
 
 .search-result:hover {
   border-left-color: var(--zech-primary);
-  background: rgba(0, 229, 255, 0.03);
+  background: rgba(255, 85, 0, 0.03);
 }
 
 .search-result-title {
@@ -1708,7 +1708,7 @@ textarea.scan-input-auto {
   gap: 1.5rem;
   margin-top: 2rem;
   padding-top: 1.5rem;
-  border-top: 1px solid rgba(0, 229, 255, 0.08);
+  border-top: 1px solid rgba(255, 85, 0, 0.08);
 }
 
 .search-page-link {
@@ -1835,8 +1835,8 @@ textarea.scan-input-auto {
   font-size: 1.15rem;
   font-weight: 500;
   color: var(--zech-text);
-  background: rgba(0, 229, 255, 0.03);
-  border-left: 2px solid rgba(0, 229, 255, 0.15);
+  background: rgba(255, 85, 0, 0.03);
+  border-left: 2px solid rgba(255, 85, 0, 0.15);
 }
 
 .agent-chat-section .chat-msg-model .chat-msg-content {
@@ -1860,7 +1860,7 @@ textarea.scan-input-auto {
 .agent-chat-section .chat-msg-content a {
   color: var(--zech-primary);
   text-decoration: none;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 85, 0, 0.2);
   transition: border-color 0.2s;
 }
 .agent-chat-section .chat-msg-content a:hover { border-color: var(--zech-primary); }
@@ -1868,14 +1868,14 @@ textarea.scan-input-auto {
 .agent-chat-section .chat-msg-content code {
   font-family: monospace;
   font-size: 0.9em;
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
   padding: 0.15em 0.4em;
-  border: 1px solid rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(255, 85, 0, 0.1);
 }
 
 .agent-chat-section .chat-msg-content pre {
-  background: rgba(0, 229, 255, 0.03);
-  border: 1px solid rgba(0, 229, 255, 0.1);
+  background: rgba(255, 85, 0, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.1);
   padding: 1rem;
   overflow-x: auto;
   margin: 0.8em 0;
@@ -1901,13 +1901,13 @@ textarea.scan-input-auto {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(0, 229, 255, 0.3) 20%,
+    rgba(255, 85, 0, 0.3) 20%,
     var(--zech-primary) 50%,
-    rgba(0, 229, 255, 0.3) 80%,
+    rgba(255, 85, 0, 0.3) 80%,
     transparent
   );
   margin: 1.5em 0;
-  box-shadow: 0 0 6px rgba(0, 229, 255, 0.15);
+  box-shadow: 0 0 6px rgba(255, 85, 0, 0.15);
 }
 
 .agent-chat-section .chat-msg-content blockquote {
@@ -1927,11 +1927,11 @@ textarea.scan-input-auto {
 .agent-chat-section .chat-msg-content th,
 .agent-chat-section .chat-msg-content td {
   padding: 0.5em 0.75em;
-  border: 1px solid rgba(0, 229, 255, 0.15);
+  border: 1px solid rgba(255, 85, 0, 0.15);
 }
 
 .agent-chat-section .chat-msg-content th {
-  background: rgba(0, 229, 255, 0.06);
+  background: rgba(255, 85, 0, 0.06);
   color: var(--zech-text);
   font-weight: 600;
   font-size: 0.85em;
@@ -1955,14 +1955,14 @@ textarea.scan-input-auto {
   font-family: 'Rajdhani', sans-serif;
   font-size: 0.78rem;
   color: var(--zech-text-dim);
-  background: rgba(0, 229, 255, 0.03);
-  border: 1px solid rgba(0, 229, 255, 0.1);
+  background: rgba(255, 85, 0, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.1);
   max-width: 100%;
   transition: border-color 0.2s;
 }
 
 .agent-chat-section .chat-tool-pill.is-expanded {
-  border-color: rgba(0, 229, 255, 0.25);
+  border-color: rgba(255, 85, 0, 0.25);
 }
 
 .agent-chat-section .chat-tool-pill-header {
@@ -1973,7 +1973,7 @@ textarea.scan-input-auto {
 }
 
 .agent-chat-section .chat-tool-pill-header:hover {
-  background: rgba(0, 229, 255, 0.04);
+  background: rgba(255, 85, 0, 0.04);
 }
 
 .agent-chat-section .chat-tool-pill-icon {
@@ -1997,8 +1997,8 @@ textarea.scan-input-auto {
   font-size: 0.78rem;
   line-height: 1.5;
   color: var(--zech-text-dim);
-  background: rgba(0, 229, 255, 0.02);
-  border-top: 1px solid rgba(0, 229, 255, 0.08);
+  background: rgba(255, 85, 0, 0.02);
+  border-top: 1px solid rgba(255, 85, 0, 0.08);
   padding: 0.5rem 0.6rem;
   max-height: 16rem;
   overflow-y: auto;
@@ -2013,7 +2013,7 @@ textarea.scan-input-auto {
 /* Status area — thinking + tool events */
 .agent-chat-section .chat-status-area {
   padding: 0.8rem 0;
-  border-top: 1px solid rgba(0, 229, 255, 0.06);
+  border-top: 1px solid rgba(255, 85, 0, 0.06);
 }
 
 .agent-chat-section .chat-status-area[hidden] { display: none; }
@@ -2031,7 +2031,7 @@ textarea.scan-input-auto {
   background: var(--zech-primary);
   border-radius: 1px;
   animation: agent-pulse-bar 1.2s ease-in-out infinite;
-  box-shadow: 0 0 6px rgba(0, 229, 255, 0.4);
+  box-shadow: 0 0 6px rgba(255, 85, 0, 0.4);
 }
 
 .agent-chat-section .pulse-bar:nth-child(2) {
@@ -2084,7 +2084,7 @@ textarea.scan-input-auto {
   font-weight: 700;
   letter-spacing: 1px;
   padding: 0.15rem 0.4rem;
-  border: 1px solid rgba(0, 229, 255, 0.15);
+  border: 1px solid rgba(255, 85, 0, 0.15);
   color: var(--zech-primary);
   white-space: nowrap;
 }
@@ -2094,7 +2094,7 @@ textarea.scan-input-auto {
 }
 
 .agent-chat-section .chat-tool-event.is-done .chat-tool-event-icon {
-  border-color: rgba(0, 229, 255, 0.25);
+  border-color: rgba(255, 85, 0, 0.25);
   opacity: 0.7;
 }
 
@@ -2106,7 +2106,7 @@ textarea.scan-input-auto {
 
 @keyframes agent-tool-pulse {
   0%, 100% { opacity: 0.5; box-shadow: none; }
-  50% { opacity: 1; box-shadow: 0 0 8px rgba(0, 229, 255, 0.2); }
+  50% { opacity: 1; box-shadow: 0 0 8px rgba(255, 85, 0, 0.2); }
 }
 
 /* Usage display */
@@ -2117,7 +2117,7 @@ textarea.scan-input-auto {
   gap: 0.75rem;
   margin-top: 0.4rem;
   padding-top: 0.4rem;
-  border-top: 1px solid rgba(0, 229, 255, 0.06);
+  border-top: 1px solid rgba(255, 85, 0, 0.06);
 }
 
 .chat-usage-tokens {
@@ -2146,8 +2146,8 @@ textarea.scan-input-auto {
   color: var(--zech-text-dim);
   text-align: center;
   padding: 0.6rem 1rem;
-  border: 1px solid rgba(0, 229, 255, 0.06);
-  background: rgba(0, 229, 255, 0.02);
+  border: 1px solid rgba(255, 85, 0, 0.06);
+  background: rgba(255, 85, 0, 0.02);
   opacity: 0;
   animation: detail-fade-in 0.4s forwards;
 }
@@ -2166,8 +2166,8 @@ textarea.scan-input-auto {
   display: flex;
   align-items: flex-end;
   gap: 0.5rem;
-  border: 1px solid rgba(0, 229, 255, 0.15);
-  background: rgba(0, 229, 255, 0.04);
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  background: rgba(255, 85, 0, 0.04);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   padding: 0.5rem 0.75rem;
@@ -2176,8 +2176,8 @@ textarea.scan-input-auto {
 
 .agent-chat-section .chat-input-wrap:focus-within {
   border-color: var(--zech-primary);
-  background: rgba(0, 229, 255, 0.06);
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
+  background: rgba(255, 85, 0, 0.06);
+  box-shadow: 0 0 20px rgba(255, 85, 0, 0.1);
 }
 
 .agent-chat-section .chat-input {
@@ -2213,7 +2213,7 @@ textarea.scan-input-auto {
   color: var(--zech-primary);
   background: transparent;
   border: none;
-  border-left: 1px solid rgba(0, 229, 255, 0.15);
+  border-left: 1px solid rgba(255, 85, 0, 0.15);
   padding: 0 1rem;
   cursor: pointer;
   transition: background 0.2s, opacity 0.2s;
@@ -2221,7 +2221,7 @@ textarea.scan-input-auto {
   align-self: stretch;
 }
 
-.agent-chat-section .chat-send-btn:hover { background: rgba(0, 229, 255, 0.06); }
+.agent-chat-section .chat-send-btn:hover { background: rgba(255, 85, 0, 0.06); }
 .agent-chat-section .chat-send-btn:disabled { opacity: 0.2; cursor: not-allowed; }
 
 /* Responsive */
