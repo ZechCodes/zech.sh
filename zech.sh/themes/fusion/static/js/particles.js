@@ -1,4 +1,4 @@
-// FUSION: Dense magnetic polarity particle system
+// FUSION: Solar flare magnetic polarity particle system
 (function() {
   const canvas = document.getElementById('neuralCanvas');
   if (!canvas) return;
@@ -28,8 +28,8 @@
         vy: (Math.random() - 0.5) * 0.3,
         radius: radius,
         baseRadius: radius,
-        // Attracted = cyan (hue 185-200), Repelled = lavender (hue 220-240)
-        hue: polarity === 1 ? 185 + Math.random() * 15 : 220 + Math.random() * 20,
+        // Attracted = orange (hue 15-30), Repelled = yellow (hue 40-55)
+        hue: polarity === 1 ? 15 + Math.random() * 15 : 40 + Math.random() * 15,
         alpha: Math.random() * 0.35 + 0.15,
         polarity: polarity,
         force: 0.00004 + Math.random() * 0.00003,
@@ -98,7 +98,7 @@
           const crossPolar = p.polarity !== p2.polarity;
           const baseAlpha = crossPolar ? 0.12 : 0.05;
           const alpha = (1 - dist2 / 200) * baseAlpha;
-          const lineHue = crossPolar ? 195 : 210;
+          const lineHue = crossPolar ? 25 : 45;
           const lineLightness = crossPolar ? 75 : 60;
 
           ctx.beginPath();

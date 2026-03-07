@@ -1,5 +1,5 @@
 /* ==========================================================================
-   FUSION — Arctic Cyberpunk CSS Framework
+   FUSION — Solar Flare Cyberpunk CSS Framework
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -8,24 +8,24 @@
 
 :root {
   /* Skrift overrides */
-  --sk-bg: #040810;
-  --sk-text: #e0eaf8;
-  --sk-accent: #00e5ff;
+  --sk-bg: #080600;
+  --sk-text: #f5ece0;
+  --sk-accent: #ff5500;
   --sk-font-body: 'Rajdhani', sans-serif;
   --sk-font-heading: 'Orbitron', sans-serif;
 
   /* Fusion tokens */
-  --zech-bg: #040810;
-  --zech-surface: #0a1020;
-  --zech-primary: #00e5ff;
-  --zech-secondary: #b4c7ff;
-  --zech-accent: #e0eaff;
-  --zech-dim: #103050;
-  --zech-text: #e0eaf8;
-  --zech-text-dim: #7a92b0;
-  --zech-glow: 0 0 30px rgba(0,229,255,0.3);
-  --zech-glow-lg: 0 0 60px rgba(0,229,255,0.15);
-  --zech-glow-sec: 0 0 30px rgba(180,199,255,0.3);
+  --zech-bg: #080600;
+  --zech-surface: #121008;
+  --zech-primary: #ff5500;
+  --zech-secondary: #ffc800;
+  --zech-accent: #ffe080;
+  --zech-dim: #6b4000;
+  --zech-text: #f5ece0;
+  --zech-text-dim: #5a4828;
+  --zech-glow: 0 0 30px rgba(255,85,0,0.3);
+  --zech-glow-lg: 0 0 60px rgba(255,85,0,0.15);
+  --zech-glow-sec: 0 0 30px rgba(255,200,0,0.3);
 }
 
 /* --------------------------------------------------------------------------
@@ -92,16 +92,16 @@ a {
 }
 
 a:hover {
-  text-shadow: 0 0 10px rgba(0,229,255,0.5);
+  text-shadow: 0 0 10px rgba(255,85,0,0.5);
 }
 
 code {
   font-family: 'Orbitron', sans-serif;
   font-size: 0.85em;
   color: var(--zech-secondary);
-  background: rgba(0,229,255,0.05);
+  background: rgba(255,85,0,0.05);
   padding: 0.1em 0.4em;
-  border: 1px solid rgba(0,229,255,0.1);
+  border: 1px solid rgba(255,85,0,0.1);
 }
 
 /* --------------------------------------------------------------------------
@@ -112,8 +112,8 @@ input, textarea, select {
   font-family: 'Rajdhani', sans-serif;
   font-size: 1rem;
   color: var(--zech-text);
-  background: rgba(0,229,255,0.03);
-  border: 1px solid rgba(0,229,255,0.12);
+  background: rgba(255,85,0,0.03);
+  border: 1px solid rgba(255,85,0,0.12);
   padding: 0.75rem 1rem;
   transition: all 0.3s;
 }
@@ -121,7 +121,7 @@ input, textarea, select {
 input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--zech-primary);
-  box-shadow: 0 0 15px rgba(0,229,255,0.15);
+  box-shadow: 0 0 15px rgba(255,85,0,0.15);
 }
 
 label {
@@ -172,7 +172,7 @@ label {
 }
 
 .zech-btn-ghost:hover {
-  background: rgba(180,199,255,0.06);
+  background: rgba(255,200,0,0.06);
   box-shadow: var(--zech-glow-sec);
   transform: translateY(-2px);
 }
@@ -191,9 +191,9 @@ label {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(4,8,16,0.8);
+  background: rgba(8,6,0,0.8);
   backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(0,229,255,0.08);
+  border-bottom: 1px solid rgba(255,85,0,0.08);
 }
 
 .zech-topnav .logo {
@@ -202,7 +202,7 @@ label {
   font-weight: 900;
   color: var(--zech-primary);
   letter-spacing: 4px;
-  text-shadow: 0 0 10px rgba(0,229,255,0.4);
+  text-shadow: 0 0 10px rgba(255,85,0,0.4);
   text-transform: uppercase;
   position: relative;
   text-decoration: none;
@@ -236,7 +236,7 @@ label {
 
 .zech-topnav-links a:hover {
   color: var(--zech-primary);
-  text-shadow: 0 0 10px rgba(0,229,255,0.5);
+  text-shadow: 0 0 10px rgba(255,85,0,0.5);
 }
 
 /* Hamburger toggle — hidden on desktop */
@@ -290,7 +290,7 @@ label {
 
 .zech-user-login-link:hover {
   color: var(--zech-primary);
-  text-shadow: 0 0 10px rgba(0,229,255,0.5);
+  text-shadow: 0 0 10px rgba(255,85,0,0.5);
 }
 
 .zech-user-menu {
@@ -320,9 +320,9 @@ label {
   top: calc(100% + 12px);
   right: 0;
   min-width: 220px;
-  background: rgba(4,8,16,0.95);
+  background: rgba(8,6,0,0.95);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(0,229,255,0.12);
+  border: 1px solid rgba(255,85,0,0.12);
   z-index: 101;
   display: none;
 }
@@ -333,7 +333,7 @@ label {
 
 .zech-user-dropdown-header {
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid rgba(0,229,255,0.08);
+  border-bottom: 1px solid rgba(255,85,0,0.08);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -346,7 +346,7 @@ label {
   font-weight: 700;
   letter-spacing: 3px;
   color: var(--zech-secondary);
-  text-shadow: 0 0 8px rgba(180,199,255,0.3);
+  text-shadow: 0 0 8px rgba(255,200,0,0.3);
 }
 
 .zech-user-dropdown-status {
@@ -379,13 +379,13 @@ label {
   color: var(--zech-text-dim);
   text-decoration: none;
   transition: all 0.2s;
-  border-bottom: 1px solid rgba(0,229,255,0.04);
+  border-bottom: 1px solid rgba(255,85,0,0.04);
 }
 
 .zech-user-dropdown-item:hover {
   color: var(--zech-primary);
-  background: rgba(0,229,255,0.04);
-  text-shadow: 0 0 10px rgba(0,229,255,0.4);
+  background: rgba(255,85,0,0.04);
+  text-shadow: 0 0 10px rgba(255,85,0,0.4);
   padding-left: 1.5rem;
 }
 
@@ -420,8 +420,8 @@ label {
   width: 120%;
   height: 50%;
   background:
-    linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px),
-    linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px);
+    linear-gradient(90deg, rgba(255,85,0,0.03) 1px, transparent 1px),
+    linear-gradient(rgba(255,85,0,0.03) 1px, transparent 1px);
   background-size: 60px 60px;
   transform: perspective(500px) rotateX(60deg);
   transform-origin: bottom;
@@ -437,7 +437,7 @@ label {
   text-transform: uppercase;
   color: var(--zech-secondary);
   margin-bottom: 2rem;
-  text-shadow: 0 0 15px rgba(180,199,255,0.4);
+  text-shadow: 0 0 15px rgba(255,200,0,0.4);
   opacity: 0;
   animation: fadeIn 0.6s 0.3s forwards;
   display: flex;
@@ -465,7 +465,7 @@ label {
   letter-spacing: 6px;
   color: var(--zech-text);
   position: relative;
-  text-shadow: 0 0 10px rgba(0,229,255,0.2), 0 0 40px rgba(0,229,255,0.08);
+  text-shadow: 0 0 10px rgba(255,85,0,0.2), 0 0 40px rgba(255,85,0,0.08);
   animation: glitchReveal 0.8s 0.5s forwards;
   opacity: 0;
 }
@@ -485,7 +485,7 @@ label {
 }
 
 .zech-glitch::before {
-  color: #ff1a1a;
+  color: #ffc800;
   z-index: -1;
   animation: glitchA 2s infinite linear alternate-reverse;
 }
@@ -513,13 +513,13 @@ label {
 
 .zech-hero-subtitle .neon {
   color: var(--zech-primary);
-  text-shadow: 0 0 10px rgba(0,229,255,0.5);
+  text-shadow: 0 0 10px rgba(255,85,0,0.5);
   font-weight: 600;
 }
 
 .zech-hero-subtitle .neon-alt {
   color: var(--zech-secondary);
-  text-shadow: 0 0 10px rgba(180,199,255,0.5);
+  text-shadow: 0 0 10px rgba(255,200,0,0.5);
   font-weight: 600;
 }
 
@@ -553,7 +553,7 @@ label {
   text-transform: uppercase;
   color: var(--zech-primary);
   margin-bottom: 1rem;
-  text-shadow: 0 0 10px rgba(0,229,255,0.3);
+  text-shadow: 0 0 10px rgba(255,85,0,0.3);
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -575,12 +575,12 @@ label {
 
 .zech-section-title .a {
   color: var(--zech-primary);
-  text-shadow: 0 0 20px rgba(0,229,255,0.3);
+  text-shadow: 0 0 20px rgba(255,85,0,0.3);
 }
 
 .zech-section-title .b {
   color: var(--zech-secondary);
-  text-shadow: 0 0 20px rgba(180,199,255,0.3);
+  text-shadow: 0 0 20px rgba(255,200,0,0.3);
 }
 
 /* --------------------------------------------------------------------------
@@ -613,7 +613,7 @@ label {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1px;
-  background: rgba(0,229,255,0.06);
+  background: rgba(255,85,0,0.06);
 }
 
 .zech-stat {
@@ -633,7 +633,7 @@ label {
 }
 
 .zech-stat:hover {
-  background: rgba(0,229,255,0.02);
+  background: rgba(255,85,0,0.02);
 }
 
 .zech-stat::before {
@@ -665,7 +665,7 @@ label {
   font-size: 2.5rem;
   font-weight: 900;
   color: var(--zech-primary);
-  text-shadow: 0 0 20px rgba(0,229,255,0.3);
+  text-shadow: 0 0 20px rgba(255,85,0,0.3);
   line-height: 1;
   margin-bottom: 0.5rem;
 }
@@ -730,7 +730,7 @@ label {
 }
 
 .zech-card:hover {
-  background: rgba(0,229,255,0.015);
+  background: rgba(255,85,0,0.015);
 }
 
 .zech-card .card-id {
@@ -740,7 +740,7 @@ label {
   color: var(--zech-secondary);
   letter-spacing: 3px;
   margin-bottom: 1.5rem;
-  text-shadow: 0 0 8px rgba(180,199,255,0.3);
+  text-shadow: 0 0 8px rgba(255,200,0,0.3);
 }
 
 .zech-card h3 {
@@ -768,15 +768,15 @@ label {
   margin-top: 1.5rem;
   align-self: center;
   padding: 0.6rem 1.5rem;
-  border: 1px solid rgba(0,229,255,0.25);
+  border: 1px solid rgba(255,85,0,0.25);
   transition: all 0.3s;
   clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
 }
 
 .zech-card-link:hover {
-  background: rgba(0,229,255,0.08);
+  background: rgba(255,85,0,0.08);
   border-color: var(--zech-primary);
-  box-shadow: 0 0 12px rgba(0,229,255,0.2);
+  box-shadow: 0 0 12px rgba(255,85,0,0.2);
   transform: translateY(-1px);
 }
 
@@ -789,8 +789,8 @@ label {
   padding: 4rem;
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(0,229,255,0.08);
-  background: linear-gradient(135deg, rgba(0,229,255,0.02), rgba(180,199,255,0.01));
+  border: 1px solid rgba(255,85,0,0.08);
+  background: linear-gradient(135deg, rgba(255,85,0,0.02), rgba(255,200,0,0.01));
 }
 
 .zech-corner {
@@ -1005,13 +1005,13 @@ label {
   justify-content: space-between;
   align-items: center;
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(0,229,255,0.15);
+  border: 1px solid rgba(255,85,0,0.15);
 }
 
 .sk-flash-success {
-  background: rgba(0,229,255,0.08);
+  background: rgba(255,85,0,0.08);
   color: var(--zech-primary);
-  border-color: rgba(0,229,255,0.2);
+  border-color: rgba(255,85,0,0.2);
 }
 
 .sk-flash-error {
@@ -1027,9 +1027,9 @@ label {
 }
 
 .sk-flash-info {
-  background: rgba(180,199,255,0.08);
+  background: rgba(255,200,0,0.08);
   color: var(--zech-secondary);
-  border-color: rgba(180,199,255,0.2);
+  border-color: rgba(255,200,0,0.2);
 }
 
 .sk-flash-dismiss {
@@ -1081,7 +1081,7 @@ label {
     width: 250px;
     height: 100vh;
     background: var(--zech-bg);
-    border-left: 1px solid rgba(0,229,255,0.1);
+    border-left: 1px solid rgba(255,85,0,0.1);
     flex-direction: column;
     align-items: flex-start;
     padding: 5rem 2rem 2rem;
