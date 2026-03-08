@@ -750,7 +750,7 @@ class AiChatApiController(Controller):
             await notify_user(
                 target_user_id,
                 "aichat:tool",
-                mode=NotificationMode.TIMESERIES,
+                mode=NotificationMode.EPHEMERAL,
                 group=f"aichat:tool:{channel_id}",
                 status=status,
                 tool=body.get("tool", ""),
