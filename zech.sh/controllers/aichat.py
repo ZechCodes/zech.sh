@@ -739,7 +739,7 @@ class AiChatApiController(Controller):
             # Always send push (browser deduplicates via tag)
             truncated = content[:120] + "..." if len(content) > 120 else content
             try:
-                await send_push(
+                sent = await send_push(
                     db_session,
                     user_id=target_user_id,
                     title=f"AI.CHAT::{channel_name}",
@@ -747,8 +747,9 @@ class AiChatApiController(Controller):
                     url=f"/c/{channel_id}",
                     tag=f"aichat-msg-{channel_id}",
                 )
+                logger.info("Push sent to %s subscriptions for user %s", sent, target_user_id)
             except Exception:
-                logger.debug("Push send failed", exc_info=True)
+                logger.exception("Push send failed for user %s", target_user_id)
 
         await db_session.commit()
         return Response(
