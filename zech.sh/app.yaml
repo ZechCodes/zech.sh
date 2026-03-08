@@ -38,6 +38,8 @@ sites:
       - controllers.aichat:AiChatController
       - controllers.aichat:AiChatApiController
       - skrift.controllers.notifications:NotificationsController
+      - skrift.controllers.push:PushController
+      - skrift.controllers.push:service_worker
     theme: scan
   scan:
     subdomain: scan
