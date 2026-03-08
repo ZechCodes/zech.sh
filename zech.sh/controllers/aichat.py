@@ -334,7 +334,7 @@ class AiChatApiController(Controller):
             await notify_user(
                 target_user_id,
                 "aichat:read",
-                mode=NotificationMode.EPHEMERAL,
+                mode=NotificationMode.TIMESERIES,
                 message_ids=read_ids,
             )
 
@@ -376,7 +376,7 @@ class AiChatApiController(Controller):
             await notify_user(
                 target_user_id,
                 "aichat:read",
-                mode=NotificationMode.EPHEMERAL,
+                mode=NotificationMode.TIMESERIES,
                 message_ids=read_ids,
             )
 
@@ -439,7 +439,8 @@ class AiChatApiController(Controller):
             await notify_user(
                 target_user_id,
                 "aichat:tool",
-                mode=NotificationMode.EPHEMERAL,
+                mode=NotificationMode.TIMESERIES,
+                group="aichat:tool",
                 status=status,
                 tool=body.get("tool", ""),
                 description=body.get("description", ""),
