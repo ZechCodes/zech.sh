@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}AI.CHAT — ZECH.SH{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ theme_url('css/aichat.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="aichat-section">
+    <div class="scan-label">AI.CHAT</div>
+
+    <div class="aichat-messages" id="aichatMessages">
+        {% for msg in messages %}
+        <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}">
+            <div class="aichat-msg-sender">{{ msg.sender | upper }}</div>
+            <div class="aichat-msg-content">{{ msg.content }}</div>
+            {% if msg.sender == 'user' %}
+            <div class="aichat-msg-read {% if msg.read_by_claude_at %}is-read{% endif %}">&#10003;</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <form class="aichat-form" id="aichatForm" autocomplete="off">
+        <textarea
+            class="aichat-input"
+            name="content"
+            placeholder="Type a message..."
+            rows="1"
+            id="aichatInput"
+        ></textarea>
+        <button class="aichat-send" type="submit">SEND</button>
+    </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ theme_url('js/aichat.js') }}"></script>
+{% endblock %}

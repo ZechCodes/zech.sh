@@ -32,6 +32,13 @@ sites:
     controllers:
       - skrift.controllers.sitemap:SitemapController
     theme: dump
+  aichat:
+    subdomain: aichat
+    controllers:
+      - controllers.aichat:AiChatController
+      - controllers.aichat:AiChatApiController
+      - skrift.controllers.notifications:NotificationsController
+    theme: scan
   scan:
     subdomain: scan
     controllers:

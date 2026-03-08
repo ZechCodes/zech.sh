@@ -72,6 +72,12 @@ spec:
                   name: zech-sh-secrets
                   key: redis-url
                   optional: true
+            - name: AICHAT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: zech-sh-secrets
+                  key: aichat-secret
+                  optional: true
           resources:
             requests:
               memory: "256Mi"

@@ -1,0 +1,164 @@
+/* ==========================================================================
+   AI.CHAT — Chat interface styles using Fusion design tokens
+   ========================================================================== */
+
+.aichat-section {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 720px;
+  height: calc(100vh - 8rem);
+  margin: 0 auto;
+}
+
+.aichat-section .scan-label {
+  flex-shrink: 0;
+  margin-bottom: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Messages container
+   -------------------------------------------------------------------------- */
+
+.aichat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--zech-primary) transparent;
+}
+
+/* --------------------------------------------------------------------------
+   Message bubbles
+   -------------------------------------------------------------------------- */
+
+.aichat-msg {
+  max-width: 80%;
+  padding: 0.75rem 1rem;
+  border-radius: 2px;
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.aichat-msg-user {
+  align-self: flex-end;
+  background: rgba(255, 85, 0, 0.1);
+  border: 1px solid rgba(255, 85, 0, 0.2);
+}
+
+.aichat-msg-claude {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.aichat-msg-sender {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  margin-bottom: 0.35rem;
+}
+
+.aichat-msg-content {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--zech-text);
+}
+
+/* --------------------------------------------------------------------------
+   Read indicators
+   -------------------------------------------------------------------------- */
+
+.aichat-msg-read {
+  position: absolute;
+  bottom: 0.35rem;
+  right: 0.5rem;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.15);
+  transition: color 0.3s;
+}
+
+.aichat-msg-read.is-read {
+  color: var(--zech-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Input area
+   -------------------------------------------------------------------------- */
+
+.aichat-form {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 0 0;
+  border-top: 1px solid rgba(255, 85, 0, 0.1);
+}
+
+.aichat-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  border-radius: 2px;
+  color: var(--zech-text);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.75rem;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s;
+  max-height: 120px;
+}
+
+.aichat-input:focus {
+  border-color: rgba(255, 85, 0, 0.4);
+}
+
+.aichat-input::placeholder {
+  color: var(--zech-text-dim);
+}
+
+.aichat-send {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-bg);
+  background: var(--zech-primary);
+  border: none;
+  border-radius: 2px;
+  padding: 0.6rem 1.25rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  align-self: flex-end;
+}
+
+.aichat-send:hover {
+  opacity: 0.85;
+}
+
+.aichat-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 600px) {
+  .aichat-section {
+    height: calc(100vh - 6rem);
+  }
+
+  .aichat-msg {
+    max-width: 90%;
+  }
+}
