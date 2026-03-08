@@ -1,6 +1,6 @@
 """Add robots_txt_cache table for caching parsed robots.txt rules.
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 88152c73224b
 Revises:
 Create Date: 2026-02-22
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from advanced_alchemy.types import GUID, DateTimeUTC
 
 
-revision: str = "a1b2c3d4e5f6"
+revision: str = "88152c73224b"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

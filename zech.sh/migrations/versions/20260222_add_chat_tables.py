@@ -1,7 +1,7 @@
 """Add chat_session and chat_message tables for research chat persistence.
 
 Revision ID: b2c3d4e5f6a7
-Revises: a1b2c3d4e5f6
+Revises: 88152c73224b
 Create Date: 2026-02-22
 """
 
@@ -13,7 +13,7 @@ from advanced_alchemy.types import GUID, DateTimeUTC
 
 
 revision: str = "b2c3d4e5f6a7"
-down_revision: Union[str, None] = "a1b2c3d4e5f6"
+down_revision: Union[str, None] = "88152c73224b"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
