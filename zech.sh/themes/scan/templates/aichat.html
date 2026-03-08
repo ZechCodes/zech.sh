@@ -14,7 +14,7 @@
         {% for msg in messages %}
         <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}">
             <div class="aichat-msg-sender">{{ msg.sender | upper }}</div>
-            <div class="aichat-msg-content">{{ msg.content }}</div>
+            <div class="aichat-msg-content" data-raw="{{ msg.content | e }}">{{ msg.content }}</div>
             {% if msg.sender == 'user' %}
             <div class="aichat-msg-read {% if msg.read_by_claude_at %}is-read{% endif %}">&#10003;</div>
             {% endif %}

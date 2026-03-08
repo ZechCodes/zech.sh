@@ -12,6 +12,27 @@
     window.__skriftNotifications.configure({ persistConnection: true });
   }
 
+  // ---------------------------------------------------------------------------
+  // Markdown rendering
+  // ---------------------------------------------------------------------------
+
+  var markedAvailable = typeof marked !== "undefined";
+  if (markedAvailable) {
+    marked.setOptions({ breaks: true, gfm: true });
+  }
+
+  function renderMarkdown(text) {
+    if (!markedAvailable) return text;
+    return marked.parse(text);
+  }
+
+  // Render existing messages as markdown on load
+  var existingContents = messagesEl.querySelectorAll(".aichat-msg-content[data-raw]");
+  for (var i = 0; i < existingContents.length; i++) {
+    var raw = existingContents[i].getAttribute("data-raw");
+    existingContents[i].innerHTML = renderMarkdown(raw);
+  }
+
   // Scroll to bottom on load
   messagesEl.scrollTop = messagesEl.scrollHeight;
 
@@ -80,7 +101,7 @@
 
     var contentEl = document.createElement("div");
     contentEl.className = "aichat-msg-content";
-    contentEl.textContent = content;
+    contentEl.innerHTML = renderMarkdown(content);
     div.appendChild(contentEl);
 
     if (sender === "user") {
