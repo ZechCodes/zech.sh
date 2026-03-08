@@ -1,3 +1,8 @@
+// Service worker registration
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+}
+
 // AI.CHAT — Real-time chat client with SSE notifications
 (function () {
   "use strict";

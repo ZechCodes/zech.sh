@@ -5,6 +5,12 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ theme_url('css/aichat.css') }}">
+<link rel="manifest" href="{{ theme_url('manifest.json') }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI.CHAT">
+<meta name="theme-color" content="#ff5500">
+<link rel="apple-touch-icon" href="{{ theme_url('icons/icon.svg') }}">
 {% endblock %}
 
 {% block content %}

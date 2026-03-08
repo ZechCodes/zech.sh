@@ -337,6 +337,17 @@ class AiChatController(Controller):
 
     path = "/"
 
+    @get("/sw.js", media_type="application/javascript")
+    async def service_worker(self, request: Request) -> Response:
+        """Serve service worker from root scope."""
+        import pathlib
+        sw_path = pathlib.Path(__file__).parent.parent / "themes" / "scan" / "static" / "sw.js"
+        return Response(
+            content=sw_path.read_text(),
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+        )
+
     @get("/")
     async def index(
         self, request: Request, db_session: AsyncSession
