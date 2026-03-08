@@ -77,9 +77,11 @@
     {% block content %}{% endblock %}
 </main>
 
+{% block footer %}
 <footer class="zech-footer">
     <p>&copy; {{ now().year }} {{ self.nav_brand() }}</p>
 </footer>
+{% endblock %}
 
 <script src="{{ static_url('fusion/js/particles.js') }}"></script>
 <script src="{{ static_url('fusion/js/interactions.js') }}"></script>
