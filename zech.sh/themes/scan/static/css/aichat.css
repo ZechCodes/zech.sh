@@ -37,11 +37,11 @@
 
 .aichat-msg {
   max-width: 80%;
+  width: fit-content;
   padding: 0.75rem 1rem;
   border-radius: 2px;
   position: relative;
   word-wrap: break-word;
-  white-space: pre-wrap;
 }
 
 .aichat-msg-user {
