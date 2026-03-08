@@ -7,6 +7,8 @@
   var input = document.getElementById("aichatInput");
   if (!messagesEl || !form || !input) return;
 
+  var channelId = form.getAttribute("data-channel-id") || "";
+
   // Keep notification connection alive
   if (window.__skriftNotifications) {
     window.__skriftNotifications.configure({ persistConnection: true });
@@ -60,7 +62,7 @@
     input.style.height = "auto";
 
     var csrfToken = form.getAttribute("data-csrf") || "";
-    fetch("/send", {
+    fetch("/c/" + channelId + "/send", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -185,6 +187,9 @@
   document.addEventListener("sk:notification", function (e) {
     var d = e.detail;
     if (!d) return;
+
+    // Filter by channel if set
+    if (channelId && d.channel_id && d.channel_id !== channelId) return;
 
     if (d.type === "aichat:message") {
       appendMessage(d.sender, d.content, d.message_id);

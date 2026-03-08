@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}AI.CHAT — ZECH.SH{% endblock %}
+{% block title %}{{ channel.name }} — AI.CHAT{% endblock %}
 {% block nav_brand %}AI.CHAT{% endblock %}
 
 {% block head %}
@@ -9,9 +9,9 @@
 
 {% block content %}
 <section class="aichat-section">
-    <div class="scan-label">AI.CHAT</div>
+    <div class="scan-label"><a href="/" class="aichat-back">AI.CHAT</a> / {{ channel.name }}</div>
 
-    <div class="aichat-messages" id="aichatMessages">
+    <div class="aichat-messages" id="aichatMessages" data-channel-id="{{ channel.id }}">
         {% for msg in messages %}
         <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}">
             <div class="aichat-msg-sender">{{ msg.sender | upper }}</div>
@@ -23,7 +23,7 @@
         {% endfor %}
     </div>
 
-    <form class="aichat-form" id="aichatForm" autocomplete="off" data-csrf="{{ csrf_token }}">
+    <form class="aichat-form" id="aichatForm" autocomplete="off" data-csrf="{{ csrf_token }}" data-channel-id="{{ channel.id }}">
         <textarea
             class="aichat-input"
             name="content"

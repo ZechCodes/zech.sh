@@ -289,6 +289,132 @@
 }
 
 /* --------------------------------------------------------------------------
+   Dashboard — channel list
+   -------------------------------------------------------------------------- */
+
+.aichat-dashboard {
+  min-height: auto;
+}
+
+.aichat-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+
+.aichat-channel-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  border-radius: 2px;
+  text-decoration: none;
+  color: var(--zech-text);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.aichat-channel-card:hover {
+  border-color: rgba(255, 85, 0, 0.4);
+  background: rgba(255, 85, 0, 0.05);
+}
+
+.aichat-channel-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.aichat-channel-meta {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.65rem;
+  color: var(--zech-text-dim);
+}
+
+.aichat-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--zech-text-dim);
+  font-size: 0.85rem;
+}
+
+.aichat-new-channel-btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-bg);
+  background: var(--zech-primary);
+  border: none;
+  border-radius: 2px;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  align-self: flex-start;
+}
+
+.aichat-new-channel-btn:hover {
+  opacity: 0.85;
+}
+
+.aichat-new-channel-form {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 0;
+}
+
+.aichat-token-display {
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.2);
+  border-radius: 2px;
+  margin-top: 1rem;
+}
+
+.aichat-token-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+}
+
+.aichat-token-value {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.7rem;
+  color: var(--zech-text);
+  word-break: break-all;
+  line-height: 1.6;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+  user-select: all;
+}
+
+.aichat-done-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--zech-text);
+}
+
+.aichat-back {
+  color: var(--zech-text-dim);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.aichat-back:hover {
+  color: var(--zech-primary);
+}
+
+/* --------------------------------------------------------------------------
    Responsive
    -------------------------------------------------------------------------- */
 

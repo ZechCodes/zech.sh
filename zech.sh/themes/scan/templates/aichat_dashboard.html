@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}AI.CHAT — ZECH.SH{% endblock %}
+{% block nav_brand %}AI.CHAT{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ theme_url('css/aichat.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="aichat-section aichat-dashboard">
+    <div class="scan-label">AI.CHAT</div>
+
+    <div class="aichat-channels">
+        {% for channel in channels %}
+        <a href="/c/{{ channel.id }}" class="aichat-channel-card">
+            <div class="aichat-channel-name">{{ channel.name }}</div>
+            <div class="aichat-channel-meta">{{ channel.created_at.strftime('%Y-%m-%d') }}</div>
+        </a>
+        {% endfor %}
+
+        {% if not channels %}
+        <div class="aichat-empty">No channels yet. Create one to get started.</div>
+        {% endif %}
+    </div>
+
+    <button class="aichat-new-channel-btn" id="newChannelBtn">+ NEW CHANNEL</button>
+
+    <div class="aichat-new-channel-form" id="newChannelForm" style="display:none">
+        <input
+            type="text"
+            class="aichat-input"
+            id="channelNameInput"
+            placeholder="Agent name (e.g. Claude, MacMini 1)"
+            maxlength="100"
+        >
+        <button class="aichat-send" id="createChannelBtn">CREATE</button>
+    </div>
+
+    <div class="aichat-token-display" id="tokenDisplay" style="display:none">
+        <div class="aichat-token-label">Agent Token (copy now — it won't be shown again)</div>
+        <div class="aichat-token-value" id="tokenValue"></div>
+        <button class="aichat-send" id="copyTokenBtn">COPY</button>
+        <button class="aichat-send aichat-done-btn" id="doneBtn">DONE</button>
+    </div>
+</section>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    "use strict";
+
+    var newBtn = document.getElementById("newChannelBtn");
+    var formEl = document.getElementById("newChannelForm");
+    var nameInput = document.getElementById("channelNameInput");
+    var createBtn = document.getElementById("createChannelBtn");
+    var tokenDisplay = document.getElementById("tokenDisplay");
+    var tokenValue = document.getElementById("tokenValue");
+    var copyBtn = document.getElementById("copyTokenBtn");
+    var doneBtn = document.getElementById("doneBtn");
+    var csrfToken = "{{ csrf_token }}";
+
+    newBtn.addEventListener("click", function () {
+        newBtn.style.display = "none";
+        formEl.style.display = "flex";
+        nameInput.focus();
+    });
+
+    nameInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            createBtn.click();
+        }
+    });
+
+    createBtn.addEventListener("click", function () {
+        var name = nameInput.value.trim();
+        if (!name) return;
+
+        createBtn.disabled = true;
+        fetch("/channels", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": csrfToken,
+            },
+            body: JSON.stringify({ name: name }),
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                formEl.style.display = "none";
+                tokenValue.textContent = data.token;
+                tokenDisplay.style.display = "flex";
+            } else {
+                alert("Error: " + (data.error || "unknown"));
+                createBtn.disabled = false;
+            }
+        })
+        .catch(function () {
+            alert("Failed to create channel");
+            createBtn.disabled = false;
+        });
+    });
+
+    copyBtn.addEventListener("click", function () {
+        navigator.clipboard.writeText(tokenValue.textContent).then(function () {
+            copyBtn.textContent = "COPIED";
+            setTimeout(function () { copyBtn.textContent = "COPY"; }, 2000);
+        });
+    });
+
+    doneBtn.addEventListener("click", function () {
+        window.location.reload();
+    });
+})();
+</script>
+{% endblock %}
