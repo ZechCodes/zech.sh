@@ -164,12 +164,7 @@ async def _verify_signature(connection: ASGIConnection) -> bool:
     if query:
         path = f"{path}?{query}"
 
-    body = ""
-    if method == "POST":
-        body_bytes = await connection.body()
-        body = body_bytes.decode()
-
-    message = f"{timestamp_str}.{method}.{path}.{body}".encode()
+    message = f"{timestamp_str}.{method}.{path}".encode()
 
     try:
         signature = base64.b64decode(signature_b64)
