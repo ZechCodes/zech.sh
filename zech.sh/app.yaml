@@ -56,6 +56,9 @@ db:
   pool_pre_ping: true
   echo: false
 
+notifications:
+  backend: "skrift.lib.notification_backends:RedisBackend"
+
 redis:
   url: $REDIS_URL
   prefix: zech-sh
