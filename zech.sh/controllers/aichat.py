@@ -437,7 +437,7 @@ class AiChatController(Controller):
             status_code=201,
         )
 
-    @delete("/channels/{channel_id:str}")
+    @delete("/channels/{channel_id:str}", status_code=200)
     async def delete_channel(
         self, channel_id: str, request: Request, db_session: AsyncSession
     ) -> Response:
