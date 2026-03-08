@@ -648,6 +648,15 @@ wheels = [
 ]
 
 [[package]]
+name = "http-ece"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7c/af/249d1576653b69c20b9ac30e284b63bd94af6a175d72d87813235caf2482/http_ece-1.2.1.tar.gz", hash = "sha256:8c6ab23116bbf6affda894acfd5f2ca0fb8facbcbb72121c11c75c33e7ce8cff", size = 8830 }
+
+[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -1376,6 +1385,18 @@ wheels = [
 ]
 
 [[package]]
+name = "py-vapid"
+version = "1.9.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a3/ed/c648c8018fab319951764f4babe68ddcbbff7f2bbcd7ff7e531eac1788c8/py_vapid-1.9.4.tar.gz", hash = "sha256:a004023560cbc54e34fc06380a0580f04ffcc788e84fb6d19e9339eeb6551a28", size = 74750 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7f/15/f9d0171e1ad863ca49e826d5afb6b50566f20dc9b4f76965096d3555ce9e/py_vapid-1.9.4-py2.py3-none-any.whl", hash = "sha256:f165a5bf90dcf966b226114f01f178f137579a09784c7f0628fa2f0a299741b6", size = 23912 },
+]
+
+[[package]]
 name = "pyasn1"
 version = "0.6.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1581,6 +1602,22 @@ wheels = [
 ]
 
 [[package]]
+name = "pywebpush"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "cryptography" },
+    { name = "http-ece" },
+    { name = "py-vapid" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/87/d9/e497a24bc9f659bfc0e570382a41e6b2d6726fbcfa4d85aaa23fe9c81ba2/pywebpush-2.3.0.tar.gz", hash = "sha256:d1e27db8de9e6757c1875f67292554bd54c41874c36f4b5c4ebb5442dce204f2", size = 28489 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3d/d8/ac21241cf8007cb93255eabf318da4f425ec0f75d28c366992253aa8c1b2/pywebpush-2.3.0-py3-none-any.whl", hash = "sha256:3d97469fb14d4323c362319d438183737249a4115b50e146ce233e7f01e3cf98", size = 22851 },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1690,7 +1727,7 @@ wheels = [
 
 [[package]]
 name = "skrift"
-version = "0.1.0a69"
+version = "0.1.0a74"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "advanced-alchemy" },
@@ -1710,9 +1747,9 @@ dependencies = [
     { name = "ruamel-yaml" },
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/55/ec/71bd3dfd1691898de9b87347f3a66015bbda3821b61eda5b70ac280b62bd/skrift-0.1.0a69.tar.gz", hash = "sha256:c48961734c8d90ff7a07ccdca8337545991b5c6919b699af09c830ad524d3a7e", size = 187628 }
+sdist = { url = "https://files.pythonhosted.org/packages/42/64/946a7bc3d3cad0781234c97d4fb95ccf63ba68f0983a912348eeb859f560/skrift-0.1.0a74.tar.gz", hash = "sha256:dc952f1675ba284d176828d16954714ceeea754bf8178bd23dbf012fa0df61a7", size = 199502 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d9/6c/a39c1dfba26a71bfed273f2778239e15ca3955147436b52f27540052465e/skrift-0.1.0a69-py3-none-any.whl", hash = "sha256:ac78cc2ac784d5fbce512cd3068c6e0a78e8fa20a1ca3f9c4332b1dfe52299e2", size = 266802 },
+    { url = "https://files.pythonhosted.org/packages/fd/0f/0b8b6326e51a95f6686c581e64bbdaff7273a29c1fab2a2dabf9bc4e6fe5/skrift-0.1.0a74-py3-none-any.whl", hash = "sha256:0282eb1f4bcc80eda37ddd822eaacb4a275ba09795014caaa52c2ee204449390", size = 282998 },
 ]
 
 [package.optional-dependencies]
@@ -1985,6 +2022,7 @@ dependencies = [
     { name = "google-genai" },
     { name = "pydantic-ai-slim", extra = ["google"] },
     { name = "pypdf" },
+    { name = "pywebpush" },
     { name = "redis" },
     { name = "skrift", extra = ["logfire"] },
 ]
@@ -2002,8 +2040,9 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.0.0" },
     { name = "pydantic-ai-slim", extras = ["google"], specifier = ">=1.62.0" },
     { name = "pypdf", specifier = ">=5.0.0" },
+    { name = "pywebpush", specifier = ">=2.3.0" },
     { name = "redis", specifier = ">=5.0.0" },
-    { name = "skrift", extras = ["logfire"], specifier = ">=0.1.0a69" },
+    { name = "skrift", extras = ["logfire"], specifier = ">=0.1.0a74" },
 ]
 
 [package.metadata.requires-dev]

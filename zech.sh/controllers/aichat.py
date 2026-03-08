@@ -29,6 +29,7 @@ from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
 from skrift.lib.notifications import NotificationMode, notify_user
+from skrift.lib.push import notify as push_notify
 
 from models.ai_chat import AiChatMessage
 from models.ai_chat_channel import AiChatChannel
@@ -336,17 +337,6 @@ class AiChatController(Controller):
     """User-facing web UI for AI chat."""
 
     path = "/"
-
-    @get("/sw.js", media_type="application/javascript")
-    async def service_worker(self, request: Request) -> Response:
-        """Serve service worker from root scope."""
-        import pathlib
-        sw_path = pathlib.Path(__file__).parent.parent / "themes" / "scan" / "static" / "sw.js"
-        return Response(
-            content=sw_path.read_text(),
-            media_type="application/javascript",
-            headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
-        )
 
     @get("/")
     async def index(
@@ -729,6 +719,13 @@ class AiChatApiController(Controller):
 
         target_user_id = await _get_target_user_id(db_session, channel_id)
         if target_user_id:
+            # Get channel name for push notification
+            ch_result = await db_session.execute(
+                select(AiChatChannel.name).where(AiChatChannel.id == channel_id)
+            )
+            channel_name = ch_result.scalar_one_or_none() or "Agent"
+
+            # SSE notification for connected clients
             await notify_user(
                 target_user_id,
                 "aichat:message",
@@ -737,6 +734,19 @@ class AiChatApiController(Controller):
                 content=content,
                 message_id=str(msg.id),
                 channel_id=str(channel_id),
+            )
+
+            # Push notification for disconnected clients
+            truncated = content[:120] + "..." if len(content) > 120 else content
+            await push_notify(
+                db_session,
+                user_id=target_user_id,
+                event="aichat:message",
+                data={"sender": "claude", "content": content, "channel_id": str(channel_id)},
+                push_title=f"AI.CHAT::{channel_name}",
+                push_body=truncated,
+                push_url=f"/c/{channel_id}",
+                push_tag=f"aichat-msg-{channel_id}",
             )
 
         await db_session.commit()

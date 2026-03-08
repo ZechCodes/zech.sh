@@ -374,6 +374,17 @@
   font-size: 0.85rem;
 }
 
+.aichat-dashboard-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.aichat-notify-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--zech-text);
+}
+
 .aichat-new-channel-btn {
   font-family: 'Orbitron', sans-serif;
   font-size: 0.6rem;

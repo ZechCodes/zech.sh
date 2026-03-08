@@ -30,7 +30,10 @@
         {% endif %}
     </div>
 
-    <button class="aichat-new-channel-btn" id="newChannelBtn">+ NEW CHANNEL</button>
+    <div class="aichat-dashboard-actions">
+        <button class="aichat-new-channel-btn" id="newChannelBtn">+ NEW CHANNEL</button>
+        <button class="aichat-new-channel-btn aichat-notify-btn is-hidden" id="notifyBtn">ENABLE NOTIFICATIONS</button>
+    </div>
 
     <div class="aichat-new-channel-form is-hidden" id="newChannelForm">
         <input
@@ -55,6 +58,7 @@
 {% block footer %}{% endblock %}
 
 {% block scripts %}
+<script src="{{ static_url('skrift/js/push.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
 if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
@@ -71,7 +75,28 @@ if ("serviceWorker" in navigator) {
     var tokenValue = document.getElementById("tokenValue");
     var copyBtn = document.getElementById("copyTokenBtn");
     var doneBtn = document.getElementById("doneBtn");
+    var notifyBtn = document.getElementById("notifyBtn");
     var csrfToken = "{{ csrf_token }}";
+
+    // Push notification setup
+    if (window.__skriftPush && "Notification" in window) {
+        window.__skriftPush.isSubscribed().then(function (subscribed) {
+            if (!subscribed && Notification.permission !== "denied") {
+                notifyBtn.classList.remove("is-hidden");
+            }
+        });
+
+        notifyBtn.addEventListener("click", function () {
+            window.__skriftPush.subscribe().then(function () {
+                notifyBtn.textContent = "NOTIFICATIONS ENABLED";
+                notifyBtn.disabled = true;
+                setTimeout(function () { notifyBtn.classList.add("is-hidden"); }, 2000);
+            }).catch(function () {
+                notifyBtn.textContent = "PERMISSION DENIED";
+                notifyBtn.disabled = true;
+            });
+        });
+    }
 
     newBtn.addEventListener("click", function () {
         newBtn.classList.add("is-hidden");
