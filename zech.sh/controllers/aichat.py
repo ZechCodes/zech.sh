@@ -28,6 +28,7 @@ from skrift.auth.services import get_user_permissions
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
+from skrift.lib.hooks import NOTIFICATION_SENT, hooks
 from skrift.lib.notifications import NotificationMode, notify_user
 from skrift.lib.push import send_push
 
@@ -35,6 +36,12 @@ from models.ai_chat import AiChatMessage
 from models.ai_chat_channel import AiChatChannel
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Disable skrift's global push hook — we call send_push explicitly for
+# messages only, avoiding push spam for tool status and read receipts.
+# ---------------------------------------------------------------------------
+hooks._actions.pop(NOTIFICATION_SENT, None)
 
 # ---------------------------------------------------------------------------
 # Role registration
