@@ -1,11 +1,15 @@
+import base64
+import logging
 import os
-import secrets
+import time
 from datetime import datetime, timezone
 from uuid import UUID
 
+import redis.asyncio as redis
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from litestar import Controller, Request, get, post
 from litestar.connection import ASGIConnection
-from litestar.exceptions import NotAuthorizedException
+from litestar.exceptions import NotAuthorizedException, PermissionDeniedException
 from litestar.handlers import BaseRouteHandler
 from litestar.response import Redirect, Response
 from litestar.response import Template as TemplateResponse
@@ -16,10 +20,13 @@ from skrift.auth.guards import ADMINISTRATOR_PERMISSION
 from skrift.auth.roles import register_role
 from skrift.auth.services import get_user_permissions
 from skrift.auth.session_keys import SESSION_USER_ID
+from skrift.config import get_settings
 from skrift.db.models.user import User
 from skrift.lib.notifications import NotificationMode, notify_user
 
 from models.ai_chat import AiChatMessage
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Role registration
@@ -67,18 +74,157 @@ async def _get_target_user_id(db_session: AsyncSession) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# API guard — shared secret
+# Ed25519 signature verification
+# ---------------------------------------------------------------------------
+
+_MAX_TIMESTAMP_DRIFT = 60  # seconds
+
+_public_key: Ed25519PublicKey | None = None
+
+
+def _get_public_key() -> Ed25519PublicKey | None:
+    """Load the Ed25519 public key from AICHAT_PUBLIC_KEY env var (base64-encoded)."""
+    global _public_key
+    if _public_key is not None:
+        return _public_key
+    key_b64 = os.environ.get("AICHAT_PUBLIC_KEY", "")
+    if not key_b64:
+        return None
+    _public_key = Ed25519PublicKey.from_public_bytes(base64.b64decode(key_b64))
+    return _public_key
+
+
+# ---------------------------------------------------------------------------
+# Redis rate limiting for API
+# ---------------------------------------------------------------------------
+
+_redis_client: redis.Redis | None = None
+_API_RATE_LIMIT_READS = 60  # requests per minute for reads
+_API_RATE_LIMIT_WRITES = 20  # requests per minute for writes
+
+
+async def _get_redis() -> redis.Redis | None:
+    global _redis_client
+    redis_url = get_settings().redis.url
+    if not redis_url:
+        return None
+    if _redis_client is None:
+        _redis_client = redis.from_url(redis_url, decode_responses=True)
+    return _redis_client
+
+
+async def _check_rate_limit(key: str, limit: int, window: int = 60) -> bool:
+    """Check rate limit using Redis sliding window. Returns True if allowed."""
+    r = await _get_redis()
+    if r is None:
+        return True  # No Redis = no rate limiting (fail open)
+
+    try:
+        now = time.time()
+        pipe = r.pipeline()
+        pipe.zremrangebyscore(key, 0, now - window)
+        pipe.zadd(key, {str(now): now})
+        pipe.zcard(key)
+        pipe.expire(key, window)
+        results = await pipe.execute()
+        count = results[2]
+        return count <= limit
+    except redis.RedisError:
+        logger.warning("Redis rate limit check failed, allowing request")
+        return True
+
+
+# ---------------------------------------------------------------------------
+# API guard — Ed25519 signature + rate limiting
 # ---------------------------------------------------------------------------
 
 
-async def aichat_secret_guard(
-    connection: ASGIConnection, _handler: BaseRouteHandler
-) -> None:
+async def _verify_signature(connection: ASGIConnection) -> bool:
+    """Verify Ed25519 signature on the request."""
+    public_key = _get_public_key()
+    if public_key is None:
+        return False
+
+    timestamp_str = connection.headers.get("x-timestamp", "")
+    signature_b64 = connection.headers.get("x-signature", "")
+    if not timestamp_str or not signature_b64:
+        return False
+
+    try:
+        timestamp = int(timestamp_str)
+    except ValueError:
+        return False
+
+    if abs(time.time() - timestamp) > _MAX_TIMESTAMP_DRIFT:
+        return False
+
+    method = connection.scope["method"]
+    path = connection.scope["path"]
+    query = connection.scope.get("query_string", b"").decode()
+    if query:
+        path = f"{path}?{query}"
+
+    body = ""
+    if method == "POST":
+        body_bytes = await connection.body()
+        body = body_bytes.decode()
+
+    message = f"{timestamp_str}.{method}.{path}.{body}".encode()
+
+    try:
+        signature = base64.b64decode(signature_b64)
+        public_key.verify(signature, message)
+        return True
+    except Exception:
+        return False
+
+
+def _verify_shared_secret(connection: ASGIConnection) -> bool:
+    """Legacy: verify shared secret auth (for transition period)."""
+    import secrets as _secrets
     secret = os.environ.get("AICHAT_SECRET", "")
+    if not secret:
+        return False
     auth_header = connection.headers.get("authorization", "")
     token = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else ""
-    if not secret or not secrets.compare_digest(token, secret):
-        raise NotAuthorizedException("Invalid secret")
+    if not token:
+        return False
+    return _secrets.compare_digest(token, secret)
+
+
+async def aichat_api_guard(
+    connection: ASGIConnection, _handler: BaseRouteHandler
+) -> None:
+    # Try Ed25519 signature first, fall back to shared secret
+    if not await _verify_signature(connection) and not _verify_shared_secret(connection):
+        raise NotAuthorizedException("Invalid authentication")
+
+    # Rate limiting
+    client_ip = connection.headers.get("x-forwarded-for", "api-client")
+    method = connection.scope["method"]
+    is_write = method == "POST"
+    limit = _API_RATE_LIMIT_WRITES if is_write else _API_RATE_LIMIT_READS
+    rate_key = f"aichat:rate:{client_ip}:{'write' if is_write else 'read'}"
+
+    if not await _check_rate_limit(rate_key, limit):
+        raise PermissionDeniedException("Rate limit exceeded")
+
+
+# ---------------------------------------------------------------------------
+# CSRF guard for web UI
+# ---------------------------------------------------------------------------
+
+CSRF_SESSION_KEY = "_csrf_token"
+
+
+def _get_or_create_csrf_token(request: Request) -> str:
+    """Get existing CSRF token or create a new one."""
+    import secrets as _secrets
+    token = request.session.get(CSRF_SESSION_KEY)
+    if not token:
+        token = _secrets.token_urlsafe(32)
+        request.session[CSRF_SESSION_KEY] = token
+    return token
 
 
 # ---------------------------------------------------------------------------
@@ -108,12 +254,15 @@ class AiChatController(Controller):
         )
         messages = list(result.scalars().all())
 
+        csrf_token = _get_or_create_csrf_token(request)
+
         return TemplateResponse(
             "aichat.html",
             context={
                 "user": user,
                 "messages": messages,
                 "hide_sidebar": True,
+                "csrf_token": csrf_token,
             },
         )
 
@@ -127,6 +276,13 @@ class AiChatController(Controller):
 
         if not await _has_permission(user.id, db_session):
             return Response(content={"error": "forbidden"}, status_code=403)
+
+        # CSRF verification
+        import hmac
+        submitted_token = request.headers.get("x-csrf-token", "")
+        stored_token = request.session.get(CSRF_SESSION_KEY, "")
+        if not stored_token or not hmac.compare_digest(submitted_token, stored_token):
+            return Response(content={"error": "CSRF validation failed"}, status_code=403)
 
         body = await request.json()
         content = body.get("content", "").strip()
@@ -163,7 +319,7 @@ class AiChatApiController(Controller):
     """JSON API for Claude to read and send messages."""
 
     path = "/api"
-    guards = [aichat_secret_guard]
+    guards = [aichat_api_guard]
 
     @get("/messages")
     async def get_messages(

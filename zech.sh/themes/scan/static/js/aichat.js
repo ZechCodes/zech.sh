@@ -59,9 +59,13 @@
     input.value = "";
     input.style.height = "auto";
 
+    var csrfToken = form.getAttribute("data-csrf") || "";
     fetch("/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
       body: JSON.stringify({ content: content }),
     })
       .then(function (res) {
