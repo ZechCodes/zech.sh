@@ -68,17 +68,17 @@ async def _has_permission(user_id: UUID, db_session: AsyncSession) -> bool:
 
 
 async def _get_target_user_id(
-    db_session: AsyncSession, channel_id: UUID | None = None
+    db_session: AsyncSession, channel_id: UUID
 ) -> str | None:
     """Get the user_id from the most recent user message for notification targeting."""
     query = (
         select(AiChatMessage.user_id)
         .where(AiChatMessage.sender == "user")
         .where(AiChatMessage.user_id.is_not(None))
+        .where(AiChatMessage.channel_id == channel_id)
+        .order_by(AiChatMessage.created_at.desc())
+        .limit(1)
     )
-    if channel_id:
-        query = query.where(AiChatMessage.channel_id == channel_id)
-    query = query.order_by(AiChatMessage.created_at.desc()).limit(1)
     result = await db_session.execute(query)
     uid = result.scalar_one_or_none()
     return str(uid) if uid else None
@@ -149,21 +149,6 @@ def _parse_compound_token(token: str) -> tuple[str, str] | None:
 # ---------------------------------------------------------------------------
 
 _MAX_TIMESTAMP_DRIFT = 60  # seconds
-
-# Legacy single-key support (env var)
-_legacy_public_key: Ed25519PublicKey | None = None
-
-
-def _get_legacy_public_key() -> Ed25519PublicKey | None:
-    """Load the Ed25519 public key from AICHAT_PUBLIC_KEY env var (base64-encoded)."""
-    global _legacy_public_key
-    if _legacy_public_key is not None:
-        return _legacy_public_key
-    key_b64 = os.environ.get("AICHAT_PUBLIC_KEY", "")
-    if not key_b64:
-        return None
-    _legacy_public_key = Ed25519PublicKey.from_public_bytes(base64.b64decode(key_b64))
-    return _legacy_public_key
 
 
 def _verify_signature_with_key(
@@ -300,25 +285,19 @@ async def aichat_api_guard(
     connection: ASGIConnection, _handler: BaseRouteHandler
 ) -> None:
     channel_id_str = connection.headers.get("x-channel", "")
-    verified = False
+    if not channel_id_str:
+        raise NotAuthorizedException("X-Channel header required")
 
-    if channel_id_str:
-        try:
-            pub_key = await _lookup_channel_key(channel_id_str)
-            if pub_key and _verify_signature_with_key(connection, pub_key):
-                verified = True
-                connection.state["channel_id"] = channel_id_str
-        except Exception:
-            logger.exception("Channel auth lookup failed")
-    else:
-        # Legacy auth: single env var key, no channel
-        legacy_key = _get_legacy_public_key()
-        if legacy_key and _verify_signature_with_key(connection, legacy_key):
-            verified = True
-            connection.state["channel_id"] = None
-
-    if not verified:
-        raise NotAuthorizedException("Invalid signature")
+    try:
+        pub_key = await _lookup_channel_key(channel_id_str)
+        if not pub_key or not _verify_signature_with_key(connection, pub_key):
+            raise NotAuthorizedException("Invalid signature")
+        connection.state["channel_id"] = channel_id_str
+    except NotAuthorizedException:
+        raise
+    except Exception:
+        logger.exception("Channel auth lookup failed")
+        raise NotAuthorizedException("Auth failed")
 
     # Rate limiting
     rate_id = channel_id_str or connection.headers.get("x-forwarded-for", "api-client")
@@ -560,10 +539,9 @@ class AiChatApiController(Controller):
     path = "/api"
     guards = [aichat_api_guard]
 
-    def _get_channel_id(self, request: Request) -> UUID | None:
-        """Get channel_id from auth state."""
-        cid = request.state.get("channel_id")
-        return UUID(cid) if cid else None
+    def _get_channel_id(self, request: Request) -> UUID:
+        """Get channel_id from auth state (always present after guard)."""
+        return UUID(request.state["channel_id"])
 
     @get("/messages")
     async def get_messages(
@@ -573,9 +551,11 @@ class AiChatApiController(Controller):
         before = request.query_params.get("before")
         limit = min(int(request.query_params.get("limit", "10")), 50)
 
-        query = select(AiChatMessage).order_by(AiChatMessage.created_at.desc())
-        if channel_id:
-            query = query.where(AiChatMessage.channel_id == channel_id)
+        query = (
+            select(AiChatMessage)
+            .where(AiChatMessage.channel_id == channel_id)
+            .order_by(AiChatMessage.created_at.desc())
+        )
         if before:
             before_msg = await db_session.get(AiChatMessage, UUID(before))
             if before_msg:
@@ -626,10 +606,9 @@ class AiChatApiController(Controller):
             select(AiChatMessage)
             .where(AiChatMessage.sender == "user")
             .where(AiChatMessage.read_by_claude_at.is_(None))
+            .where(AiChatMessage.channel_id == channel_id)
+            .order_by(AiChatMessage.created_at.asc())
         )
-        if channel_id:
-            query = query.where(AiChatMessage.channel_id == channel_id)
-        query = query.order_by(AiChatMessage.created_at.asc())
 
         result = await db_session.execute(query)
         messages = list(result.scalars().all())
@@ -691,7 +670,7 @@ class AiChatApiController(Controller):
                 sender="claude",
                 content=content,
                 message_id=str(msg.id),
-                channel_id=str(channel_id) if channel_id else None,
+                channel_id=str(channel_id),
             )
 
         await db_session.commit()
@@ -717,11 +696,11 @@ class AiChatApiController(Controller):
                 target_user_id,
                 "aichat:tool",
                 mode=NotificationMode.TIMESERIES,
-                group=f"aichat:tool:{channel_id}" if channel_id else "aichat:tool",
+                group=f"aichat:tool:{channel_id}",
                 status=status,
                 tool=body.get("tool", ""),
                 description=body.get("description", ""),
-                channel_id=str(channel_id) if channel_id else None,
+                channel_id=str(channel_id),
             )
 
         return Response(content={"ok": True})
