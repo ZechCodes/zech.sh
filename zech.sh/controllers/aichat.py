@@ -144,7 +144,7 @@ class AiChatController(Controller):
         await notify_user(
             str(user.id),
             "aichat:message",
-            mode=NotificationMode.EPHEMERAL,
+            mode=NotificationMode.TIMESERIES,
             sender="user",
             content=content,
             message_id=str(msg.id),
@@ -276,7 +276,7 @@ class AiChatApiController(Controller):
             await notify_user(
                 target_user_id,
                 "aichat:message",
-                mode=NotificationMode.EPHEMERAL,
+                mode=NotificationMode.TIMESERIES,
                 sender="claude",
                 content=content,
                 message_id=str(msg.id),
