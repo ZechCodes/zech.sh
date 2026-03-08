@@ -458,6 +458,29 @@
 }
 
 /* --------------------------------------------------------------------------
+   SSE status indicator (skrift built-in, restyled)
+   -------------------------------------------------------------------------- */
+
+.sk-status-indicator {
+  position: fixed;
+  bottom: var(--sk-space-md, 1rem);
+  right: var(--sk-space-md, 1rem);
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  gap: 0;
+}
+
+.sk-status-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.sk-status-label {
+  display: none;
+}
+
+/* --------------------------------------------------------------------------
    Responsive
    -------------------------------------------------------------------------- */
 

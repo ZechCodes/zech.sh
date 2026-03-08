@@ -14,9 +14,15 @@ if ("serviceWorker" in navigator) {
 
   var channelId = form.getAttribute("data-channel-id") || "";
 
-  // Keep notification connection alive
+  // Configure notifications: suspend SSE when tab hidden so push can take over
   if (window.__skriftNotifications) {
-    window.__skriftNotifications.configure({ persistConnection: true });
+    window.__skriftNotifications.configure({
+      persistConnection: false,
+      statusIndicator: {
+        enabled: true,
+        labels: { connected: "", suspended: "", connecting: "", disconnected: "" },
+      },
+    });
   }
 
   // ---------------------------------------------------------------------------
