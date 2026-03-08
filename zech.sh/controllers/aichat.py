@@ -100,7 +100,7 @@ def _get_public_key() -> Ed25519PublicKey | None:
 
 _redis_client: redis.Redis | None = None
 _API_RATE_LIMIT_READS = 60  # requests per minute for reads
-_API_RATE_LIMIT_WRITES = 20  # requests per minute for writes
+_API_RATE_LIMIT_WRITES = 60  # requests per minute for writes (includes tool status)
 
 
 async def _get_redis() -> redis.Redis | None:
@@ -424,3 +424,25 @@ class AiChatApiController(Controller):
             content={"ok": True, "id": str(msg.id)},
             status_code=201,
         )
+
+    @post("/tool-status")
+    async def tool_status(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        body = await request.json()
+        status = body.get("status", "")
+        if status not in ("active", "done", "idle"):
+            return Response(content={"error": "invalid status"}, status_code=400)
+
+        target_user_id = await _get_target_user_id(db_session)
+        if target_user_id:
+            await notify_user(
+                target_user_id,
+                "aichat:tool",
+                mode=NotificationMode.EPHEMERAL,
+                status=status,
+                tool=body.get("tool", ""),
+                description=body.get("description", ""),
+            )
+
+        return Response(content={"ok": True})

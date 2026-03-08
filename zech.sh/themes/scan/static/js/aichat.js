@@ -128,6 +128,60 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Tool use indicator
+  // ---------------------------------------------------------------------------
+
+  var toolIndicator = document.createElement("div");
+  toolIndicator.className = "aichat-tool-indicator";
+  toolIndicator.innerHTML =
+    '<span class="aichat-tool-pulse"></span>' +
+    '<span class="aichat-tool-text"></span>' +
+    '<span class="aichat-tool-timer"></span>';
+  form.parentNode.insertBefore(toolIndicator, form);
+
+  var toolTextEl = toolIndicator.querySelector(".aichat-tool-text");
+  var toolTimerEl = toolIndicator.querySelector(".aichat-tool-timer");
+  var toolStartTime = 0;
+  var toolTimerInterval = null;
+  var toolHideTimeout = null;
+
+  function showToolIndicator(description) {
+    if (toolHideTimeout) {
+      clearTimeout(toolHideTimeout);
+      toolHideTimeout = null;
+    }
+    toolIndicator.classList.add("is-active");
+    toolTextEl.textContent = description;
+    toolTimerEl.textContent = "";
+    toolStartTime = Date.now();
+
+    if (toolTimerInterval) clearInterval(toolTimerInterval);
+    toolTimerInterval = setInterval(function () {
+      var elapsed = Math.floor((Date.now() - toolStartTime) / 1000);
+      if (elapsed >= 30) {
+        toolTimerEl.textContent = elapsed + "s";
+      }
+    }, 1000);
+  }
+
+  function hideToolIndicator() {
+    if (toolTimerInterval) {
+      clearInterval(toolTimerInterval);
+      toolTimerInterval = null;
+    }
+    // Brief delay before hiding so it doesn't flicker between tools
+    toolHideTimeout = setTimeout(function () {
+      toolIndicator.classList.remove("is-active");
+      toolTextEl.textContent = "";
+      toolTimerEl.textContent = "";
+    }, 500);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Notification handler
+  // ---------------------------------------------------------------------------
+
   document.addEventListener("sk:notification", function (e) {
     var d = e.detail;
     if (!d) return;
@@ -136,6 +190,12 @@
       appendMessage(d.sender, d.content, d.message_id);
     } else if (d.type === "aichat:read") {
       markAsRead(d.message_ids || []);
+    } else if (d.type === "aichat:tool") {
+      if (d.status === "active") {
+        showToolIndicator(d.description || "Working...");
+      } else {
+        hideToolIndicator();
+      }
     }
   });
 })();

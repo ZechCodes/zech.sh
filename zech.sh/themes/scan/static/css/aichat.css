@@ -240,6 +240,55 @@
 }
 
 /* --------------------------------------------------------------------------
+   Tool use indicator
+   -------------------------------------------------------------------------- */
+
+.aichat-tool-indicator {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  color: var(--zech-text-dim);
+  position: sticky;
+  bottom: 3.5rem;
+  background: var(--zech-bg, #0a0a0a);
+}
+
+.aichat-tool-indicator.is-active {
+  display: flex;
+}
+
+.aichat-tool-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--zech-primary);
+  animation: aichat-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes aichat-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.aichat-tool-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aichat-tool-timer {
+  font-variant-numeric: tabular-nums;
+  color: var(--zech-primary);
+  font-weight: 700;
+  min-width: 2.5em;
+  text-align: right;
+}
+
+/* --------------------------------------------------------------------------
    Responsive
    -------------------------------------------------------------------------- */
 
