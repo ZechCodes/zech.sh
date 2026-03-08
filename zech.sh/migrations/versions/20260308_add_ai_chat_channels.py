@@ -1,6 +1,6 @@
 """Add ai_chat_channel table and channel_id to messages.
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 9b21192c2125
 Revises: 724a59bffa94
 Create Date: 2026-03-08
 """
@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 from advanced_alchemy.types import GUID, DateTimeUTC
 
-revision: str = "a1b2c3d4e5f6"
+revision: str = "9b21192c2125"
 down_revision: Union[str, None] = "724a59bffa94"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
