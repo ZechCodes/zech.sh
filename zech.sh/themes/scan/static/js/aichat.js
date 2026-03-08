@@ -14,10 +14,10 @@ if ("serviceWorker" in navigator) {
 
   var channelId = form.getAttribute("data-channel-id") || "";
 
-  // Configure notifications: suspend SSE when tab hidden so push can take over
+  // Keep SSE alive for reliable real-time; push always sent separately
   if (window.__skriftNotifications) {
     window.__skriftNotifications.configure({
-      persistConnection: false,
+      persistConnection: true,
       statusIndicator: {
         enabled: true,
         labels: { connected: "", suspended: "", connecting: "", disconnected: "" },
