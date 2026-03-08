@@ -2,13 +2,18 @@
    AI.CHAT — Chat interface styles using Fusion design tokens
    ========================================================================== */
 
+.scan-main:has(.aichat-section) {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
 .aichat-section {
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
-  padding-bottom: 5rem;
+  min-height: calc(100dvh - 8rem);
 }
 
 .aichat-section .scan-label {
@@ -23,6 +28,7 @@
 .aichat-messages {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: 0.75rem;
   padding: 1rem 0;
 }
@@ -175,22 +181,14 @@
    -------------------------------------------------------------------------- */
 
 .aichat-form {
-  position: fixed;
+  position: sticky;
   bottom: 0;
-  left: 0;
-  right: 0;
   display: flex;
   gap: 0.75rem;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 1rem 1.5rem;
+  padding: 1rem 0;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid rgba(255, 85, 0, 0.1);
   background: var(--zech-bg, #0a0a0a);
-  z-index: 10;
-}
-
-body:has(.scan-sidebar) .aichat-form {
-  left: 240px;
 }
 
 .aichat-input {
@@ -248,9 +246,5 @@ body:has(.scan-sidebar) .aichat-form {
 @media (max-width: 600px) {
   .aichat-msg {
     max-width: 90%;
-  }
-
-  body:has(.scan-sidebar) .aichat-form {
-    left: 0;
   }
 }
