@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}SCAN.ZECH.SH{% endblock %}</title>
+    <title>{% block title %}SCAN — ZECH.SH{% endblock %}</title>
 
     <link rel="icon" type="image/svg+xml" href="{{ static_url('fusion/favicon.svg') }}">
     <link rel="stylesheet" href="{{ static_url('fusion/css/fonts.css') }}">
@@ -18,7 +18,7 @@
 <div class="zech-noise-layer"></div>
 
 <nav class="zech-topnav">
-    <a href="/" class="logo" data-text="SCAN.ZECH.SH">SCAN.ZECH.SH</a>
+    <a href="/" class="logo" data-text="{% block nav_brand %}SCAN{% endblock %}">{{ self.nav_brand() }}</a>
     <button class="zech-nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
         <span></span><span></span><span></span>
     </button>
@@ -78,7 +78,7 @@
 </main>
 
 <footer class="zech-footer">
-    <p>&copy; {{ now().year }} SCAN.ZECH.SH</p>
+    <p>&copy; {{ now().year }} {{ self.nav_brand() }}</p>
 </footer>
 
 <script src="{{ static_url('fusion/js/particles.js') }}"></script>
