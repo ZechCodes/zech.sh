@@ -34,7 +34,7 @@
   }
 
   // Scroll to bottom on load
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  window.scrollTo(0, document.body.scrollHeight);
 
   // ---------------------------------------------------------------------------
   // Auto-resize textarea
@@ -112,7 +112,7 @@
     }
 
     messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    window.scrollTo(0, document.body.scrollHeight);
   }
 
   function markAsRead(messageIds) {
