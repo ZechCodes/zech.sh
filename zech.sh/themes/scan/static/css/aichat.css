@@ -296,6 +296,10 @@
   min-height: auto;
 }
 
+.is-hidden {
+  display: none !important;
+}
+
 .aichat-channels {
   display: flex;
   flex-direction: column;
