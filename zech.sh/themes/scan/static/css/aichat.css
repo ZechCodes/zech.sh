@@ -7,8 +7,8 @@
   flex-direction: column;
   width: 100%;
   max-width: 720px;
-  height: calc(100vh - 8rem);
   margin: 0 auto;
+  padding-bottom: 5rem;
 }
 
 .aichat-section .scan-label {
@@ -21,14 +21,10 @@
    -------------------------------------------------------------------------- */
 
 .aichat-messages {
-  flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem 0;
-  scrollbar-width: thin;
-  scrollbar-color: var(--zech-primary) transparent;
 }
 
 /* --------------------------------------------------------------------------
@@ -179,11 +175,22 @@
    -------------------------------------------------------------------------- */
 
 .aichat-form {
-  flex-shrink: 0;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   gap: 0.75rem;
-  padding: 1rem 0 0;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255, 85, 0, 0.1);
+  background: var(--zech-bg, #0a0a0a);
+  z-index: 10;
+}
+
+body:has(.scan-sidebar) .aichat-form {
+  left: 240px;
 }
 
 .aichat-input {
@@ -239,11 +246,11 @@
    -------------------------------------------------------------------------- */
 
 @media (max-width: 600px) {
-  .aichat-section {
-    height: calc(100vh - 6rem);
-  }
-
   .aichat-msg {
     max-width: 90%;
+  }
+
+  body:has(.scan-sidebar) .aichat-form {
+    left: 0;
   }
 }
