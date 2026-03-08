@@ -28,20 +28,12 @@ from skrift.auth.services import get_user_permissions
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
-from skrift.lib.hooks import NOTIFICATION_SENT, hooks
 from skrift.lib.notifications import NotificationMode, notify_user
-from skrift.lib.push import send_push
 
 from models.ai_chat import AiChatMessage
 from models.ai_chat_channel import AiChatChannel
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Disable skrift's global push hook — we call send_push explicitly for
-# messages only, avoiding push spam for tool status and read receipts.
-# ---------------------------------------------------------------------------
-hooks._actions.pop(NOTIFICATION_SENT, None)
 
 # ---------------------------------------------------------------------------
 # Role registration
@@ -531,6 +523,7 @@ class AiChatController(Controller):
             str(user.id),
             "aichat:message",
             mode=NotificationMode.TIMESERIES,
+            push_notify=False,
             sender="user",
             content=content,
             message_id=str(msg.id),
@@ -643,6 +636,7 @@ class AiChatApiController(Controller):
                 target_user_id,
                 "aichat:read",
                 mode=NotificationMode.TIMESERIES,
+                push_notify=False,
                 message_ids=read_ids,
             )
 
@@ -690,6 +684,7 @@ class AiChatApiController(Controller):
                 target_user_id,
                 "aichat:read",
                 mode=NotificationMode.TIMESERIES,
+                push_notify=False,
                 message_ids=read_ids,
             )
 
@@ -732,7 +727,8 @@ class AiChatApiController(Controller):
             )
             channel_name = ch_result.scalar_one_or_none() or "Agent"
 
-            # SSE notification for connected clients
+            # SSE + push notification (push_notify=True always sends push)
+            truncated = content[:120] + "..." if len(content) > 120 else content
             await notify_user(
                 target_user_id,
                 "aichat:message",
@@ -741,22 +737,12 @@ class AiChatApiController(Controller):
                 content=content,
                 message_id=str(msg.id),
                 channel_id=str(channel_id),
+                push_notify=True,
+                push_title=f"AI.CHAT::{channel_name}",
+                push_body=truncated,
+                push_url=f"/c/{channel_id}",
+                push_tag=f"aichat-msg-{channel_id}",
             )
-
-            # Always send push (browser deduplicates via tag)
-            truncated = content[:120] + "..." if len(content) > 120 else content
-            try:
-                sent = await send_push(
-                    db_session,
-                    user_id=target_user_id,
-                    title=f"AI.CHAT::{channel_name}",
-                    body=truncated,
-                    url=f"/c/{channel_id}",
-                    tag=f"aichat-msg-{channel_id}",
-                )
-                logger.info("Push sent to %s subscriptions for user %s", sent, target_user_id)
-            except Exception:
-                logger.exception("Push send failed for user %s", target_user_id)
 
         await db_session.commit()
         return Response(
@@ -782,6 +768,7 @@ class AiChatApiController(Controller):
                 "aichat:tool",
                 mode=NotificationMode.QUEUED,
                 group=f"aichat:tool:{channel_id}",
+                push_notify=False,
                 status=status,
                 tool=body.get("tool", ""),
                 description=body.get("description", ""),

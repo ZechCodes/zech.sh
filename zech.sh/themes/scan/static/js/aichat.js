@@ -25,6 +25,16 @@ if ("serviceWorker" in navigator) {
     });
   }
 
+  // Suppress push notifications when this chat is visible
+  if (window.__skriftPush) {
+    window.__skriftPush.onFilter(function (payload) {
+      if (payload.tag && payload.tag.indexOf(channelId) !== -1) {
+        return { cancel: true };
+      }
+      return payload;
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Markdown rendering
   // ---------------------------------------------------------------------------
