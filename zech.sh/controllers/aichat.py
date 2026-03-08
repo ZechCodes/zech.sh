@@ -725,24 +725,18 @@ class AiChatApiController(Controller):
             )
             channel_name = ch_result.scalar_one_or_none() or "Agent"
 
-            # SSE notification for connected clients
-            await notify_user(
-                target_user_id,
-                "aichat:message",
-                mode=NotificationMode.TIMESERIES,
-                sender="claude",
-                content=content,
-                message_id=str(msg.id),
-                channel_id=str(channel_id),
-            )
-
-            # Push notification for disconnected clients
+            # SSE notification + push fallback (push_notify handles both)
             truncated = content[:120] + "..." if len(content) > 120 else content
             await push_notify(
                 db_session,
                 user_id=target_user_id,
                 event="aichat:message",
-                data={"sender": "claude", "content": content, "channel_id": str(channel_id)},
+                data={
+                    "sender": "claude",
+                    "content": content,
+                    "message_id": str(msg.id),
+                    "channel_id": str(channel_id),
+                },
                 push_title=f"AI.CHAT::{channel_name}",
                 push_body=truncated,
                 push_url=f"/c/{channel_id}",
