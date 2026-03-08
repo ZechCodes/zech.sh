@@ -78,6 +78,12 @@ spec:
                   name: zech-sh-secrets
                   key: aichat-secret
                   optional: true
+            - name: AICHAT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zech-sh-secrets
+                  key: aichat-public-key
+                  optional: true
           resources:
             requests:
               memory: "256Mi"
