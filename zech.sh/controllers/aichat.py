@@ -174,25 +174,11 @@ async def _verify_signature(connection: ASGIConnection) -> bool:
         return False
 
 
-def _verify_shared_secret(connection: ASGIConnection) -> bool:
-    """Legacy: verify shared secret auth (for transition period)."""
-    import secrets as _secrets
-    secret = os.environ.get("AICHAT_SECRET", "")
-    if not secret:
-        return False
-    auth_header = connection.headers.get("authorization", "")
-    token = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else ""
-    if not token:
-        return False
-    return _secrets.compare_digest(token, secret)
-
-
 async def aichat_api_guard(
     connection: ASGIConnection, _handler: BaseRouteHandler
 ) -> None:
-    # Try Ed25519 signature first, fall back to shared secret
-    if not await _verify_signature(connection) and not _verify_shared_secret(connection):
-        raise NotAuthorizedException("Invalid authentication")
+    if not await _verify_signature(connection):
+        raise NotAuthorizedException("Invalid signature")
 
     # Rate limiting
     client_ip = connection.headers.get("x-forwarded-for", "api-client")
