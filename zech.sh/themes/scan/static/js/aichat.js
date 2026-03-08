@@ -39,6 +39,81 @@
   window.scrollTo(0, document.body.scrollHeight);
 
   // ---------------------------------------------------------------------------
+  // Load older messages
+  // ---------------------------------------------------------------------------
+
+  var loadMoreBtn = document.getElementById("aichatLoadMore");
+
+  function prependMessages(messages) {
+    var scrollBottom = document.body.scrollHeight - window.scrollY;
+    // Find the first existing message to insert before
+    var refNode = messagesEl.querySelector(".aichat-msg");
+
+    for (var i = 0; i < messages.length; i++) {
+      var m = messages[i];
+      var div = document.createElement("div");
+      div.className = "aichat-msg aichat-msg-" + m.sender;
+      div.setAttribute("data-message-id", m.id);
+
+      var senderEl = document.createElement("div");
+      senderEl.className = "aichat-msg-sender";
+      senderEl.textContent = m.sender.toUpperCase();
+      div.appendChild(senderEl);
+
+      var contentEl = document.createElement("div");
+      contentEl.className = "aichat-msg-content";
+      contentEl.innerHTML = renderMarkdown(m.content);
+      div.appendChild(contentEl);
+
+      if (m.sender === "user") {
+        var readEl = document.createElement("div");
+        readEl.className = "aichat-msg-read" + (m.read_by_claude_at ? " is-read" : "");
+        readEl.textContent = "\u2713";
+        div.appendChild(readEl);
+      }
+
+      // Insert before the first existing message (after load-more button)
+      messagesEl.insertBefore(div, refNode);
+    }
+
+    // Preserve scroll position
+    window.scrollTo(0, document.body.scrollHeight - scrollBottom);
+  }
+
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener("click", function () {
+      var firstMsgEl = messagesEl.querySelector(".aichat-msg");
+      if (!firstMsgEl) return;
+      var beforeId = firstMsgEl.getAttribute("data-message-id");
+      if (!beforeId) return;
+
+      loadMoreBtn.disabled = true;
+      loadMoreBtn.textContent = "Loading...";
+
+      fetch("/c/" + channelId + "/messages?before=" + encodeURIComponent(beforeId))
+        .then(function (res) {
+          if (!res.ok) throw new Error("Load failed");
+          return res.json();
+        })
+        .then(function (data) {
+          prependMessages(data.messages);
+          if (!data.has_more) {
+            loadMoreBtn.remove();
+            loadMoreBtn = null;
+          } else {
+            loadMoreBtn.disabled = false;
+            loadMoreBtn.textContent = "Load older messages";
+          }
+        })
+        .catch(function (err) {
+          console.error("Load older messages error:", err);
+          loadMoreBtn.disabled = false;
+          loadMoreBtn.textContent = "Load older messages";
+        });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Auto-resize textarea
   // ---------------------------------------------------------------------------
 

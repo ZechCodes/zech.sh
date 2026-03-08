@@ -456,12 +456,16 @@ class AiChatController(Controller):
         if not channel:
             return Redirect("/")
 
+        # Fetch last 100 messages (grab 101 to detect if there are older ones)
         result = await db_session.execute(
             select(AiChatMessage)
             .where(AiChatMessage.channel_id == channel.id)
-            .order_by(AiChatMessage.created_at.asc())
+            .order_by(AiChatMessage.created_at.desc())
+            .limit(101)
         )
         messages = list(result.scalars().all())
+        has_more = len(messages) > 100
+        messages = list(reversed(messages[:100]))
 
         csrf_token = _get_or_create_csrf_token(request)
 
@@ -471,6 +475,7 @@ class AiChatController(Controller):
                 "user": user,
                 "channel": channel,
                 "messages": messages,
+                "has_more": has_more,
                 "hide_sidebar": True,
                 "csrf_token": csrf_token,
             },
@@ -526,6 +531,56 @@ class AiChatController(Controller):
 
         await db_session.commit()
         return Response(content={"ok": True})
+
+    @get("/c/{channel_id:str}/messages")
+    async def load_older_messages(
+        self, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        result = await db_session.execute(
+            select(AiChatChannel).where(AiChatChannel.id == UUID(channel_id))
+        )
+        channel = result.scalar_one_or_none()
+        if not channel:
+            return Response(content={"error": "not found"}, status_code=404)
+
+        before = request.query_params.get("before")
+        if not before:
+            return Response(content={"error": "before param required"}, status_code=400)
+
+        before_msg = await db_session.get(AiChatMessage, UUID(before))
+        if not before_msg:
+            return Response(content={"error": "message not found"}, status_code=404)
+
+        # Fetch 101 to detect if there are still more
+        result = await db_session.execute(
+            select(AiChatMessage)
+            .where(AiChatMessage.channel_id == channel.id)
+            .where(AiChatMessage.created_at < before_msg.created_at)
+            .order_by(AiChatMessage.created_at.desc())
+            .limit(101)
+        )
+        messages = list(result.scalars().all())
+        has_more = len(messages) > 100
+        messages = list(reversed(messages[:100]))
+
+        return Response(content={
+            "has_more": has_more,
+            "messages": [
+                {
+                    "id": str(m.id),
+                    "sender": m.sender,
+                    "content": m.content,
+                    "read_by_claude_at": m.read_by_claude_at.isoformat() if m.read_by_claude_at else None,
+                }
+                for m in messages
+            ],
+        })
 
 
 # ---------------------------------------------------------------------------

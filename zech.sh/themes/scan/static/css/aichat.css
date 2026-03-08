@@ -34,6 +34,34 @@
 }
 
 /* --------------------------------------------------------------------------
+   Load more button
+   -------------------------------------------------------------------------- */
+
+.aichat-load-more {
+  align-self: center;
+  background: none;
+  border: 1px solid var(--fusion-border, rgba(255, 255, 255, 0.15));
+  color: var(--fusion-text-dim, rgba(255, 255, 255, 0.5));
+  padding: 0.4rem 1rem;
+  font-family: inherit;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+
+.aichat-load-more:hover {
+  color: var(--fusion-text, #fff);
+  border-color: var(--fusion-text-dim, rgba(255, 255, 255, 0.3));
+}
+
+.aichat-load-more:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* --------------------------------------------------------------------------
    Message bubbles
    -------------------------------------------------------------------------- */
 
