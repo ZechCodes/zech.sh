@@ -29,7 +29,7 @@ from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
 from skrift.lib.notifications import NotificationMode, notify_user
-from skrift.lib.push import notify as push_notify
+from skrift.lib.push import send_push
 
 from models.ai_chat import AiChatMessage
 from models.ai_chat_channel import AiChatChannel
@@ -725,23 +725,30 @@ class AiChatApiController(Controller):
             )
             channel_name = ch_result.scalar_one_or_none() or "Agent"
 
-            # SSE notification + push fallback (push_notify handles both)
-            truncated = content[:120] + "..." if len(content) > 120 else content
-            await push_notify(
-                db_session,
-                user_id=target_user_id,
-                event="aichat:message",
-                data={
-                    "sender": "claude",
-                    "content": content,
-                    "message_id": str(msg.id),
-                    "channel_id": str(channel_id),
-                },
-                push_title=f"AI.CHAT::{channel_name}",
-                push_body=truncated,
-                push_url=f"/c/{channel_id}",
-                push_tag=f"aichat-msg-{channel_id}",
+            # SSE notification for connected clients
+            await notify_user(
+                target_user_id,
+                "aichat:message",
+                mode=NotificationMode.TIMESERIES,
+                sender="claude",
+                content=content,
+                message_id=str(msg.id),
+                channel_id=str(channel_id),
             )
+
+            # Always send push (browser deduplicates via tag)
+            truncated = content[:120] + "..." if len(content) > 120 else content
+            try:
+                await send_push(
+                    db_session,
+                    user_id=target_user_id,
+                    title=f"AI.CHAT::{channel_name}",
+                    body=truncated,
+                    url=f"/c/{channel_id}",
+                    tag=f"aichat-msg-{channel_id}",
+                )
+            except Exception:
+                logger.debug("Push send failed", exc_info=True)
 
         await db_session.commit()
         return Response(
