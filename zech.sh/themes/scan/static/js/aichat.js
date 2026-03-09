@@ -326,8 +326,8 @@ if ("serviceWorker" in navigator) {
   var cancelBtn = document.getElementById("aichatCancelBtn");
   var tokenDisplay = document.getElementById("aichatNewToken");
   var tokenValue = document.getElementById("aichatTokenValue");
-  var channelNameEl = document.getElementById("channelName");
   var logoEl = document.querySelector(".logo");
+  var channelNameEl = document.getElementById("channelName") || logoEl;
 
   if (editBtn && modal) {
     editBtn.addEventListener("click", function () {
@@ -364,9 +364,12 @@ if ("serviceWorker" in navigator) {
           return res.json();
         })
         .then(function (data) {
-          channelNameEl.textContent = data.channel.name;
+          var brandText = "< " + data.channel.name;
+          if (logoEl) {
+            logoEl.textContent = brandText;
+            logoEl.setAttribute("data-text", brandText);
+          }
           document.title = data.channel.name + " — AI.CHAT";
-          if (logoEl) logoEl.setAttribute("data-text", "< " + data.channel.name);
           modal.classList.remove("is-active");
         })
         .catch(function (err) {
@@ -395,9 +398,12 @@ if ("serviceWorker" in navigator) {
         })
         .then(function (data) {
           if (data.channel) {
-            channelNameEl.textContent = data.channel.name;
+            var brandText = "< " + data.channel.name;
+            if (logoEl) {
+              logoEl.textContent = brandText;
+              logoEl.setAttribute("data-text", brandText);
+            }
             document.title = data.channel.name + " — AI.CHAT";
-            if (logoEl) logoEl.setAttribute("data-text", "< " + data.channel.name);
           }
           if (data.token) {
             tokenValue.textContent = data.token;

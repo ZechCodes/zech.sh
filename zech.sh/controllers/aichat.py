@@ -537,7 +537,7 @@ class AiChatController(Controller):
         for msg in messages:
             if msg.sender == "claude" and msg.read_by_user_at is None:
                 msg.read_by_user_at = now
-        await db_session.flush()
+        await db_session.commit()
 
         csrf_token = _get_or_create_csrf_token(request)
 

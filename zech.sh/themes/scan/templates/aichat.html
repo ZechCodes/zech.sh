@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}{{ channel.name }} — AI.CHAT{% endblock %}
-{% block nav_brand %}&lt; <span id="channelName">{{ channel.name }}</span>{% endblock %}
+{% block nav_brand %}&lt; {{ channel.name }}{% endblock %}
 
 {% block nav_after_brand %}
 <button class="aichat-edit-btn" id="aichatEditBtn" type="button" aria-label="Channel settings">
