@@ -514,17 +514,12 @@ class AiChatController(Controller):
         )
         devices = list(device_result.scalars().all())
 
-        # Group channels by device
+        # Group channels by device (only device-assigned channels)
         device_channels: dict[str, list] = {str(d.id): [] for d in devices}
-        device_channels["unassigned"] = []
         for channel in channels:
-            key = str(channel.device_id) if channel.device_id else "unassigned"
-            if key in device_channels:
+            key = str(channel.device_id) if channel.device_id else None
+            if key and key in device_channels:
                 device_channels[key].append(channel)
-            else:
-                device_channels["unassigned"].append(channel)
-
-        csrf_token = _get_or_create_csrf_token(request)
 
         return TemplateResponse(
             "aichat_dashboard.html",
@@ -535,59 +530,7 @@ class AiChatController(Controller):
                 "device_channels": device_channels,
                 "unread_counts": unread_counts,
                 "hide_sidebar": True,
-                "csrf_token": csrf_token,
             },
-        )
-
-    @post("/channels")
-    async def create_channel(
-        self, request: Request, db_session: AsyncSession
-    ) -> Response:
-        user = await _get_user(request, db_session)
-        if not user:
-            return Response(content={"error": "unauthorized"}, status_code=401)
-        if not await _has_permission(user.id, db_session):
-            return Response(content={"error": "forbidden"}, status_code=403)
-
-        # CSRF verification
-        submitted_token = request.headers.get("x-csrf-token", "")
-        stored_token = request.session.get(CSRF_SESSION_KEY, "")
-        if not stored_token or not hmac_mod.compare_digest(submitted_token, stored_token):
-            return Response(content={"error": "CSRF validation failed"}, status_code=403)
-
-        body = await request.json()
-        name = body.get("name", "").strip()
-        if not name:
-            return Response(content={"error": "name required"}, status_code=400)
-        if len(name) > 100:
-            return Response(content={"error": "name too long"}, status_code=400)
-
-        # Generate Ed25519 keypair
-        private_key = Ed25519PrivateKey.generate()
-        public_key = private_key.public_key()
-        private_key_b64 = base64.b64encode(private_key.private_bytes_raw()).decode()
-        public_key_b64 = base64.b64encode(public_key.public_bytes_raw()).decode()
-
-        channel = AiChatChannel(
-            name=name,
-            public_key=public_key_b64,
-            created_by_user_id=user.id,
-        )
-        db_session.add(channel)
-        await db_session.flush()
-
-        # Create compound token (shown once, never stored)
-        token = _make_compound_token(private_key_b64, str(channel.id))
-
-        await db_session.commit()
-
-        return Response(
-            content={
-                "ok": True,
-                "channel": {"id": str(channel.id), "name": channel.name},
-                "token": token,
-            },
-            status_code=201,
         )
 
     @post("/channels/{channel_id:str}/update", status_code=200)

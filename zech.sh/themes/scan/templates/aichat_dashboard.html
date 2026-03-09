@@ -55,58 +55,12 @@
     </div>
     {% endfor %}
 
-    {% if device_channels.get("unassigned", []) %}
-    <div class="aichat-device-section">
-        <div class="aichat-device-header">
-            <div class="aichat-device-info">
-                <span class="aichat-device-name">Unassigned Channels</span>
-            </div>
-        </div>
-        <div class="aichat-channels">
-            {% for channel in device_channels["unassigned"] %}
-            <a href="/c/{{ channel.id }}" class="aichat-channel-card" data-channel-id="{{ channel.id }}">
-                <div class="aichat-channel-left">
-                    <div class="aichat-channel-name">{{ channel.name }}</div>
-                    <div class="aichat-channel-status" data-channel-status="{{ channel.id }}"></div>
-                </div>
-                <div class="aichat-channel-right">
-                    {% if unread_counts.get(channel.id | string, 0) > 0 %}
-                    <div class="aichat-unread-badge" data-channel-unread="{{ channel.id }}">{{ unread_counts[channel.id | string] }}</div>
-                    {% else %}
-                    <div class="aichat-unread-badge is-hidden" data-channel-unread="{{ channel.id }}">0</div>
-                    {% endif %}
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    {% if not devices and not device_channels.get("unassigned", []) %}
-    <div class="aichat-empty">No devices or channels yet. Create a channel or register a device to get started.</div>
+    {% if not devices %}
+    <div class="aichat-empty">No devices registered yet. Register a device to get started.</div>
     {% endif %}
 
     <div class="aichat-dashboard-actions">
-        <button class="aichat-new-channel-btn" id="newChannelBtn">+ NEW CHANNEL</button>
         <button class="aichat-new-channel-btn aichat-notify-btn is-hidden" id="notifyBtn">ENABLE NOTIFICATIONS</button>
-    </div>
-
-    <div class="aichat-new-channel-form is-hidden" id="newChannelForm">
-        <input
-            type="text"
-            class="aichat-input"
-            id="channelNameInput"
-            placeholder="Agent name (e.g. Claude, MacMini 1)"
-            maxlength="100"
-        >
-        <button class="aichat-send" id="createChannelBtn">CREATE</button>
-    </div>
-
-    <div class="aichat-token-display is-hidden" id="tokenDisplay">
-        <div class="aichat-token-label">Agent Token (copy now — it won't be shown again)</div>
-        <div class="aichat-token-value" id="tokenValue"></div>
-        <button class="aichat-send" id="copyTokenBtn">COPY</button>
-        <button class="aichat-send aichat-done-btn" id="doneBtn">DONE</button>
     </div>
 
     <!-- New Task modal -->
@@ -234,16 +188,7 @@ if ("serviceWorker" in navigator) {
         }
     });
 
-    var newBtn = document.getElementById("newChannelBtn");
-    var formEl = document.getElementById("newChannelForm");
-    var nameInput = document.getElementById("channelNameInput");
-    var createBtn = document.getElementById("createChannelBtn");
-    var tokenDisplay = document.getElementById("tokenDisplay");
-    var tokenValue = document.getElementById("tokenValue");
-    var copyBtn = document.getElementById("copyTokenBtn");
-    var doneBtn = document.getElementById("doneBtn");
     var notifyBtn = document.getElementById("notifyBtn");
-    var csrfToken = {{ csrf_token | tojson }};
 
     // Push notification setup
     if (window.__skriftPush && "Notification" in window) {
@@ -264,60 +209,6 @@ if ("serviceWorker" in navigator) {
             });
         });
     }
-
-    newBtn.addEventListener("click", function () {
-        newBtn.classList.add("is-hidden");
-        formEl.classList.remove("is-hidden");
-        nameInput.focus();
-    });
-
-    nameInput.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            createBtn.click();
-        }
-    });
-
-    createBtn.addEventListener("click", function () {
-        var name = nameInput.value.trim();
-        if (!name) return;
-
-        createBtn.disabled = true;
-        fetch("/channels", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRF-Token": csrfToken,
-            },
-            body: JSON.stringify({ name: name }),
-        })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-            if (data.ok) {
-                formEl.classList.add("is-hidden");
-                tokenValue.textContent = data.token;
-                tokenDisplay.classList.remove("is-hidden");
-            } else {
-                alert("Error: " + (data.error || "unknown"));
-                createBtn.disabled = false;
-            }
-        })
-        .catch(function () {
-            alert("Failed to create channel");
-            createBtn.disabled = false;
-        });
-    });
-
-    copyBtn.addEventListener("click", function () {
-        navigator.clipboard.writeText(tokenValue.textContent).then(function () {
-            copyBtn.textContent = "COPIED";
-            setTimeout(function () { copyBtn.textContent = "COPY"; }, 2000);
-        });
-    });
-
-    doneBtn.addEventListener("click", function () {
-        window.location.reload();
-    });
 
     // --- New Task modal ---
     var newTaskModal = document.getElementById("newTaskModal");
