@@ -84,6 +84,26 @@
         {% endfor %}
     </div>
 
+    <!-- Interaction overlay (plans + questions) -->
+    <div class="aichat-interaction-overlay" id="aichatInteractionOverlay">
+        <div class="aichat-interaction-scrim"></div>
+        <div class="aichat-interaction-panel">
+            <div class="aichat-interaction-header">
+                <span class="aichat-tool-pulse"></span>
+                <span class="aichat-interaction-label" id="aichatInteractionLabel">QUESTION</span>
+            </div>
+            <div class="aichat-interaction-body">
+                <div class="aichat-interaction-content" id="aichatInteractionContent"></div>
+                <textarea class="aichat-interaction-input" id="aichatInteractionInput"
+                    placeholder="Type your answer..." rows="3"></textarea>
+            </div>
+            <div class="aichat-interaction-actions">
+                <button class="aichat-interaction-btn aichat-interaction-accept" id="aichatInteractionAccept" type="button">APPROVE</button>
+                <button class="aichat-interaction-btn aichat-interaction-deny" id="aichatInteractionDeny" type="button">DENY</button>
+            </div>
+        </div>
+    </div>
+
     <div class="aichat-bottom" id="aichatBottom">
 
         <div class="aichat-preview-area" id="aichatPreviewArea"></div>

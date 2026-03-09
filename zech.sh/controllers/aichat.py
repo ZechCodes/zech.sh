@@ -7,7 +7,7 @@ import os
 import secrets
 import time
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import redis.asyncio as redis
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -832,6 +832,47 @@ class AiChatController(Controller):
             ],
         })
 
+    @post("/c/{channel_id:str}/interaction/{interaction_id:str}/respond")
+    async def interaction_respond(
+        self, channel_id: str, interaction_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """User responds to a plan or question from the agent."""
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        # CSRF verification
+        submitted_token = request.headers.get("x-csrf-token", "")
+        stored_token = request.session.get(CSRF_SESSION_KEY, "")
+        if not stored_token or not hmac_mod.compare_digest(submitted_token, stored_token):
+            return Response(content={"error": "CSRF validation failed"}, status_code=403)
+
+        body = await request.json()
+        action = body.get("action", "")  # "accept", "deny", or "answer"
+        answer = body.get("answer", "")
+        reason = body.get("reason", "")
+
+        if action not in ("accept", "deny"):
+            return Response(content={"error": "invalid action"}, status_code=400)
+
+        # Send the response as a notification so the agent's SSE listener picks it up
+        await notify_user(
+            user.id,
+            "aichat:interaction-response",
+            mode=NotificationMode.TIMESERIES,
+            push_notify=False,
+            interaction_id=interaction_id,
+            action=action,
+            answer=answer,
+            reason=reason,
+            channel_id=channel_id,
+        )
+
+        return Response(content={"ok": True})
+
 
 # ---------------------------------------------------------------------------
 # API controller (agent-facing, channel-aware)
@@ -1073,6 +1114,39 @@ class AiChatApiController(Controller):
             )
 
         return Response(content={"ok": True})
+
+    @post("/interaction")
+    async def create_interaction(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Agent creates an interaction request (question or plan) for the user."""
+        channel_id = self._get_channel_id(request)
+
+        body = await request.json()
+        interaction_type = body.get("type", "")
+        if interaction_type not in ("question", "plan"):
+            return Response(content={"error": "invalid type"}, status_code=400)
+
+        content = body.get("content", "")
+        interaction_id = str(uuid4())
+
+        target_user_id = await _get_target_user_id(db_session, channel_id)
+        if target_user_id:
+            await notify_user(
+                target_user_id,
+                "aichat:interaction",
+                mode=NotificationMode.TIMESERIES,
+                push_notify=False,
+                interaction_id=interaction_id,
+                interaction_type=interaction_type,
+                content=content,
+                channel_id=str(channel_id),
+            )
+
+        return Response(
+            content={"ok": True, "interaction_id": interaction_id},
+            status_code=201,
+        )
 
 
 # ---------------------------------------------------------------------------

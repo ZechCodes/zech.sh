@@ -486,6 +486,100 @@ if ("serviceWorker" in navigator) {
   }
 
   // ---------------------------------------------------------------------------
+  // Interaction overlay (plans + questions)
+  // ---------------------------------------------------------------------------
+
+  var interactionOverlay = document.getElementById("aichatInteractionOverlay");
+  var interactionLabel = document.getElementById("aichatInteractionLabel");
+  var interactionContent = document.getElementById("aichatInteractionContent");
+  var interactionInput = document.getElementById("aichatInteractionInput");
+  var interactionAcceptBtn = document.getElementById("aichatInteractionAccept");
+  var interactionDenyBtn = document.getElementById("aichatInteractionDeny");
+  var pendingInteractionId = null;
+
+  function showInteraction(data) {
+    if (!interactionOverlay) return;
+
+    pendingInteractionId = data.interaction_id;
+    var isQuestion = data.interaction_type === "question";
+
+    interactionLabel.textContent = isQuestion ? "QUESTION" : "PLAN";
+    interactionContent.innerHTML = renderMarkdown(data.content || "");
+    interactionAcceptBtn.textContent = isQuestion ? "ANSWER" : "APPROVE";
+
+    if (isQuestion) {
+      interactionOverlay.classList.add("is-question");
+      interactionInput.value = "";
+    } else {
+      interactionOverlay.classList.remove("is-question");
+    }
+
+    interactionAcceptBtn.disabled = false;
+    interactionDenyBtn.disabled = false;
+    interactionOverlay.classList.add("is-active");
+
+    if (isQuestion) {
+      interactionInput.focus();
+    }
+  }
+
+  function hideInteraction() {
+    if (!interactionOverlay) return;
+    interactionOverlay.classList.remove("is-active");
+    pendingInteractionId = null;
+  }
+
+  function sendInteractionResponse(action) {
+    if (!pendingInteractionId) return;
+
+    var csrfToken = form.getAttribute("data-csrf") || "";
+    var answer = interactionInput ? interactionInput.value.trim() : "";
+
+    interactionAcceptBtn.disabled = true;
+    interactionDenyBtn.disabled = true;
+
+    fetch("/c/" + channelId + "/interaction/" + pendingInteractionId + "/respond", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify({ action: action, answer: answer }),
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("Response failed");
+        hideInteraction();
+      })
+      .catch(function (err) {
+        console.error("Interaction response error:", err);
+        interactionAcceptBtn.disabled = false;
+        interactionDenyBtn.disabled = false;
+      });
+  }
+
+  if (interactionAcceptBtn) {
+    interactionAcceptBtn.addEventListener("click", function () {
+      sendInteractionResponse("accept");
+    });
+  }
+
+  if (interactionDenyBtn) {
+    interactionDenyBtn.addEventListener("click", function () {
+      sendInteractionResponse("deny");
+    });
+  }
+
+  // Submit answer on Cmd/Ctrl+Enter in the interaction input
+  if (interactionInput) {
+    interactionInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        sendInteractionResponse("accept");
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Notification handler
   // ---------------------------------------------------------------------------
 
@@ -509,6 +603,8 @@ if ("serviceWorker" in navigator) {
       } else if (d.status === "idle") {
         finalizeWorkingBlock();
       }
+    } else if (d.type === "aichat:interaction") {
+      showInteraction(d);
     }
   });
 
