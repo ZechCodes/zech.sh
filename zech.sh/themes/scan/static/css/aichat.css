@@ -1139,6 +1139,9 @@
   display: flex;
   flex-direction: column;
   max-height: 50vh;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
   background: rgba(10, 10, 10, 0.92);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
