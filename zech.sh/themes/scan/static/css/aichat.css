@@ -383,16 +383,21 @@
 }
 
 .aichat-channel-status {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 0.35rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.65rem;
   color: var(--zech-text-dim);
+  min-height: 1.2em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  visibility: hidden;
 }
 
 .aichat-channel-status.is-active {
-  display: flex;
+  visibility: visible;
 }
 
 .aichat-unread-badge {
