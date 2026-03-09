@@ -722,6 +722,56 @@ class AiChatController(Controller):
         await db_session.commit()
         return Response(content={"ok": True})
 
+    @post("/c/{channel_id:str}/event")
+    async def send_event(
+        self, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        submitted_token = request.headers.get("x-csrf-token", "")
+        stored_token = request.session.get(CSRF_SESSION_KEY, "")
+        if not stored_token or not hmac_mod.compare_digest(submitted_token, stored_token):
+            return Response(content={"error": "CSRF validation failed"}, status_code=403)
+
+        result = await db_session.execute(
+            select(AiChatChannel).where(AiChatChannel.id == UUID(channel_id))
+        )
+        channel = result.scalar_one_or_none()
+        if not channel:
+            return Response(content={"error": "channel not found"}, status_code=404)
+
+        body = await request.json()
+        event_type = body.get("event_type", "").strip()
+        if not event_type:
+            return Response(content={"error": "event_type required"}, status_code=400)
+
+        msg = AiChatMessage(
+            sender="event",
+            content=event_type,
+            channel_id=channel.id,
+        )
+        db_session.add(msg)
+        await db_session.flush()
+
+        await notify_user(
+            str(user.id),
+            "aichat:message",
+            mode=NotificationMode.TIMESERIES,
+            push_notify=False,
+            sender="event",
+            content=event_type,
+            message_id=str(msg.id),
+            channel_id=str(channel.id),
+        )
+
+        await db_session.commit()
+        return Response(content={"ok": True, "id": str(msg.id)}, status_code=201)
+
     @post("/c/{channel_id:str}/upload")
     async def upload_attachment(
         self, channel_id: str, request: Request, db_session: AsyncSession
@@ -1005,6 +1055,45 @@ class AiChatApiController(Controller):
                 )
             except Exception:
                 logger.exception("Push send failed for user %s", target_user_id)
+
+        await db_session.commit()
+        return Response(
+            content={"ok": True, "id": str(msg.id)},
+            status_code=201,
+        )
+
+    @post("/event")
+    async def create_event(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Store a channel event (e.g. plan:enter, plan:exit) as a message."""
+        channel_id = self._get_channel_id(request)
+
+        body = await request.json()
+        event_type = body.get("event_type", "").strip()
+        if not event_type:
+            return Response(content={"error": "event_type required"}, status_code=400)
+
+        msg = AiChatMessage(
+            sender="event",
+            content=event_type,
+            channel_id=channel_id,
+        )
+        db_session.add(msg)
+        await db_session.flush()
+
+        target_user_id = await _get_target_user_id(db_session, channel_id)
+        if target_user_id:
+            await notify_user(
+                target_user_id,
+                "aichat:message",
+                mode=NotificationMode.TIMESERIES,
+                push_notify=False,
+                sender="event",
+                content=event_type,
+                message_id=str(msg.id),
+                channel_id=str(channel_id),
+            )
 
         await db_session.commit()
         return Response(

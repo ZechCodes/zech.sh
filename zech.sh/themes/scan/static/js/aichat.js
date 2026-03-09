@@ -69,6 +69,10 @@ if ("serviceWorker" in navigator) {
     })(existingWorkingBlocks[i]);
   }
 
+  function isNearBottom(threshold) {
+    return (document.body.scrollHeight - window.innerHeight - window.scrollY) <= (threshold || 50);
+  }
+
   // Scroll to linked message (from notification click) or bottom
   var linkedMsgId = window.location.hash.match(/^#msg-(.+)$/);
   if (linkedMsgId) {
@@ -80,10 +84,10 @@ if ("serviceWorker" in navigator) {
         linkedEl.classList.remove("aichat-msg-highlight");
       }, 5000);
     } else {
-      window.scrollTo(0, document.body.scrollHeight);
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
     }
   } else {
-    window.scrollTo(0, document.body.scrollHeight);
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
   }
 
   // ---------------------------------------------------------------------------
@@ -153,10 +157,16 @@ if ("serviceWorker" in navigator) {
   function prependMessages(messages) {
     var scrollBottom = document.body.scrollHeight - window.scrollY;
     // Find the first existing message or working block to insert before
-    var refNode = messagesEl.querySelector(".aichat-msg, .aichat-working");
+    var refNode = messagesEl.querySelector(".aichat-msg, .aichat-working, .aichat-event-divider");
 
     for (var i = 0; i < messages.length; i++) {
       var m = messages[i];
+
+      if (m.sender === "event") {
+        var divider = createEventDivider(m.content, m.id);
+        messagesEl.insertBefore(divider, refNode);
+        continue;
+      }
 
       if (m.sender === "tools") {
         var block = createWorkingBlock(m.content, m.id);
@@ -237,6 +247,51 @@ if ("serviceWorker" in navigator) {
     this.style.height = "auto";
     this.style.height = Math.min(this.scrollHeight, 120) + "px";
   });
+
+  // ---------------------------------------------------------------------------
+  // Planning/coding mode toggle
+  // ---------------------------------------------------------------------------
+
+  var modeToggle = document.getElementById("aichatModeToggle");
+  var isPlanning = false;
+
+  // Derive initial state from last event divider in history
+  (function () {
+    var dividers = messagesEl.querySelectorAll(".aichat-event-divider .aichat-event-label");
+    if (dividers.length) {
+      var last = dividers[dividers.length - 1].textContent.trim().toLowerCase();
+      if (last === "planning") isPlanning = true;
+    }
+    if (isPlanning && modeToggle) modeToggle.classList.add("is-planning");
+  })();
+
+  if (modeToggle) {
+    modeToggle.addEventListener("click", function () {
+      var eventType = isPlanning ? "plan:exit" : "plan:enter";
+      modeToggle.disabled = true;
+
+      var csrfToken = form.getAttribute("data-csrf") || "";
+      fetch("/c/" + channelId + "/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify({ event_type: eventType }),
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("Event failed");
+          isPlanning = !isPlanning;
+          modeToggle.classList.toggle("is-planning", isPlanning);
+        })
+        .catch(function (err) {
+          console.error("Mode toggle error:", err);
+        })
+        .finally(function () {
+          modeToggle.disabled = false;
+        });
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // File attachment handling
@@ -401,7 +456,34 @@ if ("serviceWorker" in navigator) {
     }
 
     messagesEl.appendChild(div);
-    window.scrollTo(0, document.body.scrollHeight);
+    if (isNearBottom()) {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
+    }
+  }
+
+  function eventLabel(eventType) {
+    if (eventType === "plan:enter") return "Planning";
+    if (eventType === "plan:exit") return "Done Planning";
+    return eventType;
+  }
+
+  function createEventDivider(eventType, messageId) {
+    var div = document.createElement("div");
+    div.className = "aichat-event-divider";
+    if (messageId) div.setAttribute("data-message-id", messageId);
+    var span = document.createElement("span");
+    span.className = "aichat-event-label";
+    span.textContent = eventLabel(eventType);
+    div.appendChild(span);
+    return div;
+  }
+
+  function appendEventDivider(eventType, messageId) {
+    var div = createEventDivider(eventType, messageId);
+    messagesEl.appendChild(div);
+    if (isNearBottom()) {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
+    }
   }
 
   function markAsRead(messageIds) {
@@ -447,7 +529,9 @@ if ("serviceWorker" in navigator) {
 
     messagesEl.appendChild(block);
     activeWorkingEl = block;
-    block.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (isNearBottom()) {
+      block.scrollIntoView({ behavior: "instant", block: "nearest" });
+    }
     return block;
   }
 
@@ -466,7 +550,9 @@ if ("serviceWorker" in navigator) {
     contentEl.appendChild(item);
     contentEl.scrollTop = contentEl.scrollHeight;
 
-    item.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (isNearBottom()) {
+      item.scrollIntoView({ behavior: "instant", block: "nearest" });
+    }
   }
 
   function finalizeWorkingBlock() {
@@ -622,10 +708,17 @@ if ("serviceWorker" in navigator) {
     if (channelId && d.channel_id && d.channel_id !== channelId) return;
 
     if (d.type === "aichat:message") {
+      if (d.sender === "event") {
+        appendEventDivider(d.content, d.message_id);
+        if (d.content === "plan:enter") isPlanning = true;
+        else if (d.content === "plan:exit") isPlanning = false;
+        if (modeToggle) modeToggle.classList.toggle("is-planning", isPlanning);
+      } else {
       if (d.sender === "claude") {
         finalizeWorkingBlock();
       }
       appendMessage(d.sender, d.content, d.message_id, d.attachments);
+      }
     } else if (d.type === "aichat:read") {
       markAsRead(d.message_ids || []);
     } else if (d.type === "aichat:tool") {

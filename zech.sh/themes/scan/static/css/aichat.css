@@ -307,6 +307,49 @@
 }
 
 /* --------------------------------------------------------------------------
+   Planning/coding mode toggle
+   -------------------------------------------------------------------------- */
+
+.aichat-mode-toggle {
+  background: none;
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  color: var(--zech-text-dim);
+  border-radius: 2px;
+  padding: 0;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+  flex-shrink: 0;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.aichat-mode-toggle:hover {
+  border-color: rgba(255, 85, 0, 0.4);
+  color: var(--zech-text);
+}
+
+.aichat-mode-toggle.is-planning {
+  border-color: rgba(255, 85, 0, 0.4);
+  color: var(--zech-primary);
+}
+
+.aichat-mode-icon-code {
+  display: none;
+}
+
+.aichat-mode-toggle.is-planning .aichat-mode-icon-plan {
+  display: none;
+}
+
+.aichat-mode-toggle.is-planning .aichat-mode-icon-code {
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
    Attach button and preview
    -------------------------------------------------------------------------- */
 
@@ -388,6 +431,34 @@
 
 .aichat-preview-remove:hover {
   opacity: 0.85;
+}
+
+/* --------------------------------------------------------------------------
+   Event dividers (plan mode enter/exit)
+   -------------------------------------------------------------------------- */
+
+.aichat-event-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  margin: 4px 0;
+}
+
+.aichat-event-divider::before,
+.aichat-event-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 85, 0, 0.15);
+}
+
+.aichat-event-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 85, 0, 0.5);
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------
@@ -632,12 +703,15 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .aichat-channel-right {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .aichat-channel-name {
