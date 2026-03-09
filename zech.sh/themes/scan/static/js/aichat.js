@@ -366,7 +366,7 @@ if ("serviceWorker" in navigator) {
         .then(function (data) {
           channelNameEl.textContent = data.channel.name;
           document.title = data.channel.name + " — AI.CHAT";
-          if (logoEl) logoEl.setAttribute("data-text", "AI.CHAT::" + data.channel.name);
+          if (logoEl) logoEl.setAttribute("data-text", "< " + data.channel.name);
           modal.classList.remove("is-active");
         })
         .catch(function (err) {
@@ -397,7 +397,7 @@ if ("serviceWorker" in navigator) {
           if (data.channel) {
             channelNameEl.textContent = data.channel.name;
             document.title = data.channel.name + " — AI.CHAT";
-            if (logoEl) logoEl.setAttribute("data-text", "AI.CHAT::" + data.channel.name);
+            if (logoEl) logoEl.setAttribute("data-text", "< " + data.channel.name);
           }
           if (data.token) {
             tokenValue.textContent = data.token;
