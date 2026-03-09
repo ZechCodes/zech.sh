@@ -327,6 +327,7 @@ if ("serviceWorker" in navigator) {
   var tokenDisplay = document.getElementById("aichatNewToken");
   var tokenValue = document.getElementById("aichatTokenValue");
   var channelNameEl = document.getElementById("channelName");
+  var logoEl = document.querySelector(".logo");
 
   if (editBtn && modal) {
     editBtn.addEventListener("click", function () {
@@ -365,6 +366,7 @@ if ("serviceWorker" in navigator) {
         .then(function (data) {
           channelNameEl.textContent = data.channel.name;
           document.title = data.channel.name + " — AI.CHAT";
+          if (logoEl) logoEl.setAttribute("data-text", "AI.CHAT::" + data.channel.name);
           modal.classList.remove("is-active");
         })
         .catch(function (err) {
@@ -395,6 +397,7 @@ if ("serviceWorker" in navigator) {
           if (data.channel) {
             channelNameEl.textContent = data.channel.name;
             document.title = data.channel.name + " — AI.CHAT";
+            if (logoEl) logoEl.setAttribute("data-text", "AI.CHAT::" + data.channel.name);
           }
           if (data.token) {
             tokenValue.textContent = data.token;
