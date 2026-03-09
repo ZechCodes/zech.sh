@@ -19,7 +19,7 @@ from litestar.exceptions import NotAuthorizedException, PermissionDeniedExceptio
 from litestar.handlers import BaseRouteHandler
 from litestar.response import Redirect, Response
 from litestar.response import Template as TemplateResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from skrift.auth.guards import ADMINISTRATOR_PERMISSION
@@ -354,6 +354,19 @@ class AiChatController(Controller):
         )
         channels = list(result.scalars().all())
 
+        # Get unread counts per channel (user messages not yet read by agent)
+        unread_result = await db_session.execute(
+            select(
+                AiChatMessage.channel_id,
+                func.count(AiChatMessage.id),
+            )
+            .where(AiChatMessage.sender == "user")
+            .where(AiChatMessage.read_by_claude_at.is_(None))
+            .where(AiChatMessage.channel_id.is_not(None))
+            .group_by(AiChatMessage.channel_id)
+        )
+        unread_counts = {str(row[0]): row[1] for row in unread_result.all()}
+
         csrf_token = _get_or_create_csrf_token(request)
 
         return TemplateResponse(
@@ -361,6 +374,7 @@ class AiChatController(Controller):
             context={
                 "user": user,
                 "channels": channels,
+                "unread_counts": unread_counts,
                 "hide_sidebar": True,
                 "csrf_token": csrf_token,
             },

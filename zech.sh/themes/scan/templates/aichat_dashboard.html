@@ -20,9 +20,19 @@
 
     <div class="aichat-channels">
         {% for channel in channels %}
-        <a href="/c/{{ channel.id }}" class="aichat-channel-card">
-            <div class="aichat-channel-name">{{ channel.name }}</div>
-            <div class="aichat-channel-meta">{{ channel.created_at.strftime('%Y-%m-%d') }}</div>
+        <a href="/c/{{ channel.id }}" class="aichat-channel-card" data-channel-id="{{ channel.id }}">
+            <div class="aichat-channel-left">
+                <div class="aichat-channel-name">{{ channel.name }}</div>
+                <div class="aichat-channel-status" data-channel-status="{{ channel.id }}"></div>
+            </div>
+            <div class="aichat-channel-right">
+                {% if unread_counts.get(channel.id | string, 0) > 0 %}
+                <div class="aichat-unread-badge" data-channel-unread="{{ channel.id }}">{{ unread_counts[channel.id | string] }}</div>
+                {% else %}
+                <div class="aichat-unread-badge is-hidden" data-channel-unread="{{ channel.id }}">0</div>
+                {% endif %}
+                <div class="aichat-channel-meta">{{ channel.created_at.strftime('%Y-%m-%d') }}</div>
+            </div>
         </a>
         {% endfor %}
 
@@ -67,6 +77,74 @@ if ("serviceWorker" in navigator) {
 
 (function () {
     "use strict";
+
+    // Keep SSE alive for real-time dashboard updates
+    if (window.__skriftNotifications) {
+        window.__skriftNotifications.configure({
+            persistConnection: true,
+            statusIndicator: {
+                enabled: true,
+                labels: { connected: "", suspended: "", connecting: "", disconnected: "" },
+            },
+        });
+    }
+
+    // Tool status tracking per channel
+    var toolTimers = {};
+
+    function showToolStatus(channelId, description) {
+        var el = document.querySelector('[data-channel-status="' + channelId + '"]');
+        if (!el) return;
+        el.innerHTML = '<span class="aichat-tool-pulse"></span> ' + (description || "Working...");
+        el.classList.add("is-active");
+        // Clear any existing hide timer
+        if (toolTimers[channelId]) clearTimeout(toolTimers[channelId]);
+    }
+
+    function hideToolStatus(channelId) {
+        if (toolTimers[channelId]) clearTimeout(toolTimers[channelId]);
+        toolTimers[channelId] = setTimeout(function () {
+            var el = document.querySelector('[data-channel-status="' + channelId + '"]');
+            if (el) {
+                el.textContent = "";
+                el.classList.remove("is-active");
+            }
+        }, 500);
+    }
+
+    function updateUnread(channelId, delta) {
+        var el = document.querySelector('[data-channel-unread="' + channelId + '"]');
+        if (!el) return;
+        var count = parseInt(el.textContent || "0", 10) + delta;
+        if (count < 0) count = 0;
+        el.textContent = count;
+        if (count > 0) {
+            el.classList.remove("is-hidden");
+        } else {
+            el.classList.add("is-hidden");
+        }
+    }
+
+    // Listen for real-time notifications
+    document.addEventListener("sk:notification", function (e) {
+        var d = e.detail;
+        if (!d || !d.channel_id) return;
+
+        if (d.type === "aichat:tool") {
+            if (d.status === "active") {
+                showToolStatus(d.channel_id, d.description);
+            } else {
+                hideToolStatus(d.channel_id);
+            }
+        } else if (d.type === "aichat:read") {
+            // Messages were read by agent — decrease unread count
+            var readCount = (d.message_ids || []).length;
+            if (readCount > 0) updateUnread(d.channel_id, -readCount);
+        } else if (d.type === "aichat:message" && d.sender === "user") {
+            // User sent a message — increase unread count
+            updateUnread(d.channel_id, 1);
+        }
+    });
 
     var newBtn = document.getElementById("newChannelBtn");
     var formEl = document.getElementById("newChannelForm");
