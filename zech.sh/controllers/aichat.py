@@ -865,7 +865,8 @@ class AiChatController(Controller):
         await notify_user(
             user.id,
             "aichat:interaction-response",
-            mode=NotificationMode.TIMESERIES,
+            mode=NotificationMode.QUEUED,
+            group=f"aichat:interaction-response:{channel_id}",
             push_notify=False,
             interaction_id=interaction_id,
             action=action,
