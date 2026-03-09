@@ -16,7 +16,33 @@
 
 {% block content %}
 <section class="aichat-section">
-    <div class="scan-label"><a href="/" class="aichat-back">AI.CHAT</a> / {{ channel.name }}</div>
+    <div class="scan-label">
+        <a href="/" class="aichat-back">AI.CHAT</a> / <span id="channelName">{{ channel.name }}</span>
+        <button class="aichat-edit-btn" id="aichatEditBtn" type="button" aria-label="Channel settings">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Channel settings modal -->
+    <div class="aichat-modal-overlay" id="aichatModal">
+        <div class="aichat-modal">
+            <div class="aichat-modal-title">CHANNEL SETTINGS</div>
+            <label class="aichat-modal-label" for="aichatRenameInput">NAME</label>
+            <input class="aichat-modal-input" id="aichatRenameInput" type="text" value="{{ channel.name }}" maxlength="100">
+            <div class="aichat-modal-actions">
+                <button class="aichat-modal-btn aichat-modal-save" id="aichatSaveBtn" type="button">SAVE</button>
+                <button class="aichat-modal-btn aichat-modal-regen" id="aichatRegenBtn" type="button">REGENERATE KEY</button>
+                <button class="aichat-modal-btn aichat-modal-cancel" id="aichatCancelBtn" type="button">CANCEL</button>
+            </div>
+            <div class="aichat-token-display is-hidden" id="aichatNewToken">
+                <div class="aichat-token-label">NEW TOKEN (copy now — shown once)</div>
+                <div class="aichat-token-value" id="aichatTokenValue"></div>
+            </div>
+        </div>
+    </div>
 
     <div class="aichat-messages" id="aichatMessages" data-channel-id="{{ channel.id }}">
         {% if has_more %}

@@ -467,6 +467,128 @@
 }
 
 /* --------------------------------------------------------------------------
+   Edit button
+   -------------------------------------------------------------------------- */
+
+.aichat-edit-btn {
+  background: none;
+  border: none;
+  color: var(--zech-text-dim);
+  cursor: pointer;
+  padding: 0.15rem;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+  transition: color 0.2s;
+}
+
+.aichat-edit-btn:hover {
+  color: var(--zech-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Modal
+   -------------------------------------------------------------------------- */
+
+.aichat-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.aichat-modal-overlay.is-active {
+  display: flex;
+}
+
+.aichat-modal {
+  background: var(--zech-bg, #0a0a0a);
+  border: 1px solid rgba(255, 85, 0, 0.3);
+  border-radius: 2px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.aichat-modal-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+}
+
+.aichat-modal-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--zech-text-dim);
+}
+
+.aichat-modal-input {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  border-radius: 2px;
+  color: var(--zech-text);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.75rem;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.aichat-modal-input:focus {
+  border-color: rgba(255, 85, 0, 0.4);
+}
+
+.aichat-modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.aichat-modal-btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 2px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.aichat-modal-btn:hover {
+  opacity: 0.85;
+}
+
+.aichat-modal-save {
+  background: var(--zech-primary);
+  color: var(--zech-bg);
+}
+
+.aichat-modal-regen {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--zech-text);
+}
+
+.aichat-modal-cancel {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--zech-text-dim);
+}
+
+/* --------------------------------------------------------------------------
    SSE status indicator (skrift built-in, restyled)
    -------------------------------------------------------------------------- */
 

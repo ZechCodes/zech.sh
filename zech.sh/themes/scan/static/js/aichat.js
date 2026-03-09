@@ -313,4 +313,100 @@ if ("serviceWorker" in navigator) {
       }
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // Channel settings modal
+  // ---------------------------------------------------------------------------
+
+  var editBtn = document.getElementById("aichatEditBtn");
+  var modal = document.getElementById("aichatModal");
+  var renameInput = document.getElementById("aichatRenameInput");
+  var saveBtn = document.getElementById("aichatSaveBtn");
+  var regenBtn = document.getElementById("aichatRegenBtn");
+  var cancelBtn = document.getElementById("aichatCancelBtn");
+  var tokenDisplay = document.getElementById("aichatNewToken");
+  var tokenValue = document.getElementById("aichatTokenValue");
+  var channelNameEl = document.getElementById("channelName");
+
+  if (editBtn && modal) {
+    editBtn.addEventListener("click", function () {
+      modal.classList.add("is-active");
+      tokenDisplay.classList.add("is-hidden");
+      renameInput.focus();
+    });
+
+    cancelBtn.addEventListener("click", function () {
+      modal.classList.remove("is-active");
+    });
+
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) modal.classList.remove("is-active");
+    });
+
+    var csrfToken = form.getAttribute("data-csrf") || "";
+
+    saveBtn.addEventListener("click", function () {
+      var newName = renameInput.value.trim();
+      if (!newName) return;
+      saveBtn.disabled = true;
+
+      fetch("/channels/" + channelId + "/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify({ name: newName }),
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("Update failed");
+          return res.json();
+        })
+        .then(function (data) {
+          channelNameEl.textContent = data.channel.name;
+          document.title = data.channel.name + " — AI.CHAT";
+          modal.classList.remove("is-active");
+        })
+        .catch(function (err) {
+          console.error("Rename error:", err);
+        })
+        .finally(function () {
+          saveBtn.disabled = false;
+        });
+    });
+
+    regenBtn.addEventListener("click", function () {
+      if (!confirm("Regenerate key pair? The old token will stop working.")) return;
+      regenBtn.disabled = true;
+
+      fetch("/channels/" + channelId + "/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify({ name: renameInput.value.trim(), regenerate_key: true }),
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("Regenerate failed");
+          return res.json();
+        })
+        .then(function (data) {
+          if (data.channel) {
+            channelNameEl.textContent = data.channel.name;
+            document.title = data.channel.name + " — AI.CHAT";
+          }
+          if (data.token) {
+            tokenValue.textContent = data.token;
+            tokenDisplay.classList.remove("is-hidden");
+          }
+        })
+        .catch(function (err) {
+          console.error("Regenerate error:", err);
+        })
+        .finally(function () {
+          regenBtn.disabled = false;
+        });
+    });
+  }
 })();

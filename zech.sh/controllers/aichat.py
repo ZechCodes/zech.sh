@@ -417,6 +417,56 @@ class AiChatController(Controller):
             status_code=201,
         )
 
+    @post("/channels/{channel_id:str}/update", status_code=200)
+    async def update_channel(
+        self, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        # CSRF verification
+        submitted_token = request.headers.get("x-csrf-token", "")
+        stored_token = request.session.get(CSRF_SESSION_KEY, "")
+        if not stored_token or not hmac_mod.compare_digest(submitted_token, stored_token):
+            return Response(content={"error": "CSRF validation failed"}, status_code=403)
+
+        result = await db_session.execute(
+            select(AiChatChannel).where(AiChatChannel.id == UUID(channel_id))
+        )
+        channel = result.scalar_one_or_none()
+        if not channel:
+            return Response(content={"error": "not found"}, status_code=404)
+
+        body = await request.json()
+        token = None
+
+        # Rename
+        name = body.get("name", "").strip()
+        if name and name != channel.name:
+            if len(name) > 100:
+                return Response(content={"error": "name too long"}, status_code=400)
+            channel.name = name
+
+        # Regenerate key pair
+        if body.get("regenerate_key"):
+            private_key = Ed25519PrivateKey.generate()
+            public_key = private_key.public_key()
+            private_key_b64 = base64.b64encode(private_key.private_bytes_raw()).decode()
+            public_key_b64 = base64.b64encode(public_key.public_bytes_raw()).decode()
+            channel.public_key = public_key_b64
+            _invalidate_channel_cache(channel_id)
+            token = _make_compound_token(private_key_b64, str(channel.id))
+
+        await db_session.commit()
+
+        resp: dict = {"ok": True, "channel": {"id": str(channel.id), "name": channel.name}}
+        if token:
+            resp["token"] = token
+        return Response(content=resp)
+
     @delete("/channels/{channel_id:str}", status_code=200)
     async def delete_channel(
         self, channel_id: str, request: Request, db_session: AsyncSession
