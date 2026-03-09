@@ -139,16 +139,18 @@ classify_agent = Agent(
         "You are a query classifier. Given a user input, classify it as exactly one of:\n\n"
         "URL — The input looks like a domain name, IP address, or URL (with or without a protocol). "
         'Examples: "github.com", "docs.python.org/3/library/asyncio", "192.168.1.1"\n\n'
-        "SEARCH — The input is a web search query. This is the DEFAULT for almost everything: "
-        "lookups, definitions, factual questions, product searches, how-to queries, and anything "
-        "a normal search engine handles well. When in doubt, classify as SEARCH. "
+        "SEARCH — Quick facts, definitions, single-answer lookups, navigation queries, or product "
+        "searches where a list of links is the ideal answer. Use for queries that have a short, "
+        "direct answer or where the user just wants to find a specific page or resource. "
         'Examples: "python list comprehension", "define avant garde", "best pizza near me", '
-        '"what is kubernetes", "how to center a div", "litestar framework"\n\n'
-        "RESEARCH — The input explicitly asks for deep analysis, comparison, or a synthesized "
-        "answer that requires reading and combining multiple sources. Reserve this for queries "
-        "that clearly need multi-source investigation, not simple questions with direct answers. "
-        'Examples: "compare React vs Svelte for SPAs in 2026", '
-        '"what are the tradeoffs between microservices and monoliths for a 10-person team"\n\n'
+        '"latest iphone price", "weather today", "litestar framework"\n\n'
+        "RESEARCH — Questions, explanations, comparisons, how-to guides, or anything where the "
+        "user wants a synthesized, in-depth answer rather than a link. This is the DEFAULT when "
+        "in doubt — most questions benefit from a researched answer. "
+        'Examples: "how does TCP congestion control work", "compare React vs Svelte for SPAs", '
+        '"what are the tradeoffs between microservices and monoliths", '
+        '"explain the difference between threads and processes", '
+        '"what are the best practices for securing a REST API"\n\n'
         "Respond with exactly one word: URL, SEARCH, or RESEARCH. Nothing else."
     ),
 )
@@ -205,11 +207,11 @@ research_agent = Agent(
 
 
 async def classify_query(query: str) -> str:
-    """Classify a query using Pydantic AI + Gemini Flash."""
-    result = await classify_agent.run(query, model=gemini_flash_lite(), model_settings=FLASH_LITE_THINKING_SETTINGS)
+    """Classify a query using Pydantic AI + Gemini Flash Lite (no thinking)."""
+    result = await classify_agent.run(query, model=gemini_flash_lite())
     text = result.output.strip().upper()
     if text not in ("URL", "SEARCH", "RESEARCH"):
-        return "SEARCH"
+        return "RESEARCH"
     return text
 
 
