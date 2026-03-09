@@ -831,6 +831,27 @@ class AiChatApiController(Controller):
             status_code=201,
         )
 
+    @post("/session")
+    async def create_session(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Exchange Ed25519 auth for a session cookie (for SSE stream access)."""
+        channel_id = self._get_channel_id(request)
+
+        # Find the channel owner
+        result = await db_session.execute(
+            select(AiChatChannel.created_by_user_id)
+            .where(AiChatChannel.id == channel_id)
+        )
+        owner_id = result.scalar_one_or_none()
+        if not owner_id:
+            return Response(content={"error": "channel not found"}, status_code=404)
+
+        # Set session user_id so the SSE stream delivers this user's notifications
+        request.session[SESSION_USER_ID] = str(owner_id)
+
+        return Response(content={"ok": True, "channel_id": str(channel_id)})
+
     @post("/tool-status")
     async def tool_status(
         self, request: Request, db_session: AsyncSession
