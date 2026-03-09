@@ -1529,6 +1529,37 @@ class AiChatDeviceManagementController(Controller):
 
         return Response(content={"ok": True})
 
+    @post("/{device_id:str}/workers/{channel_id:str}/restart", status_code=200)
+    async def restart_worker(
+        self, device_id: str, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Send worker:restart command to device."""
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        result = await db_session.execute(
+            select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+        )
+        device = result.scalar_one_or_none()
+        if not device or device.owner_user_id != user.id:
+            return Response(content={"error": "device not found"}, status_code=404)
+
+        # Send worker:restart command
+        await notify_user(
+            str(user.id),
+            "aichat:device-command",
+            mode=NotificationMode.TIMESERIES,
+            push_notify=False,
+            command="worker:restart",
+            payload={"channel_id": channel_id},
+            device_id=str(device.id),
+        )
+
+        return Response(content={"ok": True})
+
     @put("/{device_id:str}")
     async def update_device(
         self, device_id: str, request: Request, db_session: AsyncSession

@@ -39,6 +39,7 @@
                     <div class="aichat-channel-status" data-channel-status="{{ channel.id }}"></div>
                 </div>
                 <div class="aichat-channel-right">
+                    <button class="aichat-restart-btn" data-action="restart-worker" data-device-id="{{ device.id }}" data-channel-id="{{ channel.id }}" title="Restart worker">&#x21bb;</button>
                     {% if unread_counts.get(channel.id | string, 0) > 0 %}
                     <div class="aichat-unread-badge" data-channel-unread="{{ channel.id }}">{{ unread_counts[channel.id | string] }}</div>
                     {% else %}
@@ -437,6 +438,41 @@ if ("serviceWorker" in navigator) {
         .catch(function () {
             alert("Failed to delete device");
             deleteDeviceBtn.disabled = false;
+        });
+    });
+
+    // --- Restart worker ---
+    document.querySelectorAll('[data-action="restart-worker"]').forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var deviceId = btn.dataset.deviceId;
+            var channelId = btn.dataset.channelId;
+            btn.disabled = true;
+            btn.classList.add("is-spinning");
+
+            fetch("/api/user-devices/" + deviceId + "/workers/" + channelId + "/restart", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data.ok) {
+                    setTimeout(function () {
+                        btn.disabled = false;
+                        btn.classList.remove("is-spinning");
+                    }, 2000);
+                } else {
+                    alert("Error: " + (data.error || "unknown"));
+                    btn.disabled = false;
+                    btn.classList.remove("is-spinning");
+                }
+            })
+            .catch(function () {
+                alert("Failed to restart worker");
+                btn.disabled = false;
+                btn.classList.remove("is-spinning");
+            });
         });
     });
 
