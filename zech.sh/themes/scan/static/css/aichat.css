@@ -388,8 +388,9 @@
   gap: 0.35rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.65rem;
+  line-height: 1;
   color: var(--zech-text-dim);
-  min-height: 1.2em;
+  height: 0.85rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
