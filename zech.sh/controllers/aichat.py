@@ -524,6 +524,7 @@ class AiChatController(Controller):
             str(user.id),
             "aichat:message",
             mode=NotificationMode.TIMESERIES,
+            push_notify=False,
             sender="user",
             content=content,
             message_id=str(msg.id),
@@ -636,6 +637,7 @@ class AiChatApiController(Controller):
                 target_user_id,
                 "aichat:read",
                 mode=NotificationMode.TIMESERIES,
+                push_notify=False,
                 message_ids=read_ids,
             )
 
@@ -683,6 +685,7 @@ class AiChatApiController(Controller):
                 target_user_id,
                 "aichat:read",
                 mode=NotificationMode.TIMESERIES,
+                push_notify=False,
                 message_ids=read_ids,
             )
 
@@ -725,11 +728,12 @@ class AiChatApiController(Controller):
             )
             channel_name = ch_result.scalar_one_or_none() or "Agent"
 
-            # SSE notification for connected clients
+            # SSE notification for connected clients (push handled separately below)
             await notify_user(
                 target_user_id,
                 "aichat:message",
                 mode=NotificationMode.TIMESERIES,
+                push_notify=False,
                 sender="claude",
                 content=content,
                 message_id=str(msg.id),
@@ -774,6 +778,7 @@ class AiChatApiController(Controller):
                 "aichat:tool",
                 mode=NotificationMode.QUEUED,
                 group=f"aichat:tool:{channel_id}",
+                push_notify=False,
                 status=status,
                 tool=body.get("tool", ""),
                 description=body.get("description", ""),
