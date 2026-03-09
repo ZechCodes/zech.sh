@@ -4,6 +4,7 @@ import hmac as hmac_mod
 import json
 import logging
 import os
+import secrets
 import time
 from datetime import datetime, timezone
 from uuid import UUID
@@ -13,7 +14,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
-from litestar import Controller, Request, delete, get, post
+from litestar import Controller, Request, delete, get, post, put
 from litestar.connection import ASGIConnection
 from litestar.exceptions import NotAuthorizedException, PermissionDeniedException
 from litestar.handlers import BaseRouteHandler
@@ -34,6 +35,7 @@ from skrift.lib.push import send_push
 
 from models.ai_chat import AiChatMessage
 from models.ai_chat_channel import AiChatChannel
+from models.ai_chat_device import AiChatDevice
 
 logger = logging.getLogger(__name__)
 
@@ -279,6 +281,109 @@ async def _check_rate_limit(key: str, limit: int, window: int = 60) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Device auth code management (Redis-backed, 10 min TTL)
+# ---------------------------------------------------------------------------
+
+_DEVICE_CODE_TTL = 600  # 10 minutes
+
+
+async def _store_device_code(code: str, data: dict) -> None:
+    """Store a pending device auth code in Redis."""
+    r = await _get_redis()
+    if r:
+        await r.setex(f"aichat:device-code:{code}", _DEVICE_CODE_TTL, json.dumps(data))
+
+
+async def _get_device_code(code: str) -> dict | None:
+    """Retrieve a pending device auth code from Redis."""
+    r = await _get_redis()
+    if not r:
+        return None
+    raw = await r.get(f"aichat:device-code:{code}")
+    if not raw:
+        return None
+    return json.loads(raw)
+
+
+async def _update_device_code(code: str, data: dict) -> None:
+    """Update a device code (preserves remaining TTL)."""
+    r = await _get_redis()
+    if r:
+        ttl = await r.ttl(f"aichat:device-code:{code}")
+        if ttl > 0:
+            await r.setex(f"aichat:device-code:{code}", ttl, json.dumps(data))
+
+
+async def _delete_device_code(code: str) -> None:
+    """Delete a device auth code."""
+    r = await _get_redis()
+    if r:
+        await r.delete(f"aichat:device-code:{code}")
+
+
+# ---------------------------------------------------------------------------
+# Device key cache (similar to channel key cache)
+# ---------------------------------------------------------------------------
+
+_device_key_cache: dict[str, Ed25519PublicKey] = {}
+
+
+async def _lookup_device_key(device_id: str) -> Ed25519PublicKey | None:
+    """Look up a device's public key, using cache when available."""
+    if device_id in _device_key_cache:
+        return _device_key_cache[device_id]
+
+    try:
+        engine = await _get_guard_engine()
+        async with AsyncSession(engine) as session:
+            result = await session.execute(
+                select(AiChatDevice.public_key)
+                .where(AiChatDevice.id == UUID(device_id))
+            )
+            key_b64 = result.scalar_one_or_none()
+    except Exception:
+        logger.exception("Failed to look up device key")
+        return None
+
+    if not key_b64:
+        return None
+
+    pub_key = Ed25519PublicKey.from_public_bytes(base64.b64decode(key_b64))
+    _device_key_cache[device_id] = pub_key
+    return pub_key
+
+
+def _invalidate_device_cache(device_id: str) -> None:
+    """Remove a device from the key cache."""
+    _device_key_cache.pop(device_id, None)
+
+
+# ---------------------------------------------------------------------------
+# Device API guard — Ed25519 signature verification for device endpoints
+# ---------------------------------------------------------------------------
+
+
+async def aichat_device_api_guard(
+    connection: ASGIConnection, _handler: BaseRouteHandler
+) -> None:
+    """Guard for device-authenticated API endpoints."""
+    device_id_str = connection.headers.get("x-device-id", "")
+    if not device_id_str:
+        raise NotAuthorizedException("X-Device-Id header required")
+
+    try:
+        pub_key = await _lookup_device_key(device_id_str)
+        if not pub_key or not _verify_signature_with_key(connection, pub_key):
+            raise NotAuthorizedException("Invalid device signature")
+        connection.state["device_id"] = device_id_str
+    except NotAuthorizedException:
+        raise
+    except Exception:
+        logger.exception("Device auth lookup failed")
+        raise NotAuthorizedException("Auth failed")
+
+
+# ---------------------------------------------------------------------------
 # API guard — Ed25519 signature + rate limiting (channel-aware)
 # ---------------------------------------------------------------------------
 
@@ -368,6 +473,24 @@ class AiChatController(Controller):
         )
         unread_counts = {str(row[0]): row[1] for row in unread_result.all()}
 
+        # Get devices
+        device_result = await db_session.execute(
+            select(AiChatDevice)
+            .where(AiChatDevice.owner_user_id == user.id)
+            .order_by(AiChatDevice.created_at.desc())
+        )
+        devices = list(device_result.scalars().all())
+
+        # Group channels by device
+        device_channels: dict[str, list] = {str(d.id): [] for d in devices}
+        device_channels["unassigned"] = []
+        for channel in channels:
+            key = str(channel.device_id) if channel.device_id else "unassigned"
+            if key in device_channels:
+                device_channels[key].append(channel)
+            else:
+                device_channels["unassigned"].append(channel)
+
         csrf_token = _get_or_create_csrf_token(request)
 
         return TemplateResponse(
@@ -375,6 +498,8 @@ class AiChatController(Controller):
             context={
                 "user": user,
                 "channels": channels,
+                "devices": devices,
+                "device_channels": device_channels,
                 "unread_counts": unread_counts,
                 "hide_sidebar": True,
                 "csrf_token": csrf_token,
@@ -977,5 +1102,409 @@ class AiChatApiController(Controller):
                 description=body.get("description", ""),
                 channel_id=str(channel_id),
             )
+
+        return Response(content={"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Device registration controller (public — no auth for registration)
+# ---------------------------------------------------------------------------
+
+
+class AiChatDeviceRegistrationController(Controller):
+    """Public endpoints for device auth flow."""
+
+    path = "/api/devices"
+
+    @post("/register")
+    async def register_device(self, request: Request) -> Response:
+        """Start device auth flow. Returns device_code + auth_url."""
+        body = await request.json()
+        public_key = body.get("public_key", "").strip()
+        name = body.get("name", "").strip()
+
+        if not public_key:
+            return Response(content={"error": "public_key required"}, status_code=400)
+        if not name:
+            name = "Unknown Device"
+        if len(name) > 100:
+            name = name[:100]
+
+        # Validate public key is valid base64 Ed25519 (32 bytes)
+        try:
+            key_bytes = base64.b64decode(public_key)
+            if len(key_bytes) != 32:
+                raise ValueError("invalid key length")
+            Ed25519PublicKey.from_public_bytes(key_bytes)
+        except Exception:
+            return Response(content={"error": "invalid public_key"}, status_code=400)
+
+        device_code = secrets.token_urlsafe(16)
+        auth_url = f"https://aichat.zech.sh/devices/authorize?code={device_code}"
+
+        await _store_device_code(device_code, {
+            "status": "pending",
+            "public_key": public_key,
+            "name": name,
+        })
+
+        return Response(
+            content={"device_code": device_code, "auth_url": auth_url},
+            status_code=200,
+        )
+
+    @get("/status")
+    async def device_auth_status(self, request: Request) -> Response:
+        """Poll for device auth completion."""
+        code = request.query_params.get("code", "")
+        if not code:
+            return Response(content={"error": "code required"}, status_code=400)
+
+        data = await _get_device_code(code)
+        if not data:
+            return Response(content={"error": "device_code expired"}, status_code=410)
+
+        if data["status"] == "approved":
+            # Clean up code after retrieval
+            await _delete_device_code(code)
+            return Response(content={
+                "status": "approved",
+                "device_id": data["device_id"],
+            })
+        elif data["status"] == "denied":
+            await _delete_device_code(code)
+            return Response(content={"status": "denied"})
+        else:
+            return Response(content={"status": "pending"})
+
+
+# ---------------------------------------------------------------------------
+# Device approval controller (web UI — session auth)
+# ---------------------------------------------------------------------------
+
+
+class AiChatDeviceApprovalController(Controller):
+    """Web UI for approving device registrations."""
+
+    path = "/devices"
+
+    @get("/authorize")
+    async def authorize_page(
+        self, request: Request, db_session: AsyncSession
+    ) -> TemplateResponse | Redirect:
+        user = await _get_user(request, db_session)
+        if not user:
+            code = request.query_params.get("code", "")
+            return Redirect(
+                f"https://zech.sh/auth/login?next=https://aichat.zech.sh/devices/authorize?code={code}"
+            )
+
+        if not await _has_permission(user.id, db_session):
+            return TemplateResponse("unauthorized.html", context={"user": user})
+
+        code = request.query_params.get("code", "")
+        if not code:
+            return Redirect("/")
+
+        data = await _get_device_code(code)
+        if not data or data["status"] != "pending":
+            return TemplateResponse(
+                "aichat_device_authorize.html",
+                context={
+                    "user": user,
+                    "error": "This device code has expired or already been used.",
+                    "hide_sidebar": True,
+                },
+            )
+
+        csrf_token = _get_or_create_csrf_token(request)
+        return TemplateResponse(
+            "aichat_device_authorize.html",
+            context={
+                "user": user,
+                "device_name": data["name"],
+                "device_code": code,
+                "csrf_token": csrf_token,
+                "hide_sidebar": True,
+            },
+        )
+
+    @post("/authorize")
+    async def authorize_device(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        # CSRF verification
+        submitted_token = request.headers.get("x-csrf-token", "")
+        stored_token = request.session.get(CSRF_SESSION_KEY, "")
+        if not stored_token or not hmac_mod.compare_digest(submitted_token, stored_token):
+            return Response(content={"error": "CSRF validation failed"}, status_code=403)
+
+        body = await request.json()
+        code = body.get("code", "")
+        action = body.get("action", "")
+
+        if not code:
+            return Response(content={"error": "code required"}, status_code=400)
+
+        data = await _get_device_code(code)
+        if not data or data["status"] != "pending":
+            return Response(content={"error": "device_code expired or used"}, status_code=410)
+
+        if action == "deny":
+            await _update_device_code(code, {**data, "status": "denied"})
+            return Response(content={"ok": True, "status": "denied"})
+
+        if action != "approve":
+            return Response(content={"error": "invalid action"}, status_code=400)
+
+        # Create the device
+        device = AiChatDevice(
+            name=data["name"],
+            public_key=data["public_key"],
+            owner_user_id=user.id,
+            status="offline",
+        )
+        db_session.add(device)
+        await db_session.flush()
+
+        # Update the code with device_id for the manager to retrieve
+        await _update_device_code(code, {
+            **data,
+            "status": "approved",
+            "device_id": str(device.id),
+        })
+
+        await db_session.commit()
+
+        return Response(content={
+            "ok": True,
+            "status": "approved",
+            "device_id": str(device.id),
+        })
+
+
+# ---------------------------------------------------------------------------
+# Device API controller (device-authenticated)
+# ---------------------------------------------------------------------------
+
+
+class AiChatDeviceApiController(Controller):
+    """API endpoints authenticated by device Ed25519 keys."""
+
+    path = "/api/device"
+    guards = [aichat_device_api_guard]
+
+    def _get_device_id(self, request: Request) -> str:
+        return request.state["device_id"]
+
+    @post("/session")
+    async def create_device_session(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Exchange device auth for a session cookie (for SSE stream access)."""
+        device_id = self._get_device_id(request)
+
+        result = await db_session.execute(
+            select(AiChatDevice.owner_user_id)
+            .where(AiChatDevice.id == UUID(device_id))
+        )
+        owner_id = result.scalar_one_or_none()
+        if not owner_id:
+            return Response(content={"error": "device not found"}, status_code=404)
+
+        request.session[SESSION_USER_ID] = str(owner_id)
+        return Response(content={"ok": True, "device_id": device_id})
+
+    @post("/status")
+    async def report_device_status(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Manager reports device + worker status."""
+        device_id = self._get_device_id(request)
+
+        body = await request.json()
+
+        result = await db_session.execute(
+            select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+        )
+        device = result.scalar_one_or_none()
+        if not device:
+            return Response(content={"error": "device not found"}, status_code=404)
+
+        device.status = body.get("status", "online")
+        device.last_seen_at = datetime.now(timezone.utc)
+        await db_session.commit()
+
+        return Response(content={"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Device management controller (user session auth)
+# ---------------------------------------------------------------------------
+
+
+class AiChatDeviceManagementController(Controller):
+    """User-facing device management (session-authenticated)."""
+
+    path = "/api/user-devices"
+
+    @post("/{device_id:str}/workers")
+    async def request_worker(
+        self, device_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Create a channel and send worker:start command to device."""
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        # Verify device exists and is owned by user
+        result = await db_session.execute(
+            select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+        )
+        device = result.scalar_one_or_none()
+        if not device or device.owner_user_id != user.id:
+            return Response(content={"error": "device not found"}, status_code=404)
+
+        body = await request.json()
+        name = body.get("name", "").strip() or "New Task"
+        if len(name) > 100:
+            name = name[:100]
+
+        # Generate channel keypair
+        private_key = Ed25519PrivateKey.generate()
+        public_key = private_key.public_key()
+        private_key_b64 = base64.b64encode(private_key.private_bytes_raw()).decode()
+        public_key_b64 = base64.b64encode(public_key.public_bytes_raw()).decode()
+
+        channel = AiChatChannel(
+            name=name,
+            public_key=public_key_b64,
+            created_by_user_id=user.id,
+            device_id=device.id,
+        )
+        db_session.add(channel)
+        await db_session.flush()
+
+        channel_token = _make_compound_token(private_key_b64, str(channel.id))
+
+        # Send worker:start command as timeseries notification
+        await notify_user(
+            str(user.id),
+            "aichat:device-command",
+            mode=NotificationMode.TIMESERIES,
+            push_notify=False,
+            command="worker:start",
+            payload={
+                "channel_id": str(channel.id),
+                "channel_token": channel_token,
+            },
+            device_id=str(device.id),
+        )
+
+        await db_session.commit()
+
+        return Response(
+            content={
+                "ok": True,
+                "channel": {"id": str(channel.id), "name": channel.name},
+            },
+            status_code=201,
+        )
+
+    @delete("/{device_id:str}/workers/{channel_id:str}")
+    async def stop_worker(
+        self, device_id: str, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Send worker:stop command to device."""
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        result = await db_session.execute(
+            select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+        )
+        device = result.scalar_one_or_none()
+        if not device or device.owner_user_id != user.id:
+            return Response(content={"error": "device not found"}, status_code=404)
+
+        # Send worker:stop command
+        await notify_user(
+            str(user.id),
+            "aichat:device-command",
+            mode=NotificationMode.TIMESERIES,
+            push_notify=False,
+            command="worker:stop",
+            payload={"channel_id": channel_id},
+            device_id=str(device.id),
+        )
+
+        return Response(content={"ok": True})
+
+    @put("/{device_id:str}")
+    async def update_device(
+        self, device_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Update device name."""
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        result = await db_session.execute(
+            select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+        )
+        device = result.scalar_one_or_none()
+        if not device or device.owner_user_id != user.id:
+            return Response(content={"error": "device not found"}, status_code=404)
+
+        body = await request.json()
+        name = body.get("name", "").strip()
+        if name:
+            if len(name) > 100:
+                return Response(content={"error": "name too long"}, status_code=400)
+            device.name = name
+
+        await db_session.commit()
+        return Response(content={"ok": True, "device": {"id": str(device.id), "name": device.name}})
+
+    @delete("/{device_id:str}")
+    async def delete_device(
+        self, device_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Delete device and disassociate its channels."""
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        result = await db_session.execute(
+            select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+        )
+        device = result.scalar_one_or_none()
+        if not device or device.owner_user_id != user.id:
+            return Response(content={"error": "device not found"}, status_code=404)
+
+        # Disassociate channels from this device
+        channel_result = await db_session.execute(
+            select(AiChatChannel).where(AiChatChannel.device_id == device.id)
+        )
+        for channel in channel_result.scalars().all():
+            channel.device_id = None
+
+        _invalidate_device_cache(device_id)
+        await db_session.delete(device)
+        await db_session.commit()
 
         return Response(content={"ok": True})

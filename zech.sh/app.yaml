@@ -37,6 +37,10 @@ sites:
     controllers:
       - controllers.aichat:AiChatController
       - controllers.aichat:AiChatApiController
+      - controllers.aichat:AiChatDeviceRegistrationController
+      - controllers.aichat:AiChatDeviceApprovalController
+      - controllers.aichat:AiChatDeviceApiController
+      - controllers.aichat:AiChatDeviceManagementController
       - skrift.controllers.notifications:NotificationsController
       - skrift.controllers.push:PushController
       - skrift.controllers.push:service_worker

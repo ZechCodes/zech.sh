@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from advanced_alchemy.types import GUID
-from sqlalchemy import String, Text
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from skrift.db.base import Base
@@ -16,4 +16,9 @@ class AiChatChannel(Base):
     public_key: Mapped[str] = mapped_column(Text, nullable=False)
     created_by_user_id: Mapped[UUID | None] = mapped_column(
         GUID(length=16), nullable=True
+    )
+    device_id: Mapped[UUID | None] = mapped_column(
+        GUID(length=16),
+        ForeignKey("ai_chat_device.id"),
+        nullable=True,
     )
