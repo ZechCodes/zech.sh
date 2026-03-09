@@ -1003,9 +1003,12 @@
 
 .aichat-authorize-card {
   margin: 2rem 0;
-  padding: 1.5rem;
-  border: 1px solid var(--scan-border);
-  background: var(--scan-surface);
+  padding: 2rem;
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 2px;
 }
 
 .aichat-authorize-card p {
@@ -1017,6 +1020,7 @@
   font-weight: bold;
   margin-bottom: 1.5rem;
   font-family: var(--scan-mono);
+  color: var(--scan-accent);
 }
 
 .aichat-authorize-hint {
@@ -1032,23 +1036,50 @@
 
 .aichat-authorize-approve {
   flex: 1;
-  padding: 0.75rem;
-  background: var(--scan-accent);
-  color: var(--scan-bg);
+  padding: 0.75rem 1.5rem;
+  background: var(--zech-primary, #ff5500);
+  color: #fff;
   border: none;
   cursor: pointer;
   font-family: var(--scan-mono);
   font-weight: bold;
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: box-shadow 0.2s, background 0.2s;
+}
+
+.aichat-authorize-approve:hover {
+  box-shadow: 0 0 16px rgba(255, 85, 0, 0.3);
+}
+
+.aichat-authorize-approve:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .aichat-authorize-deny {
   flex: 1;
-  padding: 0.75rem;
+  padding: 0.75rem 1.5rem;
   background: transparent;
-  color: var(--scan-text);
-  border: 1px solid var(--scan-border);
+  color: var(--scan-accent);
+  border: 1px solid var(--scan-accent);
   cursor: pointer;
   font-family: var(--scan-mono);
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.aichat-authorize-deny:hover {
+  background: rgba(255, 85, 0, 0.06);
+  box-shadow: 0 0 12px rgba(255, 85, 0, 0.1);
+}
+
+.aichat-authorize-deny:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .aichat-authorize-status {
@@ -1062,9 +1093,12 @@
 
 .aichat-authorize-error-card {
   margin: 2rem 0;
-  padding: 1rem;
-  border: 1px solid var(--scan-border);
-  background: var(--scan-surface);
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 2px;
 }
 
 .aichat-authorize-error-card a {
