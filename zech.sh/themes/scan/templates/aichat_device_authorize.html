@@ -9,34 +9,26 @@
 {% endblock %}
 
 {% block content %}
-<section class="aichat-section" style="max-width: 480px; margin: 4rem auto; padding: 0 1rem;">
+<section class="aichat-section aichat-authorize">
     <div class="scan-label">DEVICE AUTHORIZATION</div>
 
     {% if error %}
-    <div style="margin: 2rem 0; padding: 1rem; border: 1px solid var(--scan-border); background: var(--scan-surface);">
+    <div class="aichat-authorize-error-card">
         <p>{{ error }}</p>
-        <a href="/" style="color: var(--scan-accent); margin-top: 1rem; display: inline-block;">Back to Dashboard</a>
+        <a href="/">Back to Dashboard</a>
     </div>
     {% else %}
-    <div style="margin: 2rem 0; padding: 1.5rem; border: 1px solid var(--scan-border); background: var(--scan-surface);">
-        <p style="margin-bottom: 1rem;">A device wants to connect to your AI.CHAT account:</p>
-        <div style="font-size: 1.25rem; font-weight: bold; margin-bottom: 1.5rem; font-family: var(--scan-mono);">
-            {{ device_name }}
-        </div>
-        <p style="margin-bottom: 1.5rem; opacity: 0.7; font-size: 0.875rem;">
+    <div class="aichat-authorize-card">
+        <p>A device wants to connect to your AI.CHAT account:</p>
+        <div class="aichat-authorize-device-name">{{ device_name }}</div>
+        <p class="aichat-authorize-hint">
             Approving will allow this device to run AI agents and manage channels on your behalf.
         </p>
-        <div style="display: flex; gap: 1rem;">
-            <button
-                id="approveBtn"
-                style="flex: 1; padding: 0.75rem; background: var(--scan-accent); color: var(--scan-bg); border: none; cursor: pointer; font-family: var(--scan-mono); font-weight: bold;"
-            >APPROVE</button>
-            <button
-                id="denyBtn"
-                style="flex: 1; padding: 0.75rem; background: transparent; color: var(--scan-text); border: 1px solid var(--scan-border); cursor: pointer; font-family: var(--scan-mono);"
-            >DENY</button>
+        <div class="aichat-authorize-actions">
+            <button id="approveBtn" class="aichat-authorize-approve">APPROVE</button>
+            <button id="denyBtn" class="aichat-authorize-deny">DENY</button>
         </div>
-        <div id="statusMsg" style="margin-top: 1rem; display: none;"></div>
+        <div id="statusMsg" class="aichat-authorize-status"></div>
     </div>
     {% endif %}
 </section>
@@ -44,7 +36,7 @@
 
 {% block scripts %}
 {% if not error %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function() {
     const code = {{ device_code | tojson }};
     const csrf = {{ csrf_token | tojson }};
@@ -68,19 +60,19 @@
             });
             const data = await resp.json();
 
-            statusMsg.style.display = 'block';
+            statusMsg.classList.add('is-visible');
             if (data.ok && action === 'approve') {
-                statusMsg.innerHTML = '<span style="color: var(--scan-accent);">Device approved. You can close this page.</span>';
+                statusMsg.innerHTML = '<span class="aichat-authorize-success">Device approved. You can close this page.</span>';
             } else if (data.ok && action === 'deny') {
                 statusMsg.innerHTML = '<span>Device denied.</span>';
             } else {
-                statusMsg.innerHTML = '<span style="color: #e55;">Error: ' + (data.error || 'Unknown error') + '</span>';
+                statusMsg.innerHTML = '<span class="aichat-authorize-error">Error: ' + (data.error || 'Unknown error') + '</span>';
                 approveBtn.disabled = false;
                 denyBtn.disabled = false;
             }
         } catch (err) {
-            statusMsg.style.display = 'block';
-            statusMsg.innerHTML = '<span style="color: #e55;">Network error. Please try again.</span>';
+            statusMsg.classList.add('is-visible');
+            statusMsg.innerHTML = '<span class="aichat-authorize-error">Network error. Please try again.</span>';
             approveBtn.disabled = false;
             denyBtn.disabled = false;
         }

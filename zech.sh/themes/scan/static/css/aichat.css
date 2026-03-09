@@ -990,3 +990,93 @@
     font-size: 16px; /* Prevent iOS zoom on focus */
   }
 }
+
+/* --------------------------------------------------------------------------
+   Device Authorization Page
+   -------------------------------------------------------------------------- */
+
+.aichat-authorize {
+  max-width: 480px;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+
+.aichat-authorize-card {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  border: 1px solid var(--scan-border);
+  background: var(--scan-surface);
+}
+
+.aichat-authorize-card p {
+  margin-bottom: 1rem;
+}
+
+.aichat-authorize-device-name {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+  font-family: var(--scan-mono);
+}
+
+.aichat-authorize-hint {
+  margin-bottom: 1.5rem;
+  opacity: 0.7;
+  font-size: 0.875rem;
+}
+
+.aichat-authorize-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.aichat-authorize-approve {
+  flex: 1;
+  padding: 0.75rem;
+  background: var(--scan-accent);
+  color: var(--scan-bg);
+  border: none;
+  cursor: pointer;
+  font-family: var(--scan-mono);
+  font-weight: bold;
+}
+
+.aichat-authorize-deny {
+  flex: 1;
+  padding: 0.75rem;
+  background: transparent;
+  color: var(--scan-text);
+  border: 1px solid var(--scan-border);
+  cursor: pointer;
+  font-family: var(--scan-mono);
+}
+
+.aichat-authorize-status {
+  margin-top: 1rem;
+  display: none;
+}
+
+.aichat-authorize-status.is-visible {
+  display: block;
+}
+
+.aichat-authorize-error-card {
+  margin: 2rem 0;
+  padding: 1rem;
+  border: 1px solid var(--scan-border);
+  background: var(--scan-surface);
+}
+
+.aichat-authorize-error-card a {
+  color: var(--scan-accent);
+  margin-top: 1rem;
+  display: inline-block;
+}
+
+.aichat-authorize-success {
+  color: var(--scan-accent);
+}
+
+.aichat-authorize-error {
+  color: #e55;
+}
