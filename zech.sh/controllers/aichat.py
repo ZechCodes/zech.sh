@@ -1343,6 +1343,36 @@ class AiChatDeviceApiController(Controller):
 
         return Response(content={"ok": True})
 
+    @post("/rotate-key")
+    async def rotate_device_key(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Rotate the device's Ed25519 public key.
+
+        The request is signed with the current key, and the body contains
+        the new public key. After rotation, only the new key will be accepted.
+        """
+        device_id = self._get_device_id(request)
+        body = await request.json()
+        new_public_key = body.get("public_key")
+        if not new_public_key:
+            return Response(content={"error": "public_key required"}, status_code=400)
+
+        result = await db_session.execute(
+            select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+        )
+        device = result.scalar_one_or_none()
+        if not device:
+            return Response(content={"error": "device not found"}, status_code=404)
+
+        device.public_key = new_public_key
+        await db_session.commit()
+
+        # Invalidate the cached key so the new one is used immediately
+        _invalidate_device_cache(device_id)
+
+        return Response(content={"ok": True})
+
 
 # ---------------------------------------------------------------------------
 # Device management controller (user session auth)
