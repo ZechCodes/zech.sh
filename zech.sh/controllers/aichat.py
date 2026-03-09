@@ -30,7 +30,7 @@ from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
 from skrift.db.services.asset_service import get_asset_url, upload_asset
-from skrift.lib.notifications import NotificationMode, notify_user
+from skrift.lib.notifications import NotificationMode, dismiss_user_group, notify_user
 from skrift.lib.push import send_push
 
 from models.ai_chat import AiChatMessage
@@ -858,6 +858,9 @@ class AiChatController(Controller):
         if action not in ("accept", "deny"):
             return Response(content={"error": "invalid action"}, status_code=400)
 
+        # Dismiss the persistent interaction notification
+        await dismiss_user_group(user.id, f"aichat:interaction:{channel_id}")
+
         # Send the response as a notification so the agent's SSE listener picks it up
         await notify_user(
             user.id,
@@ -1146,7 +1149,8 @@ class AiChatApiController(Controller):
             await notify_user(
                 target_user_id,
                 "aichat:interaction",
-                mode=NotificationMode.TIMESERIES,
+                mode=NotificationMode.QUEUED,
+                group=f"aichat:interaction:{channel_id}",
                 push_notify=False,
                 **notification_kwargs,
             )
