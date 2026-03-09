@@ -1419,7 +1419,7 @@ class AiChatDeviceManagementController(Controller):
             status_code=201,
         )
 
-    @delete("/{device_id:str}/workers/{channel_id:str}")
+    @delete("/{device_id:str}/workers/{channel_id:str}", status_code=200)
     async def stop_worker(
         self, device_id: str, channel_id: str, request: Request, db_session: AsyncSession
     ) -> Response:
@@ -1478,7 +1478,7 @@ class AiChatDeviceManagementController(Controller):
         await db_session.commit()
         return Response(content={"ok": True, "device": {"id": str(device.id), "name": device.name}})
 
-    @delete("/{device_id:str}")
+    @delete("/{device_id:str}", status_code=200)
     async def delete_device(
         self, device_id: str, request: Request, db_session: AsyncSession
     ) -> Response:
