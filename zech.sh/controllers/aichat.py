@@ -905,73 +905,24 @@ class AiChatApiController(Controller):
         """Get channel_id from auth state (always present after guard)."""
         return UUID(request.state["channel_id"])
 
-    @get("/messages")
-    async def get_messages(
+    @post("/messages/read")
+    async def mark_read(
         self, request: Request, db_session: AsyncSession
     ) -> Response:
         channel_id = self._get_channel_id(request)
-        before = request.query_params.get("before")
-        limit = min(int(request.query_params.get("limit", "10")), 50)
 
+        body = await request.json()
+        message_ids = body.get("message_ids", [])
+        if not message_ids:
+            return Response(content={"error": "message_ids required"}, status_code=400)
+
+        # Only mark messages belonging to this channel
         query = (
             select(AiChatMessage)
+            .where(AiChatMessage.id.in_([UUID(mid) for mid in message_ids]))
             .where(AiChatMessage.channel_id == channel_id)
-            .order_by(AiChatMessage.created_at.desc())
-        )
-        if before:
-            before_msg = await db_session.get(AiChatMessage, UUID(before))
-            if before_msg:
-                query = query.where(AiChatMessage.created_at < before_msg.created_at)
-        query = query.limit(limit)
-
-        result = await db_session.execute(query)
-        messages = list(result.scalars().all())
-
-        now = datetime.now(timezone.utc)
-        read_ids = []
-        target_user_id = None
-        for msg in messages:
-            if msg.sender == "user" and msg.read_by_claude_at is None:
-                msg.read_by_claude_at = now
-                read_ids.append(str(msg.id))
-                if msg.user_id:
-                    target_user_id = str(msg.user_id)
-
-        if read_ids and target_user_id:
-            await notify_user(
-                target_user_id,
-                "aichat:read",
-                mode=NotificationMode.TIMESERIES,
-                push_notify=False,
-                message_ids=read_ids,
-            )
-
-        await db_session.commit()
-
-        return Response(content=[
-            {
-                "id": str(m.id),
-                "sender": m.sender,
-                "content": m.content,
-                "created_at": m.created_at.isoformat(),
-                "read_by_claude_at": m.read_by_claude_at.isoformat() if m.read_by_claude_at else None,
-                "attachments": m.attachments or [],
-            }
-            for m in reversed(messages)
-        ])
-
-    @get("/messages/unread")
-    async def get_unread(
-        self, request: Request, db_session: AsyncSession
-    ) -> Response:
-        channel_id = self._get_channel_id(request)
-
-        query = (
-            select(AiChatMessage)
             .where(AiChatMessage.sender == "user")
             .where(AiChatMessage.read_by_claude_at.is_(None))
-            .where(AiChatMessage.channel_id == channel_id)
-            .order_by(AiChatMessage.created_at.asc())
         )
 
         result = await db_session.execute(query)
@@ -997,16 +948,7 @@ class AiChatApiController(Controller):
 
         await db_session.commit()
 
-        return Response(content=[
-            {
-                "id": str(m.id),
-                "sender": m.sender,
-                "content": m.content,
-                "created_at": m.created_at.isoformat(),
-                "attachments": m.attachments or [],
-            }
-            for m in messages
-        ])
+        return Response(content={"marked": read_ids})
 
     @post("/messages")
     async def create_message(
