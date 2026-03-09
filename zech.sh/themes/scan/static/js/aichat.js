@@ -250,7 +250,10 @@ if ("serviceWorker" in navigator) {
     '<span class="aichat-tool-pulse"></span>' +
     '<span class="aichat-tool-text"></span>' +
     '<span class="aichat-tool-timer"></span>';
-  form.parentNode.insertBefore(toolIndicator, form);
+  var bottomEl = document.getElementById("aichatBottom");
+  if (bottomEl) {
+    bottomEl.insertBefore(toolIndicator, form);
+  }
 
   var toolTextEl = toolIndicator.querySelector(".aichat-tool-text");
   var toolTimerEl = toolIndicator.querySelector(".aichat-tool-timer");

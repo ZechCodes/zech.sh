@@ -58,16 +58,18 @@
         {% endfor %}
     </div>
 
-    <form class="aichat-form" id="aichatForm" autocomplete="off" data-csrf="{{ csrf_token }}" data-channel-id="{{ channel.id }}">
-        <textarea
-            class="aichat-input"
-            name="content"
-            placeholder="Type a message..."
-            rows="1"
-            id="aichatInput"
-        ></textarea>
-        <button class="aichat-send" type="submit">SEND</button>
-    </form>
+    <div class="aichat-bottom" id="aichatBottom">
+        <form class="aichat-form" id="aichatForm" autocomplete="off" data-csrf="{{ csrf_token }}" data-channel-id="{{ channel.id }}">
+            <textarea
+                class="aichat-input"
+                name="content"
+                placeholder="Type a message..."
+                rows="1"
+                id="aichatInput"
+            ></textarea>
+            <button class="aichat-send" type="submit">SEND</button>
+        </form>
+    </div>
 </section>
 {% endblock %}
 
