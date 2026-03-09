@@ -354,14 +354,14 @@ class AiChatController(Controller):
         )
         channels = list(result.scalars().all())
 
-        # Get unread counts per channel (user messages not yet read by agent)
+        # Get unread counts per channel (claude messages not yet read by user)
         unread_result = await db_session.execute(
             select(
                 AiChatMessage.channel_id,
                 func.count(AiChatMessage.id),
             )
-            .where(AiChatMessage.sender == "user")
-            .where(AiChatMessage.read_by_claude_at.is_(None))
+            .where(AiChatMessage.sender == "claude")
+            .where(AiChatMessage.read_by_user_at.is_(None))
             .where(AiChatMessage.channel_id.is_not(None))
             .group_by(AiChatMessage.channel_id)
         )
@@ -531,6 +531,13 @@ class AiChatController(Controller):
         messages = list(result.scalars().all())
         has_more = len(messages) > 100
         messages = list(reversed(messages[:100]))
+
+        # Mark unread Claude messages as read by user
+        now = datetime.now(timezone.utc)
+        for msg in messages:
+            if msg.sender == "claude" and msg.read_by_user_at is None:
+                msg.read_by_user_at = now
+        await db_session.flush()
 
         csrf_token = _get_or_create_csrf_token(request)
 

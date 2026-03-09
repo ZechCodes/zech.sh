@@ -28,3 +28,6 @@ class AiChatMessage(Base):
     read_by_claude_at: Mapped[datetime | None] = mapped_column(
         DateTimeUTC(timezone=True), nullable=True
     )
+    read_by_user_at: Mapped[datetime | None] = mapped_column(
+        DateTimeUTC(timezone=True), nullable=True
+    )

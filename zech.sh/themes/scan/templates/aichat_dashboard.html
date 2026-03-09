@@ -136,12 +136,8 @@ if ("serviceWorker" in navigator) {
             } else {
                 hideToolStatus(d.channel_id);
             }
-        } else if (d.type === "aichat:read") {
-            // Messages were read by agent — decrease unread count
-            var readCount = (d.message_ids || []).length;
-            if (readCount > 0) updateUnread(d.channel_id, -readCount);
-        } else if (d.type === "aichat:message" && d.sender === "user") {
-            // User sent a message — increase unread count
+        } else if (d.type === "aichat:message" && d.sender === "claude") {
+            // Claude sent a message — increase unread count
             updateUnread(d.channel_id, 1);
         }
     });
