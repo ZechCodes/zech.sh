@@ -391,20 +391,8 @@
 }
 
 /* --------------------------------------------------------------------------
-   Tool use indicator
+   Pulse animation (used by working block)
    -------------------------------------------------------------------------- */
-
-.aichat-tool-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 0.75rem;
-  color: var(--zech-text-dim);
-  background: transparent;
-  min-height: 1.25rem;
-}
 
 .aichat-tool-pulse {
   width: 6px;
@@ -412,11 +400,6 @@
   border-radius: 50%;
   background: var(--zech-primary);
   animation: aichat-pulse 1.5s ease-in-out infinite;
-  visibility: hidden;
-}
-
-.aichat-tool-indicator.is-active .aichat-tool-pulse {
-  visibility: visible;
 }
 
 @keyframes aichat-pulse {
@@ -424,26 +407,11 @@
   50% { opacity: 1; transform: scale(1.2); }
 }
 
-.aichat-tool-text {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.aichat-tool-timer {
-  font-variant-numeric: tabular-nums;
-  color: var(--zech-primary);
-  font-weight: 700;
-  min-width: 2.5em;
-  text-align: right;
-}
-
 /* --------------------------------------------------------------------------
-   Reasoning blocks (collapsible inline thought display)
+   Working block (collapsible tool use log)
    -------------------------------------------------------------------------- */
 
-.aichat-reasoning {
+.aichat-working {
   align-self: flex-start;
   width: 80%;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -452,11 +420,11 @@
   transition: border-color 0.2s;
 }
 
-.aichat-reasoning.is-expanded {
+.aichat-working.is-expanded {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-.aichat-reasoning-toggle {
+.aichat-working-toggle {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -467,11 +435,11 @@
   transition: background 0.15s;
 }
 
-.aichat-reasoning-toggle:hover {
+.aichat-working-toggle:hover {
   background: rgba(255, 255, 255, 0.04);
 }
 
-.aichat-reasoning-label {
+.aichat-working-label {
   font-family: 'Orbitron', sans-serif;
   font-size: 0.5rem;
   font-weight: 700;
@@ -481,7 +449,7 @@
   flex: 1;
 }
 
-.aichat-reasoning-chevron {
+.aichat-working-chevron {
   width: 0;
   height: 0;
   border-left: 4px solid transparent;
@@ -490,53 +458,42 @@
   transition: transform 0.2s;
 }
 
-.aichat-reasoning:not(.is-expanded) .aichat-reasoning-chevron {
+.aichat-working:not(.is-expanded) .aichat-working-chevron {
   transform: rotate(-90deg);
 }
 
-.aichat-reasoning .aichat-tool-pulse.is-done {
+.aichat-working .aichat-tool-pulse.is-done {
   animation: none;
   opacity: 0.3;
 }
 
-.aichat-reasoning-content {
+.aichat-working-content {
   display: none;
-  padding: 0.5rem 0.75rem;
+  padding: 0.25rem 0.75rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 0.75rem;
-  line-height: 1.5;
+  font-size: 0.7rem;
+  line-height: 1.4;
   color: var(--zech-text-dim);
   border-top: 1px solid rgba(255, 255, 255, 0.04);
   max-height: 200px;
   overflow-y: auto;
 }
 
-.aichat-reasoning.is-expanded .aichat-reasoning-content {
+.aichat-working.is-expanded .aichat-working-content {
   display: block;
 }
 
-.aichat-reasoning-content p {
-  margin: 0 0 0.4em;
+.aichat-working-item {
+  padding: 0.2rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
-.aichat-reasoning-content p:last-child {
-  margin-bottom: 0;
-}
-
-.aichat-reasoning-content code {
-  font-size: 0.82em;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 0.1em 0.3em;
-  border-radius: 2px;
-}
-
-.aichat-reasoning-content strong {
-  color: var(--zech-primary);
-  font-weight: 700;
+.aichat-working-item:last-child {
+  border-bottom: none;
 }
 
 @media (max-width: 600px) {
-  .aichat-reasoning {
+  .aichat-working {
     width: 95%;
   }
 }

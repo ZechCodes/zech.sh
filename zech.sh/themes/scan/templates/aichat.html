@@ -48,6 +48,22 @@
         <button class="aichat-load-more" id="aichatLoadMore" type="button">Load older messages</button>
         {% endif %}
         {% for msg in messages %}
+        {% if msg.sender == 'tools' %}
+        <div class="aichat-working" data-message-id="{{ msg.id }}">
+            <div class="aichat-working-toggle">
+                <span class="aichat-tool-pulse is-done"></span>
+                <span class="aichat-working-label">Tools Used</span>
+                <span class="aichat-working-chevron"></span>
+            </div>
+            <div class="aichat-working-content">
+                {% for line in msg.content.split('\n') %}
+                {% if line.strip() %}
+                <div class="aichat-working-item">{{ line }}</div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
         <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}">
             <div class="aichat-msg-sender">{{ msg.sender | upper }}</div>
             {% if msg.attachments %}
@@ -64,6 +80,7 @@
             <div class="aichat-msg-read {% if msg.read_by_claude_at %}is-read{% endif %}">&#10003;</div>
             {% endif %}
         </div>
+        {% endif %}
         {% endfor %}
     </div>
 

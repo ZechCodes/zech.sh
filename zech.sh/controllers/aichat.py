@@ -1000,6 +1000,57 @@ class AiChatApiController(Controller):
             return Response(content={"error": "invalid status"}, status_code=400)
 
         tool = body.get("tool", "")
+        description = body.get("description", "")
+
+        # Persist tool use in a "tools" message block
+        if status == "active" and description:
+            # Find the most recent tools message that comes after the last
+            # claude message (i.e. the active working block)
+            last_claude = await db_session.execute(
+                select(AiChatMessage.created_at)
+                .where(
+                    AiChatMessage.channel_id == channel_id,
+                    AiChatMessage.sender == "claude",
+                )
+                .order_by(AiChatMessage.created_at.desc())
+                .limit(1)
+            )
+            last_claude_at = last_claude.scalar_one_or_none()
+
+            tools_query = (
+                select(AiChatMessage)
+                .where(
+                    AiChatMessage.channel_id == channel_id,
+                    AiChatMessage.sender == "tools",
+                )
+                .order_by(AiChatMessage.created_at.desc())
+                .limit(1)
+            )
+            if last_claude_at:
+                tools_query = tools_query.where(
+                    AiChatMessage.created_at > last_claude_at
+                )
+
+            result = await db_session.execute(tools_query)
+            tools_msg = result.scalar_one_or_none()
+
+            if tools_msg:
+                # Append to existing tools block
+                existing = tools_msg.content or ""
+                lines = [l for l in existing.split("\n") if l]
+                if not lines or lines[-1] != description:
+                    tools_msg.content = existing + "\n" + description if existing else description
+            else:
+                # Create new tools block
+                tools_msg = AiChatMessage(
+                    sender="tools",
+                    content=description,
+                    channel_id=channel_id,
+                )
+                db_session.add(tools_msg)
+
+            await db_session.commit()
+
         target_user_id = await _get_target_user_id(db_session, channel_id)
         if target_user_id:
             # Reasoning uses a separate group so it doesn't get replaced
@@ -1017,7 +1068,7 @@ class AiChatApiController(Controller):
                 push_notify=False,
                 status=status,
                 tool=tool,
-                description=body.get("description", ""),
+                description=description,
                 channel_id=str(channel_id),
             )
 

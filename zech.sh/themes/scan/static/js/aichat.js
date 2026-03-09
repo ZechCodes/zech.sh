@@ -56,6 +56,19 @@ if ("serviceWorker" in navigator) {
     existingContents[i].innerHTML = renderMarkdown(raw);
   }
 
+  // Bind toggle for server-rendered working blocks
+  var existingWorkingBlocks = messagesEl.querySelectorAll(".aichat-working");
+  for (var i = 0; i < existingWorkingBlocks.length; i++) {
+    (function (block) {
+      var toggle = block.querySelector(".aichat-working-toggle");
+      if (toggle) {
+        toggle.addEventListener("click", function () {
+          block.classList.toggle("is-expanded");
+        });
+      }
+    })(existingWorkingBlocks[i]);
+  }
+
   // Scroll to linked message (from notification click) or bottom
   var linkedMsgId = window.location.hash.match(/^#msg-(.+)$/);
   if (linkedMsgId) {
@@ -104,13 +117,53 @@ if ("serviceWorker" in navigator) {
 
   var loadMoreBtn = document.getElementById("aichatLoadMore");
 
+  function createWorkingBlock(content, messageId) {
+    var block = document.createElement("div");
+    block.className = "aichat-working";
+    if (messageId) block.setAttribute("data-message-id", messageId);
+
+    var toggle = document.createElement("div");
+    toggle.className = "aichat-working-toggle";
+    toggle.innerHTML =
+      '<span class="aichat-tool-pulse is-done"></span>' +
+      '<span class="aichat-working-label">Tools Used</span>' +
+      '<span class="aichat-working-chevron"></span>';
+    block.appendChild(toggle);
+
+    var contentEl = document.createElement("div");
+    contentEl.className = "aichat-working-content";
+    var lines = content.split("\n");
+    for (var j = 0; j < lines.length; j++) {
+      if (lines[j].trim()) {
+        var item = document.createElement("div");
+        item.className = "aichat-working-item";
+        item.textContent = lines[j];
+        contentEl.appendChild(item);
+      }
+    }
+    block.appendChild(contentEl);
+
+    toggle.addEventListener("click", function () {
+      block.classList.toggle("is-expanded");
+    });
+
+    return block;
+  }
+
   function prependMessages(messages) {
     var scrollBottom = document.body.scrollHeight - window.scrollY;
-    // Find the first existing message to insert before
-    var refNode = messagesEl.querySelector(".aichat-msg");
+    // Find the first existing message or working block to insert before
+    var refNode = messagesEl.querySelector(".aichat-msg, .aichat-working");
 
     for (var i = 0; i < messages.length; i++) {
       var m = messages[i];
+
+      if (m.sender === "tools") {
+        var block = createWorkingBlock(m.content, m.id);
+        messagesEl.insertBefore(block, refNode);
+        continue;
+      }
+
       var div = document.createElement("div");
       div.className = "aichat-msg aichat-msg-" + m.sender;
       div.setAttribute("data-message-id", m.id);
@@ -361,95 +414,31 @@ if ("serviceWorker" in navigator) {
   }
 
   // ---------------------------------------------------------------------------
-  // Tool use indicator
+  // Working block (collapsible tool use log)
   // ---------------------------------------------------------------------------
 
-  var toolIndicator = document.createElement("div");
-  toolIndicator.className = "aichat-tool-indicator";
-  toolIndicator.innerHTML =
-    '<span class="aichat-tool-pulse"></span>' +
-    '<span class="aichat-tool-text"></span>' +
-    '<span class="aichat-tool-timer"></span>';
-  var bottomEl = document.getElementById("aichatBottom");
-  if (bottomEl) {
-    bottomEl.insertBefore(toolIndicator, form);
-  }
+  var activeWorkingEl = null;
 
-  var toolTextEl = toolIndicator.querySelector(".aichat-tool-text");
-  var toolTimerEl = toolIndicator.querySelector(".aichat-tool-timer");
-  var toolStartTime = 0;
-  var toolTimerInterval = null;
-  var toolHideTimeout = null;
-
-  function showToolIndicator(description) {
-    if (toolHideTimeout) {
-      clearTimeout(toolHideTimeout);
-      toolHideTimeout = null;
-    }
-    toolIndicator.classList.add("is-active");
-    toolTextEl.textContent = description;
-    toolTimerEl.textContent = "";
-    toolStartTime = Date.now();
-
-    if (toolTimerInterval) clearInterval(toolTimerInterval);
-    toolTimerInterval = setInterval(function () {
-      var elapsed = Math.floor((Date.now() - toolStartTime) / 1000);
-      if (elapsed >= 30) {
-        toolTimerEl.textContent = elapsed + "s";
-      }
-    }, 1000);
-  }
-
-  function hideToolIndicator() {
-    if (toolTimerInterval) {
-      clearInterval(toolTimerInterval);
-      toolTimerInterval = null;
-    }
-    // Brief delay before clearing so it doesn't flicker between tools
-    toolHideTimeout = setTimeout(function () {
-      toolIndicator.classList.remove("is-active");
-      toolTextEl.textContent = "";
-      toolTimerEl.textContent = "";
-    }, 500);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Reasoning blocks (collapsible inline thought display)
-  // ---------------------------------------------------------------------------
-
-  var activeReasoningEl = null;
-
-  function collapseAllReasoning() {
-    var blocks = messagesEl.querySelectorAll(".aichat-reasoning.is-expanded");
-    for (var i = 0; i < blocks.length; i++) {
-      blocks[i].classList.remove("is-expanded");
-    }
-    activeReasoningEl = null;
-  }
-
-  function showReasoning(description) {
-    // Reuse the active reasoning block if it exists and is the last child
-    if (activeReasoningEl && activeReasoningEl === messagesEl.lastElementChild) {
-      var contentEl = activeReasoningEl.querySelector(".aichat-reasoning-content");
-      contentEl.innerHTML = renderMarkdown(description);
-      return;
+  function getOrCreateWorkingBlock() {
+    // Reuse the active working block if it exists and is the last child
+    if (activeWorkingEl && activeWorkingEl === messagesEl.lastElementChild) {
+      return activeWorkingEl;
     }
 
-    // Create a new reasoning block
+    // Create a new working block
     var block = document.createElement("div");
-    block.className = "aichat-reasoning is-expanded";
+    block.className = "aichat-working is-expanded";
 
     var toggle = document.createElement("div");
-    toggle.className = "aichat-reasoning-toggle";
+    toggle.className = "aichat-working-toggle";
     toggle.innerHTML =
       '<span class="aichat-tool-pulse"></span>' +
-      '<span class="aichat-reasoning-label">Reasoning</span>' +
-      '<span class="aichat-reasoning-chevron"></span>';
+      '<span class="aichat-working-label">Working...</span>' +
+      '<span class="aichat-working-chevron"></span>';
     block.appendChild(toggle);
 
     var contentEl = document.createElement("div");
-    contentEl.className = "aichat-reasoning-content";
-    contentEl.innerHTML = renderMarkdown(description);
+    contentEl.className = "aichat-working-content";
     block.appendChild(contentEl);
 
     toggle.addEventListener("click", function () {
@@ -457,16 +446,43 @@ if ("serviceWorker" in navigator) {
     });
 
     messagesEl.appendChild(block);
-    activeReasoningEl = block;
+    activeWorkingEl = block;
+    window.scrollTo(0, document.body.scrollHeight);
+    return block;
+  }
+
+  function addToolToWorkingBlock(description) {
+    var block = getOrCreateWorkingBlock();
+    var contentEl = block.querySelector(".aichat-working-content");
+
+    // Check if this tool is already the last entry (avoid duplicates from rapid updates)
+    var items = contentEl.querySelectorAll(".aichat-working-item");
+    var lastItem = items.length ? items[items.length - 1] : null;
+    if (lastItem && lastItem.textContent === description) return;
+
+    var item = document.createElement("div");
+    item.className = "aichat-working-item";
+    item.textContent = description;
+    contentEl.appendChild(item);
+
     window.scrollTo(0, document.body.scrollHeight);
   }
 
-  function finalizeReasoning() {
-    if (activeReasoningEl) {
-      var pulse = activeReasoningEl.querySelector(".aichat-tool-pulse");
-      if (pulse) pulse.classList.add("is-done");
-    }
-    activeReasoningEl = null;
+  function finalizeWorkingBlock() {
+    if (!activeWorkingEl) return;
+
+    // Change label from "Working..." to "Tools Used"
+    var label = activeWorkingEl.querySelector(".aichat-working-label");
+    if (label) label.textContent = "Tools Used";
+
+    // Stop the pulse animation
+    var pulse = activeWorkingEl.querySelector(".aichat-tool-pulse");
+    if (pulse) pulse.classList.add("is-done");
+
+    // Collapse it
+    activeWorkingEl.classList.remove("is-expanded");
+
+    activeWorkingEl = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -481,21 +497,17 @@ if ("serviceWorker" in navigator) {
     if (channelId && d.channel_id && d.channel_id !== channelId) return;
 
     if (d.type === "aichat:message") {
-      collapseAllReasoning();
-      finalizeReasoning();
+      if (d.sender === "claude") {
+        finalizeWorkingBlock();
+      }
       appendMessage(d.sender, d.content, d.message_id, d.attachments);
     } else if (d.type === "aichat:read") {
       markAsRead(d.message_ids || []);
     } else if (d.type === "aichat:tool") {
-      if (d.tool === "reasoning" && d.status === "active") {
-        showReasoning(d.description || "Thinking...");
-      } else if (d.status === "active") {
-        showToolIndicator(d.description || "Working...");
-      } else {
-        hideToolIndicator();
-        if (d.status === "idle") {
-          finalizeReasoning();
-        }
+      if (d.status === "active") {
+        addToolToWorkingBlock(d.description || "Working...");
+      } else if (d.status === "idle") {
+        finalizeWorkingBlock();
       }
     }
   });
