@@ -388,6 +388,22 @@ async def aichat_device_api_guard(
 # ---------------------------------------------------------------------------
 
 
+async def _verify_device_owns_channel(device_id: str, channel_id: str) -> bool:
+    """Check that a channel belongs to the given device."""
+    try:
+        engine = await _get_guard_engine()
+        async with AsyncSession(engine) as session:
+            result = await session.execute(
+                select(AiChatChannel.device_id)
+                .where(AiChatChannel.id == UUID(channel_id))
+            )
+            ch_device_id = result.scalar_one_or_none()
+            return ch_device_id is not None and str(ch_device_id) == device_id
+    except Exception:
+        logger.exception("Failed to verify device-channel ownership")
+        return False
+
+
 async def aichat_api_guard(
     connection: ASGIConnection, _handler: BaseRouteHandler
 ) -> None:
@@ -395,16 +411,33 @@ async def aichat_api_guard(
     if not channel_id_str:
         raise NotAuthorizedException("X-Channel header required")
 
+    authenticated = False
+
+    # Try channel key auth first
     try:
         pub_key = await _lookup_channel_key(channel_id_str)
-        if not pub_key or not _verify_signature_with_key(connection, pub_key):
-            raise NotAuthorizedException("Invalid signature")
-        connection.state["channel_id"] = channel_id_str
-    except NotAuthorizedException:
-        raise
+        if pub_key and _verify_signature_with_key(connection, pub_key):
+            authenticated = True
+            connection.state["channel_id"] = channel_id_str
     except Exception:
-        logger.exception("Channel auth lookup failed")
-        raise NotAuthorizedException("Auth failed")
+        pass
+
+    # Fall back to device key auth (device signs with its key + X-Device-Id header)
+    if not authenticated:
+        device_id_str = connection.headers.get("x-device-id", "")
+        if device_id_str:
+            try:
+                dev_key = await _lookup_device_key(device_id_str)
+                if dev_key and _verify_signature_with_key(connection, dev_key):
+                    if await _verify_device_owns_channel(device_id_str, channel_id_str):
+                        authenticated = True
+                        connection.state["channel_id"] = channel_id_str
+                        connection.state["device_id"] = device_id_str
+            except Exception:
+                logger.exception("Device auth lookup failed")
+
+    if not authenticated:
+        raise NotAuthorizedException("Invalid signature")
 
     # Rate limiting
     rate_id = channel_id_str or connection.headers.get("x-forwarded-for", "api-client")
@@ -1342,6 +1375,22 @@ class AiChatDeviceApiController(Controller):
         await db_session.commit()
 
         return Response(content={"ok": True})
+
+    @get("/channels")
+    async def list_device_channels(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Return channels assigned to this device."""
+        device_id = self._get_device_id(request)
+        result = await db_session.execute(
+            select(AiChatChannel.id, AiChatChannel.name)
+            .where(AiChatChannel.device_id == UUID(device_id))
+        )
+        channels = [
+            {"id": str(row.id), "name": row.name}
+            for row in result.all()
+        ]
+        return Response(content={"channels": channels})
 
     @post("/rotate-key")
     async def rotate_device_key(
