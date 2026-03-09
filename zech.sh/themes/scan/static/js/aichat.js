@@ -56,8 +56,22 @@ if ("serviceWorker" in navigator) {
     existingContents[i].innerHTML = renderMarkdown(raw);
   }
 
-  // Scroll to bottom on load
-  window.scrollTo(0, document.body.scrollHeight);
+  // Scroll to linked message (from notification click) or bottom
+  var linkedMsgId = window.location.hash.match(/^#msg-(.+)$/);
+  if (linkedMsgId) {
+    var linkedEl = messagesEl.querySelector('[data-message-id="' + linkedMsgId[1] + '"]');
+    if (linkedEl) {
+      linkedEl.scrollIntoView({ block: "center" });
+      linkedEl.classList.add("aichat-msg-highlight");
+      setTimeout(function () {
+        linkedEl.classList.remove("aichat-msg-highlight");
+      }, 5000);
+    } else {
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+  } else {
+    window.scrollTo(0, document.body.scrollHeight);
+  }
 
   // ---------------------------------------------------------------------------
   // Load older messages

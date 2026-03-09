@@ -86,6 +86,15 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.aichat-msg-highlight {
+  animation: aichat-highlight-pulse 1.5s ease-in-out 3;
+}
+
+@keyframes aichat-highlight-pulse {
+  0%, 100% { border-color: rgba(255, 85, 0, 0.2); }
+  50% { border-color: rgba(255, 85, 0, 0.7); box-shadow: 0 0 12px rgba(255, 85, 0, 0.15); }
+}
+
 .aichat-msg-sender {
   font-family: 'Orbitron', sans-serif;
   font-size: 0.5rem;

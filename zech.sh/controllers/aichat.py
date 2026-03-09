@@ -748,7 +748,7 @@ class AiChatApiController(Controller):
                     user_id=target_user_id,
                     title=f"AI.CHAT::{channel_name}",
                     body=truncated,
-                    url=f"/c/{channel_id}",
+                    url=f"/c/{channel_id}#msg-{msg.id}",
                     tag=f"aichat-msg-{channel_id}",
                 )
             except Exception:
