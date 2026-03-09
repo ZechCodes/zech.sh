@@ -329,6 +329,108 @@
 }
 
 /* --------------------------------------------------------------------------
+   Reasoning blocks (collapsible inline thought display)
+   -------------------------------------------------------------------------- */
+
+.aichat-reasoning {
+  align-self: flex-start;
+  width: 80%;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.aichat-reasoning.is-expanded {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.aichat-reasoning-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.aichat-reasoning-toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.aichat-reasoning-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  flex: 1;
+}
+
+.aichat-reasoning-chevron {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--zech-text-dim);
+  transition: transform 0.2s;
+}
+
+.aichat-reasoning:not(.is-expanded) .aichat-reasoning-chevron {
+  transform: rotate(-90deg);
+}
+
+.aichat-reasoning .aichat-tool-pulse.is-done {
+  animation: none;
+  opacity: 0.3;
+}
+
+.aichat-reasoning-content {
+  display: none;
+  padding: 0.5rem 0.75rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--zech-text-dim);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.aichat-reasoning.is-expanded .aichat-reasoning-content {
+  display: block;
+}
+
+.aichat-reasoning-content p {
+  margin: 0 0 0.4em;
+}
+
+.aichat-reasoning-content p:last-child {
+  margin-bottom: 0;
+}
+
+.aichat-reasoning-content code {
+  font-size: 0.82em;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.1em 0.3em;
+  border-radius: 2px;
+}
+
+.aichat-reasoning-content strong {
+  color: var(--zech-primary);
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .aichat-reasoning {
+    width: 95%;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Dashboard — channel list
    -------------------------------------------------------------------------- */
 

@@ -863,16 +863,24 @@ class AiChatApiController(Controller):
         if status not in ("active", "done", "idle"):
             return Response(content={"error": "invalid status"}, status_code=400)
 
+        tool = body.get("tool", "")
         target_user_id = await _get_target_user_id(db_session, channel_id)
         if target_user_id:
+            # Reasoning uses a separate group so it doesn't get replaced
+            # by regular tool status updates (both use QUEUED mode)
+            if tool == "reasoning":
+                group = f"aichat:reasoning:{channel_id}"
+            else:
+                group = f"aichat:tool:{channel_id}"
+
             await notify_user(
                 target_user_id,
                 "aichat:tool",
                 mode=NotificationMode.QUEUED,
-                group=f"aichat:tool:{channel_id}",
+                group=group,
                 push_notify=False,
                 status=status,
-                tool=body.get("tool", ""),
+                tool=tool,
                 description=body.get("description", ""),
                 channel_id=str(channel_id),
             )

@@ -294,6 +294,62 @@ if ("serviceWorker" in navigator) {
   }
 
   // ---------------------------------------------------------------------------
+  // Reasoning blocks (collapsible inline thought display)
+  // ---------------------------------------------------------------------------
+
+  var activeReasoningEl = null;
+
+  function collapseAllReasoning() {
+    var blocks = messagesEl.querySelectorAll(".aichat-reasoning.is-expanded");
+    for (var i = 0; i < blocks.length; i++) {
+      blocks[i].classList.remove("is-expanded");
+    }
+    activeReasoningEl = null;
+  }
+
+  function showReasoning(description) {
+    // Reuse the active reasoning block if it exists and is the last child
+    if (activeReasoningEl && activeReasoningEl === messagesEl.lastElementChild) {
+      var contentEl = activeReasoningEl.querySelector(".aichat-reasoning-content");
+      contentEl.innerHTML = renderMarkdown(description);
+      return;
+    }
+
+    // Create a new reasoning block
+    var block = document.createElement("div");
+    block.className = "aichat-reasoning is-expanded";
+
+    var toggle = document.createElement("div");
+    toggle.className = "aichat-reasoning-toggle";
+    toggle.innerHTML =
+      '<span class="aichat-tool-pulse"></span>' +
+      '<span class="aichat-reasoning-label">Reasoning</span>' +
+      '<span class="aichat-reasoning-chevron"></span>';
+    block.appendChild(toggle);
+
+    var contentEl = document.createElement("div");
+    contentEl.className = "aichat-reasoning-content";
+    contentEl.innerHTML = renderMarkdown(description);
+    block.appendChild(contentEl);
+
+    toggle.addEventListener("click", function () {
+      block.classList.toggle("is-expanded");
+    });
+
+    messagesEl.appendChild(block);
+    activeReasoningEl = block;
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  function finalizeReasoning() {
+    if (activeReasoningEl) {
+      var pulse = activeReasoningEl.querySelector(".aichat-tool-pulse");
+      if (pulse) pulse.classList.add("is-done");
+    }
+    activeReasoningEl = null;
+  }
+
+  // ---------------------------------------------------------------------------
   // Notification handler
   // ---------------------------------------------------------------------------
 
@@ -305,14 +361,21 @@ if ("serviceWorker" in navigator) {
     if (channelId && d.channel_id && d.channel_id !== channelId) return;
 
     if (d.type === "aichat:message") {
+      collapseAllReasoning();
+      finalizeReasoning();
       appendMessage(d.sender, d.content, d.message_id);
     } else if (d.type === "aichat:read") {
       markAsRead(d.message_ids || []);
     } else if (d.type === "aichat:tool") {
-      if (d.status === "active") {
+      if (d.tool === "reasoning" && d.status === "active") {
+        showReasoning(d.description || "Thinking...");
+      } else if (d.status === "active") {
         showToolIndicator(d.description || "Working...");
       } else {
         hideToolIndicator();
+        if (d.status === "idle") {
+          finalizeReasoning();
+        }
       }
     }
   });
