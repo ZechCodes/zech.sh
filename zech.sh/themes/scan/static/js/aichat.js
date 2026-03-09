@@ -193,9 +193,9 @@ if ("serviceWorker" in navigator) {
       });
   });
 
-  // Submit on Enter (Shift+Enter for newline)
+  // Submit on Cmd/Ctrl+Enter
   input.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       form.dispatchEvent(new Event("submit"));
     }
