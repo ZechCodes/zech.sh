@@ -475,10 +475,15 @@
   border: none;
   color: var(--zech-text-dim);
   cursor: pointer;
-  padding: 0.15rem;
-  margin-left: 0.35rem;
+  padding: 0.5rem;
+  margin-left: 0.25rem;
   vertical-align: middle;
   transition: color 0.2s;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .aichat-edit-btn:hover {
