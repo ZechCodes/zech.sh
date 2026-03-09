@@ -91,23 +91,38 @@ if ("serviceWorker" in navigator) {
     // Tool status tracking per channel
     var toolTimers = {};
 
-    function showToolStatus(channelId, description) {
+    function setChannelStatus(channelId, mode, description) {
         var el = document.querySelector('[data-channel-status="' + channelId + '"]');
         if (!el) return;
-        el.innerHTML = '<span class="aichat-tool-pulse"></span> ' + (description || "Working...");
+        if (toolTimers[channelId]) {
+            clearTimeout(toolTimers[channelId]);
+            toolTimers[channelId] = null;
+        }
         el.classList.add("is-active");
-        // Clear any existing hide timer
-        if (toolTimers[channelId]) clearTimeout(toolTimers[channelId]);
+        el.classList.remove("is-waiting");
+        if (mode === "working") {
+            el.innerHTML = '<span class="aichat-tool-pulse"></span> ' + (description || "Working...");
+        } else if (mode === "waiting") {
+            el.classList.add("is-waiting");
+            el.innerHTML = '<span class="aichat-status-dot"></span> Waiting';
+        }
+    }
+
+    function showToolStatus(channelId, description) {
+        setChannelStatus(channelId, "working", description);
     }
 
     function hideToolStatus(channelId) {
         if (toolTimers[channelId]) clearTimeout(toolTimers[channelId]);
         toolTimers[channelId] = setTimeout(function () {
-            var el = document.querySelector('[data-channel-status="' + channelId + '"]');
-            if (el) {
-                el.textContent = "";
-                el.classList.remove("is-active");
-            }
+            setChannelStatus(channelId, "working", "Working...");
+        }, 500);
+    }
+
+    function showIdleStatus(channelId) {
+        if (toolTimers[channelId]) clearTimeout(toolTimers[channelId]);
+        toolTimers[channelId] = setTimeout(function () {
+            setChannelStatus(channelId, "waiting");
         }, 500);
     }
 
@@ -132,6 +147,8 @@ if ("serviceWorker" in navigator) {
         if (d.type === "aichat:tool") {
             if (d.status === "active") {
                 showToolStatus(d.channel_id, d.description);
+            } else if (d.status === "idle") {
+                showIdleStatus(d.channel_id);
             } else {
                 hideToolStatus(d.channel_id);
             }
