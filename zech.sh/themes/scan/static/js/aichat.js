@@ -447,7 +447,7 @@ if ("serviceWorker" in navigator) {
 
     messagesEl.appendChild(block);
     activeWorkingEl = block;
-    window.scrollTo(0, document.body.scrollHeight);
+    block.scrollIntoView({ behavior: "smooth", block: "nearest" });
     return block;
   }
 
@@ -464,8 +464,9 @@ if ("serviceWorker" in navigator) {
     item.className = "aichat-working-item";
     item.textContent = description;
     contentEl.appendChild(item);
+    contentEl.scrollTop = contentEl.scrollHeight;
 
-    window.scrollTo(0, document.body.scrollHeight);
+    item.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   function finalizeWorkingBlock() {
