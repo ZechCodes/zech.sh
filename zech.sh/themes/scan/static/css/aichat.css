@@ -395,17 +395,15 @@
    -------------------------------------------------------------------------- */
 
 .aichat-tool-indicator {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.75rem;
   color: var(--zech-text-dim);
-}
-
-.aichat-tool-indicator.is-active {
-  display: flex;
+  background: transparent;
+  min-height: 1.25rem;
 }
 
 .aichat-tool-pulse {
@@ -414,6 +412,11 @@
   border-radius: 50%;
   background: var(--zech-primary);
   animation: aichat-pulse 1.5s ease-in-out infinite;
+  visibility: hidden;
+}
+
+.aichat-tool-indicator.is-active .aichat-tool-pulse {
+  visibility: visible;
 }
 
 @keyframes aichat-pulse {

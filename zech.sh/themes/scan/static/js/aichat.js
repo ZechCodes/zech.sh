@@ -405,7 +405,7 @@ if ("serviceWorker" in navigator) {
       clearInterval(toolTimerInterval);
       toolTimerInterval = null;
     }
-    // Brief delay before hiding so it doesn't flicker between tools
+    // Brief delay before clearing so it doesn't flicker between tools
     toolHideTimeout = setTimeout(function () {
       toolIndicator.classList.remove("is-active");
       toolTextEl.textContent = "";
