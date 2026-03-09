@@ -50,6 +50,15 @@
         {% for msg in messages %}
         <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}">
             <div class="aichat-msg-sender">{{ msg.sender | upper }}</div>
+            {% if msg.attachments %}
+            <div class="aichat-msg-images">
+                {% for att in msg.attachments %}
+                {% if att.content_type and att.content_type.startswith('image/') %}
+                <img class="aichat-msg-img" src="{{ att.url }}" alt="{{ att.filename }}" loading="lazy">
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
             <div class="aichat-msg-content" data-raw="{{ msg.content | e }}">{{ msg.content }}</div>
             {% if msg.sender == 'user' %}
             <div class="aichat-msg-read {% if msg.read_by_claude_at %}is-read{% endif %}">&#10003;</div>
@@ -59,7 +68,11 @@
     </div>
 
     <div class="aichat-bottom" id="aichatBottom">
+
+        <div class="aichat-preview-area" id="aichatPreviewArea"></div>
         <form class="aichat-form" id="aichatForm" autocomplete="off" data-csrf="{{ csrf_token }}" data-channel-id="{{ channel.id }}">
+            <button class="aichat-attach" id="aichatAttachBtn" type="button" aria-label="Attach image">+</button>
+            <input type="file" id="aichatFileInput" accept="image/*" multiple hidden>
             <textarea
                 class="aichat-input"
                 name="content"

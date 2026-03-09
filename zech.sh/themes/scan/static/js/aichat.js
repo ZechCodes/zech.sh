@@ -74,6 +74,31 @@ if ("serviceWorker" in navigator) {
   }
 
   // ---------------------------------------------------------------------------
+  // Attachment image rendering helper
+  // ---------------------------------------------------------------------------
+
+  function createImageElements(attachments) {
+    if (!attachments || !attachments.length) return null;
+    var container = document.createElement("div");
+    container.className = "aichat-msg-images";
+    for (var j = 0; j < attachments.length; j++) {
+      var att = attachments[j];
+      if (att.content_type && att.content_type.indexOf("image/") === 0) {
+        var img = document.createElement("img");
+        img.className = "aichat-msg-img";
+        img.src = att.url;
+        img.alt = att.filename || "image";
+        img.loading = "lazy";
+        img.addEventListener("click", (function (url) {
+          return function () { window.open(url, "_blank"); };
+        })(att.url));
+        container.appendChild(img);
+      }
+    }
+    return container.children.length ? container : null;
+  }
+
+  // ---------------------------------------------------------------------------
   // Load older messages
   // ---------------------------------------------------------------------------
 
@@ -94,6 +119,9 @@ if ("serviceWorker" in navigator) {
       senderEl.className = "aichat-msg-sender";
       senderEl.textContent = m.sender.toUpperCase();
       div.appendChild(senderEl);
+
+      var imgContainer = createImageElements(m.attachments);
+      if (imgContainer) div.appendChild(imgContainer);
 
       var contentEl = document.createElement("div");
       contentEl.className = "aichat-msg-content";
@@ -158,13 +186,93 @@ if ("serviceWorker" in navigator) {
   });
 
   // ---------------------------------------------------------------------------
+  // File attachment handling
+  // ---------------------------------------------------------------------------
+
+  var attachBtn = document.getElementById("aichatAttachBtn");
+  var fileInput = document.getElementById("aichatFileInput");
+  var previewArea = document.getElementById("aichatPreviewArea");
+  var pendingAttachments = [];
+
+  if (attachBtn && fileInput) {
+    attachBtn.addEventListener("click", function () {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener("change", function () {
+      var files = fileInput.files;
+      if (!files || !files.length) return;
+      for (var i = 0; i < files.length; i++) {
+        uploadFile(files[i]);
+      }
+      fileInput.value = "";
+    });
+  }
+
+  function uploadFile(file) {
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 10 * 1024 * 1024) {
+      console.error("File too large:", file.name);
+      return;
+    }
+
+    var csrfToken = form.getAttribute("data-csrf") || "";
+    var formData = new FormData();
+    formData.append("file", file);
+
+    // Show uploading preview
+    var thumb = document.createElement("div");
+    thumb.className = "aichat-preview-thumb is-uploading";
+    var thumbImg = document.createElement("img");
+    thumbImg.src = URL.createObjectURL(file);
+    thumb.appendChild(thumbImg);
+    previewArea.appendChild(thumb);
+
+    fetch("/c/" + channelId + "/upload", {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+      body: formData,
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("Upload failed");
+        return res.json();
+      })
+      .then(function (data) {
+        thumb.classList.remove("is-uploading");
+        var att = {
+          asset_id: data.asset_id,
+          filename: data.filename,
+          content_type: data.content_type,
+          url: data.url,
+        };
+        pendingAttachments.push(att);
+        thumb.setAttribute("data-asset-id", data.asset_id);
+
+        var removeBtn = document.createElement("button");
+        removeBtn.className = "aichat-preview-remove";
+        removeBtn.textContent = "\u00d7";
+        removeBtn.addEventListener("click", function () {
+          pendingAttachments = pendingAttachments.filter(function (a) {
+            return a.asset_id !== data.asset_id;
+          });
+          thumb.remove();
+        });
+        thumb.appendChild(removeBtn);
+      })
+      .catch(function (err) {
+        console.error("Upload error:", err);
+        thumb.remove();
+      });
+  }
+
+  // ---------------------------------------------------------------------------
   // Send message
   // ---------------------------------------------------------------------------
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     var content = input.value.trim();
-    if (!content) return;
+    if (!content && !pendingAttachments.length) return;
 
     var btn = form.querySelector(".aichat-send");
     btn.disabled = true;
@@ -172,13 +280,22 @@ if ("serviceWorker" in navigator) {
     input.style.height = "auto";
 
     var csrfToken = form.getAttribute("data-csrf") || "";
+    var payload = { content: content };
+    if (pendingAttachments.length) {
+      payload.attachments = pendingAttachments;
+    }
+
+    // Clear previews
+    pendingAttachments = [];
+    previewArea.innerHTML = "";
+
     fetch("/c/" + channelId + "/send", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-CSRF-Token": csrfToken,
       },
-      body: JSON.stringify({ content: content }),
+      body: JSON.stringify(payload),
     })
       .then(function (res) {
         if (!res.ok) throw new Error("Send failed");
@@ -205,7 +322,7 @@ if ("serviceWorker" in navigator) {
   // Real-time notifications
   // ---------------------------------------------------------------------------
 
-  function appendMessage(sender, content, messageId) {
+  function appendMessage(sender, content, messageId, attachments) {
     var div = document.createElement("div");
     div.className = "aichat-msg aichat-msg-" + sender;
     if (messageId) div.setAttribute("data-message-id", messageId);
@@ -214,6 +331,9 @@ if ("serviceWorker" in navigator) {
     senderEl.className = "aichat-msg-sender";
     senderEl.textContent = sender.toUpperCase();
     div.appendChild(senderEl);
+
+    var imgContainer = createImageElements(attachments);
+    if (imgContainer) div.appendChild(imgContainer);
 
     var contentEl = document.createElement("div");
     contentEl.className = "aichat-msg-content";
@@ -363,7 +483,7 @@ if ("serviceWorker" in navigator) {
     if (d.type === "aichat:message") {
       collapseAllReasoning();
       finalizeReasoning();
-      appendMessage(d.sender, d.content, d.message_id);
+      appendMessage(d.sender, d.content, d.message_id, d.attachments);
     } else if (d.type === "aichat:read") {
       markAsRead(d.message_ids || []);
     } else if (d.type === "aichat:tool") {

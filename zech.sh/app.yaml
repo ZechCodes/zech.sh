@@ -74,6 +74,21 @@ logfire:
   service_name: zech-sh
   environment: production
 
+storage:
+  default: default
+  stores:
+    default:
+      backend: s3
+      max_upload_size: 10485760
+      s3:
+        bucket: production-bucket-zechz-1234
+        region: sfo3
+        endpoint_url: https://sfo3.digitaloceanspaces.com
+        access_key_id: $SPACES_ACCESS_KEY_ID
+        secret_access_key: $SPACES_SECRET_ACCESS_KEY
+        acl: public-read
+        public_url: https://production-bucket-zechz-1234.sfo3.cdn.digitaloceanspaces.com
+
 auth:
   redirect_base_url: $AUTH_REDIRECT_BASE_URL
   allowed_redirect_domains:

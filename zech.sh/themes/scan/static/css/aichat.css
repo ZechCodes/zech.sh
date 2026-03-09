@@ -283,6 +283,114 @@
 }
 
 /* --------------------------------------------------------------------------
+   Message attachments (images)
+   -------------------------------------------------------------------------- */
+
+.aichat-msg-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.aichat-msg-img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 2px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: border-color 0.2s;
+}
+
+.aichat-msg-img:hover {
+  border-color: rgba(255, 85, 0, 0.4);
+}
+
+/* --------------------------------------------------------------------------
+   Attach button and preview
+   -------------------------------------------------------------------------- */
+
+.aichat-attach {
+  background: none;
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  color: var(--zech-text-dim);
+  border-radius: 2px;
+  padding: 0;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+  flex-shrink: 0;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.aichat-attach:hover {
+  border-color: rgba(255, 85, 0, 0.4);
+  color: var(--zech-text);
+}
+
+.aichat-preview-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+}
+
+.aichat-preview-area:empty {
+  display: none;
+}
+
+.aichat-preview-thumb {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 2px;
+  overflow: visible;
+}
+
+.aichat-preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 85, 0, 0.2);
+}
+
+.aichat-preview-thumb.is-uploading {
+  opacity: 0.5;
+}
+
+.aichat-preview-thumb.is-uploading img {
+  animation: aichat-pulse 1.5s ease-in-out infinite;
+}
+
+.aichat-preview-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: var(--zech-primary);
+  color: var(--zech-bg);
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 18px;
+  text-align: center;
+  padding: 0;
+}
+
+.aichat-preview-remove:hover {
+  opacity: 0.85;
+}
+
+/* --------------------------------------------------------------------------
    Tool use indicator
    -------------------------------------------------------------------------- */
 

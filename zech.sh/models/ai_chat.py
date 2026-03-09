@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from advanced_alchemy.types import GUID, DateTimeUTC
-from sqlalchemy import ForeignKey, Index, String, Text
+from sqlalchemy import ForeignKey, Index, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from skrift.db.base import Base
@@ -31,3 +31,4 @@ class AiChatMessage(Base):
     read_by_user_at: Mapped[datetime | None] = mapped_column(
         DateTimeUTC(timezone=True), nullable=True
     )
+    attachments: Mapped[list | None] = mapped_column(JSON, nullable=True, default=None)

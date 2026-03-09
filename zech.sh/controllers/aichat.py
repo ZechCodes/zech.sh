@@ -28,6 +28,7 @@ from skrift.auth.services import get_user_permissions
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
+from skrift.db.services.asset_service import get_asset_url, upload_asset
 from skrift.lib.notifications import NotificationMode, notify_user
 from skrift.lib.push import send_push
 
@@ -579,14 +580,28 @@ class AiChatController(Controller):
 
         body = await request.json()
         content = body.get("content", "").strip()
-        if not content:
+        attachments = body.get("attachments") or []
+
+        if not content and not attachments:
             return Response(content={"error": "empty message"}, status_code=400)
+
+        # Validate and sanitize attachments
+        clean_attachments = []
+        for att in attachments[:10]:
+            if isinstance(att, dict) and att.get("asset_id") and att.get("url"):
+                clean_attachments.append({
+                    "asset_id": str(att["asset_id"]),
+                    "filename": str(att.get("filename", "")),
+                    "content_type": str(att.get("content_type", "")),
+                    "url": str(att["url"]),
+                })
 
         msg = AiChatMessage(
             sender="user",
             content=content,
             user_id=user.id,
             channel_id=channel.id,
+            attachments=clean_attachments or None,
         )
         db_session.add(msg)
         await db_session.flush()
@@ -600,10 +615,70 @@ class AiChatController(Controller):
             content=content,
             message_id=str(msg.id),
             channel_id=str(channel.id),
+            attachments=clean_attachments,
         )
 
         await db_session.commit()
         return Response(content={"ok": True})
+
+    @post("/c/{channel_id:str}/upload")
+    async def upload_attachment(
+        self, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        # CSRF verification
+        submitted_token = request.headers.get("x-csrf-token", "")
+        stored_token = request.session.get(CSRF_SESSION_KEY, "")
+        if not stored_token or not hmac_mod.compare_digest(submitted_token, stored_token):
+            return Response(content={"error": "CSRF validation failed"}, status_code=403)
+
+        result = await db_session.execute(
+            select(AiChatChannel).where(AiChatChannel.id == UUID(channel_id))
+        )
+        channel = result.scalar_one_or_none()
+        if not channel:
+            return Response(content={"error": "channel not found"}, status_code=404)
+
+        form = await request.form()
+        upload = form.get("file")
+        if not upload or not hasattr(upload, "read"):
+            return Response(content={"error": "no file provided"}, status_code=400)
+
+        content_type = upload.content_type or "application/octet-stream"
+        if not content_type.startswith("image/"):
+            return Response(content={"error": "only images are supported"}, status_code=400)
+
+        data = await upload.read()
+        max_size = 10 * 1024 * 1024  # 10 MB
+        if len(data) > max_size:
+            return Response(content={"error": "file too large (max 10MB)"}, status_code=400)
+
+        storage = request.app.state.storage_manager
+        asset = await upload_asset(
+            db_session,
+            storage,
+            filename=upload.filename or "image",
+            data=data,
+            content_type=content_type,
+            folder="aichat",
+            user_id=user.id,
+        )
+        url = await get_asset_url(storage, asset)
+
+        await db_session.commit()
+
+        return Response(content={
+            "ok": True,
+            "asset_id": str(asset.id),
+            "filename": asset.filename,
+            "content_type": asset.content_type,
+            "url": url,
+        })
 
     @get("/c/{channel_id:str}/messages")
     async def load_older_messages(
@@ -650,6 +725,7 @@ class AiChatController(Controller):
                     "sender": m.sender,
                     "content": m.content,
                     "read_by_claude_at": m.read_by_claude_at.isoformat() if m.read_by_claude_at else None,
+                    "attachments": m.attachments or [],
                 }
                 for m in messages
             ],
@@ -721,6 +797,7 @@ class AiChatApiController(Controller):
                 "content": m.content,
                 "created_at": m.created_at.isoformat(),
                 "read_by_claude_at": m.read_by_claude_at.isoformat() if m.read_by_claude_at else None,
+                "attachments": m.attachments or [],
             }
             for m in reversed(messages)
         ])
@@ -768,6 +845,7 @@ class AiChatApiController(Controller):
                 "sender": m.sender,
                 "content": m.content,
                 "created_at": m.created_at.isoformat(),
+                "attachments": m.attachments or [],
             }
             for m in messages
         ])
@@ -780,13 +858,27 @@ class AiChatApiController(Controller):
 
         body = await request.json()
         content = body.get("content", "").strip()
-        if not content:
+        attachments = body.get("attachments") or []
+
+        if not content and not attachments:
             return Response(content={"error": "empty message"}, status_code=400)
+
+        # Sanitize attachments from API
+        clean_attachments = []
+        for att in attachments[:10]:
+            if isinstance(att, dict) and att.get("asset_id") and att.get("url"):
+                clean_attachments.append({
+                    "asset_id": str(att["asset_id"]),
+                    "filename": str(att.get("filename", "")),
+                    "content_type": str(att.get("content_type", "")),
+                    "url": str(att["url"]),
+                })
 
         msg = AiChatMessage(
             sender="claude",
             content=content,
             channel_id=channel_id,
+            attachments=clean_attachments or None,
         )
         db_session.add(msg)
         await db_session.flush()
@@ -809,6 +901,7 @@ class AiChatApiController(Controller):
                 content=content,
                 message_id=str(msg.id),
                 channel_id=str(channel_id),
+                attachments=clean_attachments,
             )
 
             # Always send push (browser filters via onFilter when chat is visible)
