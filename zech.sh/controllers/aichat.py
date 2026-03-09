@@ -1128,19 +1128,27 @@ class AiChatApiController(Controller):
             return Response(content={"error": "invalid type"}, status_code=400)
 
         content = body.get("content", "")
+        options = body.get("options", [])
+        multi_select = body.get("multi_select", False)
         interaction_id = str(uuid4())
 
         target_user_id = await _get_target_user_id(db_session, channel_id)
         if target_user_id:
+            notification_kwargs: dict = dict(
+                interaction_id=interaction_id,
+                interaction_type=interaction_type,
+                content=content,
+                channel_id=str(channel_id),
+            )
+            if options:
+                notification_kwargs["options"] = options
+                notification_kwargs["multi_select"] = multi_select
             await notify_user(
                 target_user_id,
                 "aichat:interaction",
                 mode=NotificationMode.TIMESERIES,
                 push_notify=False,
-                interaction_id=interaction_id,
-                interaction_type=interaction_type,
-                content=content,
-                channel_id=str(channel_id),
+                **notification_kwargs,
             )
 
         return Response(

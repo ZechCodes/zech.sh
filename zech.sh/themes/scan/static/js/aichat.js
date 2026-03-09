@@ -492,6 +492,7 @@ if ("serviceWorker" in navigator) {
   var interactionOverlay = document.getElementById("aichatInteractionOverlay");
   var interactionLabel = document.getElementById("aichatInteractionLabel");
   var interactionContent = document.getElementById("aichatInteractionContent");
+  var interactionOptions = document.getElementById("aichatInteractionOptions");
   var interactionInput = document.getElementById("aichatInteractionInput");
   var interactionAcceptBtn = document.getElementById("aichatInteractionAccept");
   var interactionDenyBtn = document.getElementById("aichatInteractionDeny");
@@ -502,10 +503,39 @@ if ("serviceWorker" in navigator) {
 
     pendingInteractionId = data.interaction_id;
     var isQuestion = data.interaction_type === "question";
+    var options = data.options || [];
 
     interactionLabel.textContent = isQuestion ? "QUESTION" : "PLAN";
     interactionContent.innerHTML = renderMarkdown(data.content || "");
     interactionAcceptBtn.textContent = isQuestion ? "ANSWER" : "APPROVE";
+
+    // Render options if provided
+    interactionOptions.innerHTML = "";
+    if (isQuestion && options.length > 0) {
+      interactionOverlay.classList.add("has-options");
+      options.forEach(function (opt) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "aichat-interaction-option";
+        var label = document.createElement("span");
+        label.className = "aichat-interaction-option-label";
+        label.textContent = opt.label || opt;
+        btn.appendChild(label);
+        if (opt.description) {
+          var desc = document.createElement("span");
+          desc.className = "aichat-interaction-option-desc";
+          desc.textContent = opt.description;
+          btn.appendChild(desc);
+        }
+        btn.addEventListener("click", function () {
+          interactionInput.value = opt.label || opt;
+          sendInteractionResponse("accept");
+        });
+        interactionOptions.appendChild(btn);
+      });
+    } else {
+      interactionOverlay.classList.remove("has-options");
+    }
 
     if (isQuestion) {
       interactionOverlay.classList.add("is-question");
@@ -518,7 +548,7 @@ if ("serviceWorker" in navigator) {
     interactionDenyBtn.disabled = false;
     interactionOverlay.classList.add("is-active");
 
-    if (isQuestion) {
+    if (isQuestion && options.length === 0) {
       interactionInput.focus();
     }
   }
