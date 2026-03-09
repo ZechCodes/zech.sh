@@ -18,27 +18,72 @@
 <section class="aichat-section aichat-dashboard">
     <div class="scan-label">AI.CHAT</div>
 
-    <div class="aichat-channels">
-        {% for channel in channels %}
-        <a href="/c/{{ channel.id }}" class="aichat-channel-card" data-channel-id="{{ channel.id }}">
-            <div class="aichat-channel-left">
-                <div class="aichat-channel-name">{{ channel.name }}</div>
-                <div class="aichat-channel-status" data-channel-status="{{ channel.id }}"></div>
+    {% for device in devices %}
+    <div class="aichat-device-section" data-device-id="{{ device.id }}">
+        <div class="aichat-device-header">
+            <div class="aichat-device-info">
+                <span class="aichat-device-status-dot {% if device.status == 'online' %}is-online{% endif %}"></span>
+                <span class="aichat-device-name">{{ device.name }}</span>
+                <span class="aichat-device-status-label">{{ device.status }}</span>
             </div>
-            <div class="aichat-channel-right">
-                {% if unread_counts.get(channel.id | string, 0) > 0 %}
-                <div class="aichat-unread-badge" data-channel-unread="{{ channel.id }}">{{ unread_counts[channel.id | string] }}</div>
-                {% else %}
-                <div class="aichat-unread-badge is-hidden" data-channel-unread="{{ channel.id }}">0</div>
-                {% endif %}
+            <div class="aichat-device-actions">
+                <button class="aichat-device-action-btn" data-action="edit-device" data-device-id="{{ device.id }}" data-device-name="{{ device.name }}" title="Edit device">&#9998;</button>
+                <button class="aichat-device-action-btn aichat-new-task-btn" data-action="new-task" data-device-id="{{ device.id }}" title="New task">+ TASK</button>
             </div>
-        </a>
-        {% endfor %}
-
-        {% if not channels %}
-        <div class="aichat-empty">No channels yet. Create one to get started.</div>
-        {% endif %}
+        </div>
+        <div class="aichat-channels">
+            {% for channel in device_channels.get(device.id | string, []) %}
+            <a href="/c/{{ channel.id }}" class="aichat-channel-card" data-channel-id="{{ channel.id }}">
+                <div class="aichat-channel-left">
+                    <div class="aichat-channel-name">{{ channel.name }}</div>
+                    <div class="aichat-channel-status" data-channel-status="{{ channel.id }}"></div>
+                </div>
+                <div class="aichat-channel-right">
+                    {% if unread_counts.get(channel.id | string, 0) > 0 %}
+                    <div class="aichat-unread-badge" data-channel-unread="{{ channel.id }}">{{ unread_counts[channel.id | string] }}</div>
+                    {% else %}
+                    <div class="aichat-unread-badge is-hidden" data-channel-unread="{{ channel.id }}">0</div>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+            {% if not device_channels.get(device.id | string, []) %}
+            <div class="aichat-empty-device">No tasks running on this device.</div>
+            {% endif %}
+        </div>
     </div>
+    {% endfor %}
+
+    {% if device_channels.get("unassigned", []) %}
+    <div class="aichat-device-section">
+        <div class="aichat-device-header">
+            <div class="aichat-device-info">
+                <span class="aichat-device-name">Unassigned Channels</span>
+            </div>
+        </div>
+        <div class="aichat-channels">
+            {% for channel in device_channels["unassigned"] %}
+            <a href="/c/{{ channel.id }}" class="aichat-channel-card" data-channel-id="{{ channel.id }}">
+                <div class="aichat-channel-left">
+                    <div class="aichat-channel-name">{{ channel.name }}</div>
+                    <div class="aichat-channel-status" data-channel-status="{{ channel.id }}"></div>
+                </div>
+                <div class="aichat-channel-right">
+                    {% if unread_counts.get(channel.id | string, 0) > 0 %}
+                    <div class="aichat-unread-badge" data-channel-unread="{{ channel.id }}">{{ unread_counts[channel.id | string] }}</div>
+                    {% else %}
+                    <div class="aichat-unread-badge is-hidden" data-channel-unread="{{ channel.id }}">0</div>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not devices and not device_channels.get("unassigned", []) %}
+    <div class="aichat-empty">No devices or channels yet. Create a channel or register a device to get started.</div>
+    {% endif %}
 
     <div class="aichat-dashboard-actions">
         <button class="aichat-new-channel-btn" id="newChannelBtn">+ NEW CHANNEL</button>
@@ -61,6 +106,37 @@
         <div class="aichat-token-value" id="tokenValue"></div>
         <button class="aichat-send" id="copyTokenBtn">COPY</button>
         <button class="aichat-send aichat-done-btn" id="doneBtn">DONE</button>
+    </div>
+
+    <!-- New Task modal -->
+    <div class="aichat-modal-overlay" id="newTaskModal">
+        <div class="aichat-modal">
+            <div class="aichat-modal-title">NEW TASK</div>
+            <div>
+                <div class="aichat-modal-label">TASK NAME</div>
+                <input type="text" class="aichat-modal-input" id="taskNameInput" placeholder="e.g. frontend-refactor" maxlength="100">
+            </div>
+            <div class="aichat-modal-actions">
+                <button class="aichat-modal-btn aichat-modal-save" id="createTaskBtn">CREATE</button>
+                <button class="aichat-modal-btn aichat-modal-cancel" id="cancelTaskBtn">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Device modal -->
+    <div class="aichat-modal-overlay" id="editDeviceModal">
+        <div class="aichat-modal">
+            <div class="aichat-modal-title">EDIT DEVICE</div>
+            <div>
+                <div class="aichat-modal-label">DEVICE NAME</div>
+                <input type="text" class="aichat-modal-input" id="deviceNameInput" maxlength="100">
+            </div>
+            <div class="aichat-modal-actions">
+                <button class="aichat-modal-btn aichat-modal-save" id="saveDeviceBtn">SAVE</button>
+                <button class="aichat-modal-btn aichat-modal-regen" id="deleteDeviceBtn">DELETE DEVICE</button>
+                <button class="aichat-modal-btn aichat-modal-cancel" id="cancelDeviceBtn">CANCEL</button>
+            </div>
+        </div>
     </div>
 </section>
 {% endblock %}
@@ -153,7 +229,6 @@ if ("serviceWorker" in navigator) {
                 hideToolStatus(d.channel_id);
             }
         } else if (d.type === "aichat:message" && d.sender === "claude") {
-            // Claude sent a message — increase unread count
             updateUnread(d.channel_id, 1);
         }
     });
@@ -167,7 +242,7 @@ if ("serviceWorker" in navigator) {
     var copyBtn = document.getElementById("copyTokenBtn");
     var doneBtn = document.getElementById("doneBtn");
     var notifyBtn = document.getElementById("notifyBtn");
-    var csrfToken = "{{ csrf_token }}";
+    var csrfToken = {{ csrf_token | tojson }};
 
     // Push notification setup
     if (window.__skriftPush && "Notification" in window) {
@@ -241,6 +316,135 @@ if ("serviceWorker" in navigator) {
 
     doneBtn.addEventListener("click", function () {
         window.location.reload();
+    });
+
+    // --- New Task modal ---
+    var newTaskModal = document.getElementById("newTaskModal");
+    var taskNameInput = document.getElementById("taskNameInput");
+    var createTaskBtn = document.getElementById("createTaskBtn");
+    var cancelTaskBtn = document.getElementById("cancelTaskBtn");
+    var activeDeviceId = null;
+
+    document.querySelectorAll('[data-action="new-task"]').forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            activeDeviceId = btn.dataset.deviceId;
+            taskNameInput.value = "";
+            newTaskModal.classList.add("is-active");
+            taskNameInput.focus();
+        });
+    });
+
+    cancelTaskBtn.addEventListener("click", function () {
+        newTaskModal.classList.remove("is-active");
+    });
+
+    taskNameInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); createTaskBtn.click(); }
+        if (e.key === "Escape") { newTaskModal.classList.remove("is-active"); }
+    });
+
+    createTaskBtn.addEventListener("click", function () {
+        var name = taskNameInput.value.trim() || "New Task";
+        createTaskBtn.disabled = true;
+
+        fetch("/api/user-devices/" + activeDeviceId + "/workers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name }),
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                window.location.reload();
+            } else {
+                alert("Error: " + (data.error || "unknown"));
+                createTaskBtn.disabled = false;
+            }
+        })
+        .catch(function () {
+            alert("Failed to create task");
+            createTaskBtn.disabled = false;
+        });
+    });
+
+    // --- Edit Device modal ---
+    var editModal = document.getElementById("editDeviceModal");
+    var deviceNameInput = document.getElementById("deviceNameInput");
+    var saveDeviceBtn = document.getElementById("saveDeviceBtn");
+    var deleteDeviceBtn = document.getElementById("deleteDeviceBtn");
+    var cancelDeviceBtn = document.getElementById("cancelDeviceBtn");
+    var editDeviceId = null;
+
+    document.querySelectorAll('[data-action="edit-device"]').forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            editDeviceId = btn.dataset.deviceId;
+            deviceNameInput.value = btn.dataset.deviceName;
+            editModal.classList.add("is-active");
+            deviceNameInput.focus();
+        });
+    });
+
+    cancelDeviceBtn.addEventListener("click", function () {
+        editModal.classList.remove("is-active");
+    });
+
+    deviceNameInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); saveDeviceBtn.click(); }
+        if (e.key === "Escape") { editModal.classList.remove("is-active"); }
+    });
+
+    saveDeviceBtn.addEventListener("click", function () {
+        var name = deviceNameInput.value.trim();
+        if (!name) return;
+        saveDeviceBtn.disabled = true;
+
+        fetch("/api/user-devices/" + editDeviceId, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name }),
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                window.location.reload();
+            } else {
+                alert("Error: " + (data.error || "unknown"));
+                saveDeviceBtn.disabled = false;
+            }
+        })
+        .catch(function () {
+            alert("Failed to update device");
+            saveDeviceBtn.disabled = false;
+        });
+    });
+
+    deleteDeviceBtn.addEventListener("click", function () {
+        if (!confirm("Delete this device? Its channels will be unassigned.")) return;
+        deleteDeviceBtn.disabled = true;
+
+        fetch("/api/user-devices/" + editDeviceId, {
+            method: "DELETE",
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                window.location.reload();
+            } else {
+                alert("Error: " + (data.error || "unknown"));
+                deleteDeviceBtn.disabled = false;
+            }
+        })
+        .catch(function () {
+            alert("Failed to delete device");
+            deleteDeviceBtn.disabled = false;
+        });
+    });
+
+    // Close modals on overlay click
+    [newTaskModal, editModal].forEach(function (modal) {
+        modal.addEventListener("click", function (e) {
+            if (e.target === modal) modal.classList.remove("is-active");
+        });
     });
 })();
 </script>

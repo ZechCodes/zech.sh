@@ -539,6 +539,99 @@
 }
 
 /* --------------------------------------------------------------------------
+   Dashboard — device sections
+   -------------------------------------------------------------------------- */
+
+.aichat-device-section {
+  margin-bottom: 1.5rem;
+}
+
+.aichat-device-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 85, 0, 0.1);
+  margin-bottom: 0.25rem;
+}
+
+.aichat-device-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.aichat-device-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.aichat-device-status-dot.is-online {
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+}
+
+.aichat-device-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--zech-text);
+}
+
+.aichat-device-status-label {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.6rem;
+  color: var(--zech-text-dim);
+  text-transform: capitalize;
+}
+
+.aichat-device-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.aichat-device-action-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--zech-text-dim);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 0.35rem 0.6rem;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.aichat-device-action-btn:hover {
+  border-color: rgba(255, 85, 0, 0.4);
+  color: var(--zech-text);
+}
+
+.aichat-new-task-btn {
+  border-color: rgba(255, 85, 0, 0.2);
+  color: var(--zech-primary);
+}
+
+.aichat-new-task-btn:hover {
+  background: rgba(255, 85, 0, 0.05);
+}
+
+.aichat-empty-device {
+  padding: 0.75rem 1.25rem;
+  color: var(--zech-text-dim);
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+/* --------------------------------------------------------------------------
    Dashboard — channel list
    -------------------------------------------------------------------------- */
 
