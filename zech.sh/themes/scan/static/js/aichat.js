@@ -206,43 +206,43 @@ if ("serviceWorker" in navigator) {
   // ---------------------------------------------------------------------------
 
   var modeToggle = document.getElementById("aichatModeToggle");
-  var isPlanning = false;
+  var isPlanning = false;      // actual server state
+  var wantsPlanning = false;   // local toggle state (applied on send)
 
   // Derive initial state from last event divider in history
   (function () {
     var dividers = messagesEl.querySelectorAll(".aichat-event-divider .aichat-event-label");
     if (dividers.length) {
       var last = dividers[dividers.length - 1].textContent.trim().toLowerCase();
-      if (last === "planning") isPlanning = true;
+      if (last === "planning") {
+        isPlanning = true;
+        wantsPlanning = true;
+      }
     }
     if (isPlanning && modeToggle) modeToggle.classList.add("is-planning");
   })();
 
   if (modeToggle) {
     modeToggle.addEventListener("click", function () {
-      var eventType = isPlanning ? "plan:exit" : "plan:enter";
-      modeToggle.disabled = true;
+      wantsPlanning = !wantsPlanning;
+      modeToggle.classList.toggle("is-planning", wantsPlanning);
+    });
+  }
 
-      var csrfToken = form.getAttribute("data-csrf") || "";
-      fetch("/c/" + channelId + "/event", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken,
-        },
-        body: JSON.stringify({ event_type: eventType }),
-      })
-        .then(function (res) {
-          if (!res.ok) throw new Error("Event failed");
-          isPlanning = !isPlanning;
-          modeToggle.classList.toggle("is-planning", isPlanning);
-        })
-        .catch(function (err) {
-          console.error("Mode toggle error:", err);
-        })
-        .finally(function () {
-          modeToggle.disabled = false;
-        });
+  function syncPlanMode(csrfToken) {
+    // Fire plan event if local toggle differs from server state
+    if (wantsPlanning === isPlanning) return Promise.resolve();
+    var eventType = wantsPlanning ? "plan:enter" : "plan:exit";
+    return fetch("/c/" + channelId + "/event", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify({ event_type: eventType }),
+    }).then(function (res) {
+      if (!res.ok) throw new Error("Event failed");
+      isPlanning = wantsPlanning;
     });
   }
 
@@ -351,14 +351,21 @@ if ("serviceWorker" in navigator) {
     previewArea.innerHTML = "";
     collapseToolPanelToDefault();
 
-    fetch("/c/" + channelId + "/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": csrfToken,
-      },
-      body: JSON.stringify(payload),
-    })
+    // Sync plan mode before sending the message
+    syncPlanMode(csrfToken)
+      .catch(function (err) {
+        console.error("Plan mode sync error:", err);
+      })
+      .then(function () {
+        return fetch("/c/" + channelId + "/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
+          },
+          body: JSON.stringify(payload),
+        });
+      })
       .then(function (res) {
         if (!res.ok) throw new Error("Send failed");
         return res.json();
@@ -674,9 +681,9 @@ if ("serviceWorker" in navigator) {
     if (d.type === "aichat:message") {
       if (d.sender === "event") {
         appendEventDivider(d.content, d.message_id);
-        if (d.content === "plan:enter") isPlanning = true;
-        else if (d.content === "plan:exit") isPlanning = false;
-        if (modeToggle) modeToggle.classList.toggle("is-planning", isPlanning);
+        if (d.content === "plan:enter") { isPlanning = true; wantsPlanning = true; }
+        else if (d.content === "plan:exit") { isPlanning = false; wantsPlanning = false; }
+        if (modeToggle) modeToggle.classList.toggle("is-planning", wantsPlanning);
       } else {
       if (d.sender === "claude") {
         finalizeToolPanel();
