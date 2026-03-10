@@ -639,6 +639,9 @@
     right: 0;
     z-index: 10;
     background: var(--zech-bg, #0a0a0a);
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
 
   .aichat-messages {
