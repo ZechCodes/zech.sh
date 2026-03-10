@@ -227,15 +227,21 @@
 
 .aichat-form {
   display: flex;
-  align-items: flex-end;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.75rem 0;
   padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid rgba(255, 85, 0, 0.1);
 }
 
+.aichat-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .aichat-input {
-  flex: 1;
+  width: 100%;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 85, 0, 0.15);
   border-radius: 2px;
@@ -247,6 +253,7 @@
   outline: none;
   transition: border-color 0.2s;
   max-height: 120px;
+  box-sizing: border-box;
 }
 
 .aichat-input:focus {
@@ -270,7 +277,7 @@
   padding: 0.6rem 1.25rem;
   cursor: pointer;
   transition: opacity 0.2s;
-  align-self: flex-end;
+  margin-left: auto;
 }
 
 .aichat-send:hover {
@@ -322,7 +329,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  align-self: flex-end;
   flex-shrink: 0;
   transition: border-color 0.2s, color 0.2s;
 }
@@ -367,7 +373,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  align-self: flex-end;
   flex-shrink: 0;
   transition: border-color 0.2s, color 0.2s;
 }
