@@ -49,20 +49,7 @@
         {% endif %}
         {% for msg in messages %}
         {% if msg.sender == 'tools' %}
-        <div class="aichat-working" data-message-id="{{ msg.id }}">
-            <div class="aichat-working-toggle">
-                <span class="aichat-tool-pulse is-done"></span>
-                <span class="aichat-working-label">Tools Used</span>
-                <span class="aichat-working-chevron"></span>
-            </div>
-            <div class="aichat-working-content">
-                {% for line in msg.content.split('\n') %}
-                {% if line.strip() %}
-                <div class="aichat-working-item">{{ line }}</div>
-                {% endif %}
-                {% endfor %}
-            </div>
-        </div>
+        {# Tool messages are shown in the side panel, not in chat flow #}
         {% elif msg.sender == 'event' %}
         <div class="aichat-event-divider" data-message-id="{{ msg.id }}">
             <span class="aichat-event-label">
@@ -140,6 +127,15 @@
         </form>
     </div>
 </section>
+
+<!-- Tool status panel (bottom-right, outside centered chat) -->
+<div class="aichat-tool-panel" id="aichatToolPanel">
+    <div class="aichat-tool-panel-header" id="aichatToolPanelToggle">
+        <span class="aichat-tool-pulse is-done" id="aichatToolPanelPulse"></span>
+        <span class="aichat-tool-panel-label" id="aichatToolPanelLabel">TOOLS</span>
+    </div>
+    <div class="aichat-tool-panel-content" id="aichatToolPanelContent"></div>
+</div>
 {% endblock %}
 
 {% block footer %}{% endblock %}

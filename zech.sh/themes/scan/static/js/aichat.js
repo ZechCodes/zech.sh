@@ -121,43 +121,10 @@ if ("serviceWorker" in navigator) {
 
   var loadMoreBtn = document.getElementById("aichatLoadMore");
 
-  function createWorkingBlock(content, messageId) {
-    var block = document.createElement("div");
-    block.className = "aichat-working";
-    if (messageId) block.setAttribute("data-message-id", messageId);
-
-    var toggle = document.createElement("div");
-    toggle.className = "aichat-working-toggle";
-    toggle.innerHTML =
-      '<span class="aichat-tool-pulse is-done"></span>' +
-      '<span class="aichat-working-label">Tools Used</span>' +
-      '<span class="aichat-working-chevron"></span>';
-    block.appendChild(toggle);
-
-    var contentEl = document.createElement("div");
-    contentEl.className = "aichat-working-content";
-    var lines = content.split("\n");
-    for (var j = 0; j < lines.length; j++) {
-      if (lines[j].trim()) {
-        var item = document.createElement("div");
-        item.className = "aichat-working-item";
-        item.textContent = lines[j];
-        contentEl.appendChild(item);
-      }
-    }
-    block.appendChild(contentEl);
-
-    toggle.addEventListener("click", function () {
-      block.classList.toggle("is-expanded");
-    });
-
-    return block;
-  }
-
   function prependMessages(messages) {
     var scrollBottom = document.body.scrollHeight - window.scrollY;
     // Find the first existing message or working block to insert before
-    var refNode = messagesEl.querySelector(".aichat-msg, .aichat-working, .aichat-event-divider");
+    var refNode = messagesEl.querySelector(".aichat-msg, .aichat-event-divider");
 
     for (var i = 0; i < messages.length; i++) {
       var m = messages[i];
@@ -169,8 +136,7 @@ if ("serviceWorker" in navigator) {
       }
 
       if (m.sender === "tools") {
-        var block = createWorkingBlock(m.content, m.id);
-        messagesEl.insertBefore(block, refNode);
+        // Tool messages go to the side panel, not chat flow
         continue;
       }
 
@@ -496,80 +462,40 @@ if ("serviceWorker" in navigator) {
   }
 
   // ---------------------------------------------------------------------------
-  // Working block (collapsible tool use log)
+  // Tool status panel (fixed bottom-right)
   // ---------------------------------------------------------------------------
 
-  var activeWorkingEl = null;
+  var toolPanelContent = document.getElementById("aichatToolPanelContent");
+  var toolPanelPulse = document.getElementById("aichatToolPanelPulse");
+  var toolPanelLabel = document.getElementById("aichatToolPanelLabel");
+  var toolIsActive = false;
 
-  function getOrCreateWorkingBlock() {
-    // Reuse the active working block if it exists and is the last child
-    if (activeWorkingEl && activeWorkingEl === messagesEl.lastElementChild) {
-      return activeWorkingEl;
-    }
+  function addToolToPanel(description) {
+    if (!toolPanelContent) return;
 
-    // Create a new working block
-    var block = document.createElement("div");
-    block.className = "aichat-working is-expanded";
-
-    var toggle = document.createElement("div");
-    toggle.className = "aichat-working-toggle";
-    toggle.innerHTML =
-      '<span class="aichat-tool-pulse"></span>' +
-      '<span class="aichat-working-label">Working...</span>' +
-      '<span class="aichat-working-chevron"></span>';
-    block.appendChild(toggle);
-
-    var contentEl = document.createElement("div");
-    contentEl.className = "aichat-working-content";
-    block.appendChild(contentEl);
-
-    toggle.addEventListener("click", function () {
-      block.classList.toggle("is-expanded");
-    });
-
-    messagesEl.appendChild(block);
-    activeWorkingEl = block;
-    if (isNearBottom()) {
-      block.scrollIntoView({ behavior: "instant", block: "nearest" });
-    }
-    return block;
-  }
-
-  function addToolToWorkingBlock(description) {
-    var block = getOrCreateWorkingBlock();
-    var contentEl = block.querySelector(".aichat-working-content");
-
-    // Check if this tool is already the last entry (avoid duplicates from rapid updates)
-    var items = contentEl.querySelectorAll(".aichat-working-item");
-    var lastItem = items.length ? items[items.length - 1] : null;
+    // Deduplicate rapid updates
+    var lastItem = toolPanelContent.lastElementChild;
     if (lastItem && lastItem.textContent === description) return;
 
     var item = document.createElement("div");
-    item.className = "aichat-working-item";
+    item.className = "aichat-tool-panel-item";
     item.textContent = description;
-    contentEl.appendChild(item);
-    contentEl.scrollTop = contentEl.scrollHeight;
+    toolPanelContent.appendChild(item);
+    toolPanelContent.scrollTop = toolPanelContent.scrollHeight;
 
-    if (isNearBottom()) {
-      item.scrollIntoView({ behavior: "instant", block: "nearest" });
+    // Show active state
+    if (!toolIsActive) {
+      toolIsActive = true;
+      if (toolPanelPulse) toolPanelPulse.classList.remove("is-done");
+      if (toolPanelLabel) toolPanelLabel.textContent = "WORKING...";
     }
   }
 
-  function finalizeWorkingBlock() {
-    if (!activeWorkingEl) return;
-
-    // Change label from "Working..." to "Tools Used"
-    var label = activeWorkingEl.querySelector(".aichat-working-label");
-    if (label) label.textContent = "Tools Used";
-
-    // Stop the pulse animation
-    var pulse = activeWorkingEl.querySelector(".aichat-tool-pulse");
-    if (pulse) pulse.classList.add("is-done");
-
-    // Collapse it
-    activeWorkingEl.classList.remove("is-expanded");
-
-    activeWorkingEl = null;
+  function finalizeToolPanel() {
+    if (!toolIsActive) return;
+    toolIsActive = false;
+    if (toolPanelPulse) toolPanelPulse.classList.add("is-done");
+    if (toolPanelLabel) toolPanelLabel.textContent = "TOOLS";
   }
 
   // ---------------------------------------------------------------------------
@@ -715,7 +641,7 @@ if ("serviceWorker" in navigator) {
         if (modeToggle) modeToggle.classList.toggle("is-planning", isPlanning);
       } else {
       if (d.sender === "claude") {
-        finalizeWorkingBlock();
+        finalizeToolPanel();
       }
       appendMessage(d.sender, d.content, d.message_id, d.attachments);
       }
@@ -723,9 +649,9 @@ if ("serviceWorker" in navigator) {
       markAsRead(d.message_ids || []);
     } else if (d.type === "aichat:tool") {
       if (d.status === "active") {
-        addToolToWorkingBlock(d.description || "Working...");
+        addToolToPanel(d.description || "Working...");
       } else if (d.status === "idle") {
-        finalizeWorkingBlock();
+        finalizeToolPanel();
       }
     } else if (d.type === "aichat:interaction") {
       showInteraction(d);
