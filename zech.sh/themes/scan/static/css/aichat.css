@@ -501,8 +501,9 @@
   border-left: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(10, 10, 10, 0.85);
   position: sticky;
-  top: 0;
-  height: 100dvh;
+  top: 50dvh;
+  height: 50dvh;
+  min-height: 20rem;
   overflow: hidden;
 }
 
