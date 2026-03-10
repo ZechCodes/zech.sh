@@ -102,7 +102,6 @@
         </div>
 
         <div class="aichat-bottom" id="aichatBottom">
-            <div class="aichat-preview-area" id="aichatPreviewArea"></div>
             <form class="aichat-form" id="aichatForm" autocomplete="off" data-csrf="{{ csrf_token }}" data-channel-id="{{ channel.id }}">
                 <textarea
                     class="aichat-input"
@@ -122,6 +121,7 @@
                     </button>
                     <button class="aichat-attach" id="aichatAttachBtn" type="button" aria-label="Attach image">+</button>
                     <input type="file" id="aichatFileInput" accept="image/*" multiple hidden>
+                    <div class="aichat-preview-area" id="aichatPreviewArea"></div>
                     <button class="aichat-send" type="submit">SEND</button>
                 </div>
             </form>

@@ -391,9 +391,8 @@
 
 .aichat-preview-area {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .aichat-preview-area:empty {
@@ -402,10 +401,11 @@
 
 .aichat-preview-thumb {
   position: relative;
-  width: 60px;
-  height: 60px;
+  width: 36px;
+  height: 36px;
   border-radius: 2px;
   overflow: visible;
+  flex-shrink: 0;
 }
 
 .aichat-preview-thumb img {
@@ -416,27 +416,28 @@
   border: 1px solid rgba(255, 85, 0, 0.2);
 }
 
-.aichat-preview-thumb.is-uploading {
-  opacity: 0.5;
+.aichat-preview-thumb.is-uploading img {
+  animation: aichat-upload-pulse 1.5s ease-in-out infinite;
 }
 
-.aichat-preview-thumb.is-uploading img {
-  animation: aichat-pulse 1.5s ease-in-out infinite;
+@keyframes aichat-upload-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
 }
 
 .aichat-preview-remove {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  height: 18px;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
   background: var(--zech-primary);
   color: var(--zech-bg);
   border: none;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: 10px;
   cursor: pointer;
-  line-height: 18px;
+  line-height: 14px;
   text-align: center;
   padding: 0;
 }
