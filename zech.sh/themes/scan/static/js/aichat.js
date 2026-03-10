@@ -56,19 +56,6 @@ if ("serviceWorker" in navigator) {
     existingContents[i].innerHTML = renderMarkdown(raw);
   }
 
-  // Bind toggle for server-rendered working blocks
-  var existingWorkingBlocks = messagesEl.querySelectorAll(".aichat-working");
-  for (var i = 0; i < existingWorkingBlocks.length; i++) {
-    (function (block) {
-      var toggle = block.querySelector(".aichat-working-toggle");
-      if (toggle) {
-        toggle.addEventListener("click", function () {
-          block.classList.toggle("is-expanded");
-        });
-      }
-    })(existingWorkingBlocks[i]);
-  }
-
   function isNearBottom(threshold) {
     return (document.body.scrollHeight - window.innerHeight - window.scrollY) <= (threshold || 50);
   }
@@ -359,9 +346,10 @@ if ("serviceWorker" in navigator) {
       payload.attachments = pendingAttachments;
     }
 
-    // Clear previews
+    // Clear previews and collapse expanded tool panel
     pendingAttachments = [];
     previewArea.innerHTML = "";
+    collapseToolPanelToDefault();
 
     fetch("/c/" + channelId + "/send", {
       method: "POST",
@@ -462,13 +450,63 @@ if ("serviceWorker" in navigator) {
   }
 
   // ---------------------------------------------------------------------------
-  // Tool status panel (fixed bottom-right)
+  // Tool console (side panel on desktop, inline on mobile)
   // ---------------------------------------------------------------------------
 
+  var toolPanel = document.getElementById("aichatToolPanel");
   var toolPanelContent = document.getElementById("aichatToolPanelContent");
   var toolPanelPulse = document.getElementById("aichatToolPanelPulse");
   var toolPanelLabel = document.getElementById("aichatToolPanelLabel");
+  var toolPanelToggle = document.getElementById("aichatToolPanelToggle");
   var toolIsActive = false;
+  var isMobileLayout = false;
+
+  // Move tool panel into/out of .aichat-bottom based on viewport width
+  var bottomEl = document.getElementById("aichatBottom");
+  var layoutEl = toolPanel ? toolPanel.parentElement : null;
+  var mobileQuery = window.matchMedia("(max-width: 600px)");
+
+  function positionToolPanel(mq) {
+    if (!toolPanel || !bottomEl || !layoutEl) return;
+    isMobileLayout = mq.matches;
+    if (mq.matches) {
+      // Mobile: insert before the form inside .aichat-bottom
+      bottomEl.insertBefore(toolPanel, bottomEl.firstChild);
+    } else {
+      // Desktop/tablet: append to layout container
+      layoutEl.appendChild(toolPanel);
+      // Reset to default state when leaving mobile
+      toolPanel.className = "aichat-tool-panel is-default";
+    }
+  }
+
+  positionToolPanel(mobileQuery);
+  mobileQuery.addEventListener("change", positionToolPanel);
+
+  // Mobile: 3-state toggle (default → collapsed → expanded → default)
+  if (toolPanelToggle) {
+    toolPanelToggle.addEventListener("click", function () {
+      if (!isMobileLayout || !toolPanel) return;
+      if (toolPanel.classList.contains("is-default")) {
+        toolPanel.classList.remove("is-default");
+        toolPanel.classList.add("is-collapsed");
+      } else if (toolPanel.classList.contains("is-collapsed")) {
+        toolPanel.classList.remove("is-collapsed");
+        toolPanel.classList.add("is-expanded");
+      } else {
+        toolPanel.classList.remove("is-expanded");
+        toolPanel.classList.add("is-default");
+      }
+    });
+  }
+
+  function collapseToolPanelToDefault() {
+    if (!isMobileLayout || !toolPanel) return;
+    if (toolPanel.classList.contains("is-expanded")) {
+      toolPanel.classList.remove("is-expanded");
+      toolPanel.classList.add("is-default");
+    }
+  }
 
   function addToolToPanel(description) {
     if (!toolPanelContent) return;

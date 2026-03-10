@@ -24,117 +24,119 @@
 {% endblock %}
 
 {% block content %}
-<section class="aichat-section">
-    <!-- Channel settings modal -->
-    <div class="aichat-modal-overlay" id="aichatModal">
-        <div class="aichat-modal">
-            <div class="aichat-modal-title">CHANNEL SETTINGS</div>
-            <label class="aichat-modal-label" for="aichatRenameInput">NAME</label>
-            <input class="aichat-modal-input" id="aichatRenameInput" type="text" value="{{ channel.name }}" maxlength="100">
-            <div class="aichat-modal-actions">
-                <button class="aichat-modal-btn aichat-modal-save" id="aichatSaveBtn" type="button">SAVE</button>
-                <button class="aichat-modal-btn aichat-modal-regen" id="aichatRegenBtn" type="button">REGENERATE KEY</button>
-                <button class="aichat-modal-btn aichat-modal-cancel" id="aichatCancelBtn" type="button">CANCEL</button>
-            </div>
-            <div class="aichat-token-display is-hidden" id="aichatNewToken">
-                <div class="aichat-token-label">NEW TOKEN (copy now — shown once)</div>
-                <div class="aichat-token-value" id="aichatTokenValue"></div>
+<div class="aichat-layout">
+    <section class="aichat-section">
+        <!-- Channel settings modal -->
+        <div class="aichat-modal-overlay" id="aichatModal">
+            <div class="aichat-modal">
+                <div class="aichat-modal-title">CHANNEL SETTINGS</div>
+                <label class="aichat-modal-label" for="aichatRenameInput">NAME</label>
+                <input class="aichat-modal-input" id="aichatRenameInput" type="text" value="{{ channel.name }}" maxlength="100">
+                <div class="aichat-modal-actions">
+                    <button class="aichat-modal-btn aichat-modal-save" id="aichatSaveBtn" type="button">SAVE</button>
+                    <button class="aichat-modal-btn aichat-modal-regen" id="aichatRegenBtn" type="button">REGENERATE KEY</button>
+                    <button class="aichat-modal-btn aichat-modal-cancel" id="aichatCancelBtn" type="button">CANCEL</button>
+                </div>
+                <div class="aichat-token-display is-hidden" id="aichatNewToken">
+                    <div class="aichat-token-label">NEW TOKEN (copy now — shown once)</div>
+                    <div class="aichat-token-value" id="aichatTokenValue"></div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="aichat-messages" id="aichatMessages" data-channel-id="{{ channel.id }}">
-        {% if has_more %}
-        <button class="aichat-load-more" id="aichatLoadMore" type="button">Load older messages</button>
-        {% endif %}
-        {% for msg in messages %}
-        {% if msg.sender == 'tools' %}
-        {# Tool messages are shown in the side panel, not in chat flow #}
-        {% elif msg.sender == 'event' %}
-        <div class="aichat-event-divider" data-message-id="{{ msg.id }}">
-            <span class="aichat-event-label">
-                {% if msg.content == 'plan:enter' %}Planning
-                {% elif msg.content == 'plan:exit' %}Done Planning
-                {% else %}{{ msg.content }}{% endif %}
-            </span>
-        </div>
-        {% else %}
-        <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}">
-            <div class="aichat-msg-sender">{{ msg.sender | upper }}</div>
-            {% if msg.attachments %}
-            <div class="aichat-msg-images">
-                {% for att in msg.attachments %}
-                {% if att.content_type and att.content_type.startswith('image/') %}
-                <img class="aichat-msg-img" src="{{ att.url }}" alt="{{ att.filename }}" loading="lazy">
+        <div class="aichat-messages" id="aichatMessages" data-channel-id="{{ channel.id }}">
+            {% if has_more %}
+            <button class="aichat-load-more" id="aichatLoadMore" type="button">Load older messages</button>
+            {% endif %}
+            {% for msg in messages %}
+            {% if msg.sender == 'tools' %}
+            {# Tool messages are shown in the side panel, not in chat flow #}
+            {% elif msg.sender == 'event' %}
+            <div class="aichat-event-divider" data-message-id="{{ msg.id }}">
+                <span class="aichat-event-label">
+                    {% if msg.content == 'plan:enter' %}Planning
+                    {% elif msg.content == 'plan:exit' %}Done Planning
+                    {% else %}{{ msg.content }}{% endif %}
+                </span>
+            </div>
+            {% else %}
+            <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}">
+                <div class="aichat-msg-sender">{{ msg.sender | upper }}</div>
+                {% if msg.attachments %}
+                <div class="aichat-msg-images">
+                    {% for att in msg.attachments %}
+                    {% if att.content_type and att.content_type.startswith('image/') %}
+                    <img class="aichat-msg-img" src="{{ att.url }}" alt="{{ att.filename }}" loading="lazy">
+                    {% endif %}
+                    {% endfor %}
+                </div>
                 {% endif %}
-                {% endfor %}
+                <div class="aichat-msg-content" data-raw="{{ msg.content | e }}">{{ msg.content }}</div>
+                {% if msg.sender == 'user' %}
+                <div class="aichat-msg-read {% if msg.read_by_claude_at %}is-read{% endif %}">&#10003;</div>
+                {% endif %}
             </div>
             {% endif %}
-            <div class="aichat-msg-content" data-raw="{{ msg.content | e }}">{{ msg.content }}</div>
-            {% if msg.sender == 'user' %}
-            <div class="aichat-msg-read {% if msg.read_by_claude_at %}is-read{% endif %}">&#10003;</div>
-            {% endif %}
+            {% endfor %}
         </div>
-        {% endif %}
-        {% endfor %}
-    </div>
 
-    <!-- Interaction overlay (plans + questions) -->
-    <div class="aichat-interaction-overlay" id="aichatInteractionOverlay">
-        <div class="aichat-interaction-scrim"></div>
-        <div class="aichat-interaction-panel">
-            <div class="aichat-interaction-header">
-                <span class="aichat-tool-pulse"></span>
-                <span class="aichat-interaction-label" id="aichatInteractionLabel">QUESTION</span>
-            </div>
-            <div class="aichat-interaction-body">
-                <div class="aichat-interaction-content" id="aichatInteractionContent"></div>
-                <div class="aichat-interaction-options" id="aichatInteractionOptions"></div>
-                <textarea class="aichat-interaction-input" id="aichatInteractionInput"
-                    placeholder="Type your answer..." rows="3"></textarea>
-            </div>
-            <div class="aichat-interaction-actions">
-                <button class="aichat-interaction-btn aichat-interaction-accept" id="aichatInteractionAccept" type="button">APPROVE</button>
-                <button class="aichat-interaction-btn aichat-interaction-deny" id="aichatInteractionDeny" type="button">DENY</button>
+        <!-- Interaction overlay (plans + questions) -->
+        <div class="aichat-interaction-overlay" id="aichatInteractionOverlay">
+            <div class="aichat-interaction-scrim"></div>
+            <div class="aichat-interaction-panel">
+                <div class="aichat-interaction-header">
+                    <span class="aichat-tool-pulse"></span>
+                    <span class="aichat-interaction-label" id="aichatInteractionLabel">QUESTION</span>
+                </div>
+                <div class="aichat-interaction-body">
+                    <div class="aichat-interaction-content" id="aichatInteractionContent"></div>
+                    <div class="aichat-interaction-options" id="aichatInteractionOptions"></div>
+                    <textarea class="aichat-interaction-input" id="aichatInteractionInput"
+                        placeholder="Type your answer..." rows="3"></textarea>
+                </div>
+                <div class="aichat-interaction-actions">
+                    <button class="aichat-interaction-btn aichat-interaction-accept" id="aichatInteractionAccept" type="button">APPROVE</button>
+                    <button class="aichat-interaction-btn aichat-interaction-deny" id="aichatInteractionDeny" type="button">DENY</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="aichat-bottom" id="aichatBottom">
+        <div class="aichat-bottom" id="aichatBottom">
+            <div class="aichat-preview-area" id="aichatPreviewArea"></div>
+            <form class="aichat-form" id="aichatForm" autocomplete="off" data-csrf="{{ csrf_token }}" data-channel-id="{{ channel.id }}">
+                <textarea
+                    class="aichat-input"
+                    name="content"
+                    placeholder="Type a message..."
+                    rows="1"
+                    id="aichatInput"
+                ></textarea>
+                <div class="aichat-form-actions">
+                    <button class="aichat-mode-toggle" id="aichatModeToggle" type="button" aria-label="Toggle planning mode">
+                        <svg class="aichat-mode-icon aichat-mode-icon-plan" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+                        </svg>
+                        <svg class="aichat-mode-icon aichat-mode-icon-code" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+                        </svg>
+                    </button>
+                    <button class="aichat-attach" id="aichatAttachBtn" type="button" aria-label="Attach image">+</button>
+                    <input type="file" id="aichatFileInput" accept="image/*" multiple hidden>
+                    <button class="aichat-send" type="submit">SEND</button>
+                </div>
+            </form>
+        </div>
+    </section>
 
-        <div class="aichat-preview-area" id="aichatPreviewArea"></div>
-        <form class="aichat-form" id="aichatForm" autocomplete="off" data-csrf="{{ csrf_token }}" data-channel-id="{{ channel.id }}">
-            <textarea
-                class="aichat-input"
-                name="content"
-                placeholder="Type a message..."
-                rows="1"
-                id="aichatInput"
-            ></textarea>
-            <div class="aichat-form-actions">
-                <button class="aichat-mode-toggle" id="aichatModeToggle" type="button" aria-label="Toggle planning mode">
-                    <svg class="aichat-mode-icon aichat-mode-icon-plan" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
-                    </svg>
-                    <svg class="aichat-mode-icon aichat-mode-icon-code" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
-                    </svg>
-                </button>
-                <button class="aichat-attach" id="aichatAttachBtn" type="button" aria-label="Attach image">+</button>
-                <input type="file" id="aichatFileInput" accept="image/*" multiple hidden>
-                <button class="aichat-send" type="submit">SEND</button>
-            </div>
-        </form>
+    <!-- Tool console -->
+    <div class="aichat-tool-panel is-default" id="aichatToolPanel">
+        <div class="aichat-tool-panel-header" id="aichatToolPanelToggle">
+            <span class="aichat-tool-pulse is-done" id="aichatToolPanelPulse"></span>
+            <span class="aichat-tool-panel-label" id="aichatToolPanelLabel">TOOLS</span>
+            <span class="aichat-tool-panel-chevron"></span>
+        </div>
+        <div class="aichat-tool-panel-content" id="aichatToolPanelContent"></div>
     </div>
-</section>
-
-<!-- Tool status panel (bottom-right, outside centered chat) -->
-<div class="aichat-tool-panel" id="aichatToolPanel">
-    <div class="aichat-tool-panel-header" id="aichatToolPanelToggle">
-        <span class="aichat-tool-pulse is-done" id="aichatToolPanelPulse"></span>
-        <span class="aichat-tool-panel-label" id="aichatToolPanelLabel">TOOLS</span>
-    </div>
-    <div class="aichat-tool-panel-content" id="aichatToolPanelContent"></div>
 </div>
 {% endblock %}
 
