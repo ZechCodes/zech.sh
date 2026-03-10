@@ -337,6 +337,7 @@ if ("serviceWorker" in navigator) {
         btn.addEventListener("click", function (e) {
             e.preventDefault();
             e.stopPropagation();
+            if (!confirm("Restart this worker?")) return;
             var deviceId = btn.dataset.deviceId;
             var channelId = btn.dataset.channelId;
             btn.disabled = true;

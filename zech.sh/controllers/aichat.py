@@ -205,7 +205,7 @@ async def _get_guard_engine():
         if settings.db.db_schema:
             opts["schema_translate_map"] = {None: settings.db.db_schema}
         _guard_engine = create_async_engine(
-            settings.db.url, pool_size=2, execution_options=opts
+            settings.db.url, pool_size=5, execution_options=opts
         )
     return _guard_engine
 
