@@ -586,6 +586,8 @@
   .aichat-tool-panel {
     position: static;
     height: auto;
+    min-height: 0;
+    flex: none;
     border-left: none;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     max-width: none;
@@ -601,9 +603,9 @@
     display: block;
   }
 
-  /* Default state: 5 lines visible */
+  /* Default state: ~3 lines visible */
   .aichat-tool-panel.is-default .aichat-tool-panel-content {
-    max-height: 7rem;
+    max-height: 4.2rem;
   }
 
   /* Collapsed: header only */
