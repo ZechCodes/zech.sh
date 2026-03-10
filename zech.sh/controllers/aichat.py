@@ -1250,6 +1250,35 @@ class AiChatApiController(Controller):
             status_code=201,
         )
 
+    @post("/directories")
+    async def report_directories(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Agent reports its working directory and optional additional directories."""
+        channel_id = self._get_channel_id(request)
+
+        body = await request.json()
+        working_directory = body.get("working_directory", "")
+        additional_directories = body.get("additional_directories")
+
+        result = await db_session.execute(
+            select(AiChatChannel).where(AiChatChannel.id == channel_id)
+        )
+        channel = result.scalar_one_or_none()
+        if not channel:
+            return Response(content={"error": "channel not found"}, status_code=404)
+
+        if working_directory:
+            channel.working_directory = working_directory[:500]
+
+        if additional_directories is not None:
+            import json as _json
+            channel.additional_directories = _json.dumps(additional_directories)
+
+        await db_session.commit()
+
+        return Response(content={"ok": True})
+
 
 # ---------------------------------------------------------------------------
 # Device registration controller (public — no auth for registration)
@@ -1493,15 +1522,32 @@ class AiChatDeviceApiController(Controller):
         self, request: Request, db_session: AsyncSession
     ) -> Response:
         """Return channels assigned to this device."""
+        import json as _json
+
         device_id = self._get_device_id(request)
         result = await db_session.execute(
-            select(AiChatChannel.id, AiChatChannel.name)
+            select(
+                AiChatChannel.id,
+                AiChatChannel.name,
+                AiChatChannel.working_directory,
+                AiChatChannel.additional_directories,
+            )
             .where(AiChatChannel.device_id == UUID(device_id))
         )
-        channels = [
-            {"id": str(row.id), "name": row.name}
-            for row in result.all()
-        ]
+        channels = []
+        for row in result.all():
+            additional = []
+            if row.additional_directories:
+                try:
+                    additional = _json.loads(row.additional_directories)
+                except (ValueError, TypeError):
+                    pass
+            channels.append({
+                "id": str(row.id),
+                "name": row.name,
+                "working_directory": row.working_directory or "",
+                "additional_directories": additional,
+            })
         return Response(content={"channels": channels})
 
 
@@ -1629,14 +1675,26 @@ class AiChatDeviceManagementController(Controller):
         if not device or device.owner_user_id != user.id:
             return Response(content={"error": "device not found"}, status_code=404)
 
+        # Fetch channel's working directory for restart
+        ch_result = await db_session.execute(
+            select(AiChatChannel.working_directory)
+            .where(AiChatChannel.id == UUID(channel_id))
+        )
+        ch_row = ch_result.one_or_none()
+        working_directory = ch_row.working_directory if ch_row else ""
+
         # Send worker:restart command
+        payload: dict = {"channel_id": channel_id}
+        if working_directory:
+            payload["working_directory"] = working_directory
+
         await notify_user(
             str(user.id),
             "aichat:device-command",
             mode=NotificationMode.TIMESERIES,
             push_notify=False,
             command="worker:restart",
-            payload={"channel_id": channel_id},
+            payload=payload,
             device_id=str(device.id),
         )
 

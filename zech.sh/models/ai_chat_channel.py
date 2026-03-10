@@ -22,3 +22,9 @@ class AiChatChannel(Base):
         ForeignKey("ai_chat_device.id"),
         nullable=True,
     )
+    working_directory: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+    additional_directories: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # JSON-encoded list of directory paths
