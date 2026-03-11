@@ -1092,6 +1092,11 @@
   color: var(--zech-primary);
 }
 
+/* Hide base template nav toggle on aichat pages */
+.zech-nav-toggle {
+  display: none !important;
+}
+
 /* --------------------------------------------------------------------------
    Edit button
    -------------------------------------------------------------------------- */
