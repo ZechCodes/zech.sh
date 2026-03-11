@@ -867,30 +867,31 @@
 .aichat-tool-diff-ctx {
   white-space: pre-wrap;
   word-break: break-all;
-  padding-left: 1.2ch;
+  padding-left: 2ch;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .aichat-tool-diff-del {
-  color: #ff6b6b;
+  background: rgba(255, 80, 80, 0.15);
 }
 
 .aichat-tool-diff-del::before {
   content: "-";
   display: inline-block;
-  width: 1.2ch;
-  margin-left: -1.2ch;
+  width: 2ch;
+  margin-left: -2ch;
   color: #ff6b6b;
 }
 
 .aichat-tool-diff-add {
-  color: #69db7c;
+  background: rgba(80, 200, 100, 0.15);
 }
 
 .aichat-tool-diff-add::before {
   content: "+";
   display: inline-block;
-  width: 1.2ch;
-  margin-left: -1.2ch;
+  width: 2ch;
+  margin-left: -2ch;
   color: #69db7c;
 }
 
@@ -901,7 +902,7 @@
 .aichat-tool-diff-ctx::before {
   content: " ";
   display: inline-block;
-  width: 1.2ch;
+  width: 2ch;
   margin-left: -1.2ch;
 }
 
