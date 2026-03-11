@@ -787,6 +787,22 @@ var __aichatChannelId = (function () {
     if (toolPanelLabel) toolPanelLabel.textContent = "TOOLS";
   }
 
+  // Hydrate tool panel from persisted tool messages
+  (function () {
+    var toolDataEls = document.querySelectorAll("script.aichat-tool-data");
+    for (var i = 0; i < toolDataEls.length; i++) {
+      try {
+        var content = JSON.parse(toolDataEls[i].textContent);
+        var descriptions = content.split("\n");
+        for (var j = 0; j < descriptions.length; j++) {
+          if (descriptions[j]) addToolToPanel(descriptions[j]);
+        }
+      } catch (e) { /* skip malformed */ }
+    }
+    // Reset to idle state after hydration
+    if (toolDataEls.length > 0) finalizeToolPanel();
+  })();
+
   // ---------------------------------------------------------------------------
   // Interaction overlay (plans + questions)
   // ---------------------------------------------------------------------------

@@ -65,7 +65,7 @@
             {% endif %}
             {% for msg in messages %}
             {% if msg.sender == 'tools' %}
-            {# Tool messages are shown in the side panel, not in chat flow #}
+            <script type="application/json" class="aichat-tool-data">{{ msg.content | tojson }}</script>
             {% elif msg.sender == 'event' %}
             <div class="aichat-event-divider" data-message-id="{{ msg.id }}">
                 <span class="aichat-event-label">
