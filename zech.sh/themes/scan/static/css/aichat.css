@@ -7,10 +7,220 @@
   justify-content: flex-start;
 }
 
+.scan-main:has(.aichat-sidebar) {
+  flex-direction: row;
+}
+
 .aichat-layout {
   display: flex;
   width: 100%;
+  min-width: 0;
   min-height: calc(100dvh - 8rem);
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar
+   -------------------------------------------------------------------------- */
+
+.aichat-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(255, 85, 0, 0.1);
+  background: rgba(10, 10, 10, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: calc(100dvh - 4rem);
+  position: sticky;
+  top: 4rem;
+}
+
+.aichat-sidebar:empty {
+  display: none;
+}
+
+.aichat-sidebar-header {
+  padding: 1rem 0.75rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+.aichat-sidebar-header a {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-primary);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.aichat-sidebar-header a:hover {
+  opacity: 0.75;
+}
+
+.aichat-sidebar-devices {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.aichat-sidebar-device {
+  padding: 0 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.aichat-sidebar-device-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0;
+}
+
+.aichat-sidebar-device-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.aichat-sidebar-device-dot.is-online {
+  background: #4ade80;
+  box-shadow: 0 0 4px rgba(74, 222, 128, 0.4);
+}
+
+.aichat-sidebar-device-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aichat-sidebar-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 0.25rem;
+}
+
+.aichat-sidebar-channel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  text-decoration: none;
+  color: var(--zech-text);
+  border-radius: 2px;
+  border-left: 2px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.aichat-sidebar-channel:hover {
+  background: rgba(255, 85, 0, 0.05);
+}
+
+.aichat-sidebar-channel.is-active {
+  border-left-color: var(--zech-primary);
+  background: rgba(255, 85, 0, 0.08);
+}
+
+.aichat-sidebar-channel-name {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.aichat-sidebar-unread {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  min-width: 1.2em;
+  padding: 0.15em 0.35em;
+  text-align: center;
+  background: var(--zech-primary);
+  color: var(--zech-bg);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.aichat-sidebar-unread.is-hidden {
+  display: none;
+}
+
+/* Sidebar toggle button (mobile/tablet) */
+.aichat-sidebar-toggle {
+  display: none;
+  background: none;
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  color: var(--zech-text-dim);
+  border-radius: 2px;
+  padding: 0;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.2s, color 0.2s;
+  margin-right: 0.25rem;
+}
+
+.aichat-sidebar-toggle:hover {
+  border-color: rgba(255, 85, 0, 0.4);
+  color: var(--zech-text);
+}
+
+/* Sidebar backdrop for mobile overlay */
+.aichat-sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 49;
+}
+
+.aichat-sidebar-backdrop.is-active {
+  display: block;
+}
+
+/* Tablet: sidebar becomes overlay */
+@media (max-width: 900px) {
+  .aichat-sidebar-toggle {
+    display: flex;
+  }
+
+  .aichat-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    background: var(--zech-bg, #0a0a0a);
+    border-right: 1px solid rgba(255, 85, 0, 0.15);
+  }
+
+  .aichat-sidebar:empty {
+    display: flex;
+  }
+
+  .aichat-sidebar.is-open {
+    transform: translateX(0);
+  }
 }
 
 .aichat-section {
