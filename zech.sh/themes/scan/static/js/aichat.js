@@ -951,17 +951,14 @@ var __aichatChannelId = (function () {
   var modal = document.getElementById("aichatModal");
   var renameInput = document.getElementById("aichatRenameInput");
   var saveBtn = document.getElementById("aichatSaveBtn");
-  var regenBtn = document.getElementById("aichatRegenBtn");
   var cancelBtn = document.getElementById("aichatCancelBtn");
-  var tokenDisplay = document.getElementById("aichatNewToken");
-  var tokenValue = document.getElementById("aichatTokenValue");
+  var archiveBtn = document.getElementById("aichatArchiveBtn");
+  var restartBtn = document.getElementById("aichatRestartBtn");
   var logoEl = document.querySelector(".logo");
-  var channelNameEl = document.getElementById("channelName") || logoEl;
 
   if (editBtn && modal) {
     editBtn.addEventListener("click", function () {
       modal.classList.add("is-active");
-      tokenDisplay.classList.add("is-hidden");
       renameInput.focus();
     });
 
@@ -1009,42 +1006,55 @@ var __aichatChannelId = (function () {
         });
     });
 
-    regenBtn.addEventListener("click", function () {
-      if (!confirm("Regenerate key pair? The old token will stop working.")) return;
-      regenBtn.disabled = true;
+    if (archiveBtn) {
+      archiveBtn.addEventListener("click", function () {
+        if (!confirm("Archive this channel? The worker will be stopped.")) return;
+        archiveBtn.disabled = true;
 
-      fetch("/channels/" + channelId + "/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken,
-        },
-        body: JSON.stringify({ name: renameInput.value.trim(), regenerate_key: true }),
-      })
-        .then(function (res) {
-          if (!res.ok) throw new Error("Regenerate failed");
-          return res.json();
+        fetch("/channels/" + channelId + "/archive", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
+          },
+          body: JSON.stringify({ archived: true }),
         })
-        .then(function (data) {
-          if (data.channel) {
-            var brandText = "< " + data.channel.name;
-            if (logoEl) {
-              logoEl.textContent = brandText;
-              logoEl.setAttribute("data-text", brandText);
-            }
-            document.title = data.channel.name + " — AI.CHAT";
-          }
-          if (data.token) {
-            tokenValue.textContent = data.token;
-            tokenDisplay.classList.remove("is-hidden");
-          }
+          .then(function (res) {
+            if (!res.ok) throw new Error("Archive failed");
+            window.location.href = "/";
+          })
+          .catch(function (err) {
+            console.error("Archive error:", err);
+            archiveBtn.disabled = false;
+          });
+      });
+    }
+
+    if (restartBtn) {
+      restartBtn.addEventListener("click", function () {
+        if (!confirm("Restart the worker for this channel?")) return;
+        restartBtn.disabled = true;
+        var deviceId = restartBtn.getAttribute("data-device-id");
+
+        fetch("/" + deviceId + "/workers/" + channelId + "/restart", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
+          },
+          body: JSON.stringify({}),
         })
-        .catch(function (err) {
-          console.error("Regenerate error:", err);
-        })
-        .finally(function () {
-          regenBtn.disabled = false;
-        });
-    });
+          .then(function (res) {
+            if (!res.ok) throw new Error("Restart failed");
+            modal.classList.remove("is-active");
+          })
+          .catch(function (err) {
+            console.error("Restart error:", err);
+          })
+          .finally(function () {
+            restartBtn.disabled = false;
+          });
+      });
+    }
   }
 })();

@@ -1508,6 +1508,27 @@
   color: var(--zech-text-dim);
 }
 
+.aichat-modal-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.aichat-modal-restart {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--zech-text);
+}
+
+.aichat-modal-archive {
+  background: none;
+  border: 1px solid rgba(255, 80, 80, 0.3);
+  color: rgba(255, 80, 80, 0.8);
+}
+
+.aichat-modal-archive:hover {
+  border-color: rgba(255, 80, 80, 0.5);
+  color: #ff5050;
+}
+
 /* --------------------------------------------------------------------------
    SSE status indicator (skrift built-in, restyled)
    -------------------------------------------------------------------------- */

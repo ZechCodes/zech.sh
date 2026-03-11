@@ -46,12 +46,15 @@
                 <input class="aichat-modal-input" id="aichatRenameInput" type="text" value="{{ channel.name }}" maxlength="100">
                 <div class="aichat-modal-actions">
                     <button class="aichat-modal-btn aichat-modal-save" id="aichatSaveBtn" type="button">SAVE</button>
-                    <button class="aichat-modal-btn aichat-modal-regen" id="aichatRegenBtn" type="button">REGENERATE KEY</button>
                     <button class="aichat-modal-btn aichat-modal-cancel" id="aichatCancelBtn" type="button">CANCEL</button>
                 </div>
-                <div class="aichat-token-display is-hidden" id="aichatNewToken">
-                    <div class="aichat-token-label">NEW TOKEN (copy now — shown once)</div>
-                    <div class="aichat-token-value" id="aichatTokenValue"></div>
+                <div class="aichat-modal-divider"></div>
+                <div class="aichat-modal-actions">
+                    {% if channel.device_id %}
+                    <button class="aichat-modal-btn aichat-modal-restart" id="aichatRestartBtn" type="button"
+                        data-device-id="{{ channel.device_id }}">RESTART WORKER</button>
+                    {% endif %}
+                    <button class="aichat-modal-btn aichat-modal-archive" id="aichatArchiveBtn" type="button">ARCHIVE</button>
                 </div>
             </div>
         </div>
