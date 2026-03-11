@@ -36,8 +36,8 @@
   top: 4rem;
 }
 
-.aichat-sidebar:empty {
-  display: none;
+.aichat-sidebar:empty::before {
+  content: "";
 }
 
 .aichat-sidebar-header {
@@ -252,10 +252,6 @@
     transition: transform 0.25s ease;
     background: var(--zech-bg, #0a0a0a);
     border-right: 1px solid rgba(255, 85, 0, 0.15);
-  }
-
-  .aichat-sidebar:empty {
-    display: flex;
   }
 
   .aichat-sidebar.is-open {
