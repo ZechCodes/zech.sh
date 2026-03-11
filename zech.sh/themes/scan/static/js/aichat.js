@@ -793,10 +793,24 @@ var __aichatChannelId = (function () {
     for (var i = 0; i < toolDataEls.length; i++) {
       try {
         var content = JSON.parse(toolDataEls[i].textContent);
-        var descriptions = content.split("\n");
-        for (var j = 0; j < descriptions.length; j++) {
-          if (descriptions[j]) addToolToPanel(descriptions[j]);
+        var lines = content.split("\n");
+        // Reassemble multi-line descriptions: diffs start with "diff:" and
+        // continue with +/- lines; everything else is a standalone description.
+        var buf = null;
+        for (var j = 0; j < lines.length; j++) {
+          var line = lines[j];
+          if (!line) continue;
+          if (line.indexOf("diff:") === 0) {
+            if (buf) addToolToPanel(buf);
+            buf = line;
+          } else if (buf && (line.charAt(0) === "+" || line.charAt(0) === "-")) {
+            buf += "\n" + line;
+          } else {
+            if (buf) { addToolToPanel(buf); buf = null; }
+            addToolToPanel(line);
+          }
         }
+        if (buf) addToolToPanel(buf);
       } catch (e) { /* skip malformed */ }
     }
     // Reset to idle state after hydration
