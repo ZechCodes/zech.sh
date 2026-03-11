@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from advanced_alchemy.types import GUID
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from skrift.db.base import Base
@@ -28,3 +28,6 @@ class AiChatChannel(Base):
     additional_directories: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )  # JSON-encoded list of directory paths
+    archived: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )

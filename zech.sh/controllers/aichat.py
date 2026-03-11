@@ -468,6 +468,59 @@ def _get_or_create_csrf_token(request: Request) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Sidebar data helper
+# ---------------------------------------------------------------------------
+
+
+async def _get_sidebar_data(user_id: UUID, db_session: AsyncSession) -> dict:
+    """Fetch devices, channels grouped by device, and unread counts for sidebar."""
+    result = await db_session.execute(
+        select(AiChatChannel).order_by(AiChatChannel.created_at.desc())
+    )
+    channels = list(result.scalars().all())
+
+    # Unread counts per channel (claude messages not yet read by user)
+    unread_result = await db_session.execute(
+        select(
+            AiChatMessage.channel_id,
+            func.count(AiChatMessage.id),
+        )
+        .where(AiChatMessage.sender == "claude")
+        .where(AiChatMessage.read_by_user_at.is_(None))
+        .where(AiChatMessage.channel_id.is_not(None))
+        .group_by(AiChatMessage.channel_id)
+    )
+    unread_counts = {str(row[0]): row[1] for row in unread_result.all()}
+
+    # Devices owned by user
+    device_result = await db_session.execute(
+        select(AiChatDevice)
+        .where(AiChatDevice.owner_user_id == user_id)
+        .order_by(AiChatDevice.created_at.desc())
+    )
+    devices = list(device_result.scalars().all())
+
+    # Group channels by device, separating active and archived
+    device_channels: dict[str, list] = {str(d.id): [] for d in devices}
+    archived_channels: dict[str, list] = {str(d.id): [] for d in devices}
+    for channel in channels:
+        key = str(channel.device_id) if channel.device_id else None
+        if key and key in device_channels:
+            if channel.archived:
+                archived_channels[key].append(channel)
+            else:
+                device_channels[key].append(channel)
+
+    return {
+        "channels": channels,
+        "devices": devices,
+        "device_channels": device_channels,
+        "archived_channels": archived_channels,
+        "unread_counts": unread_counts,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Web UI controller
 # ---------------------------------------------------------------------------
 
@@ -488,50 +541,43 @@ class AiChatController(Controller):
         if not await _has_permission(user.id, db_session):
             return TemplateResponse("unauthorized.html", context={"user": user})
 
-        result = await db_session.execute(
-            select(AiChatChannel).order_by(AiChatChannel.created_at.desc())
-        )
-        channels = list(result.scalars().all())
-
-        # Get unread counts per channel (claude messages not yet read by user)
-        unread_result = await db_session.execute(
-            select(
-                AiChatMessage.channel_id,
-                func.count(AiChatMessage.id),
-            )
-            .where(AiChatMessage.sender == "claude")
-            .where(AiChatMessage.read_by_user_at.is_(None))
-            .where(AiChatMessage.channel_id.is_not(None))
-            .group_by(AiChatMessage.channel_id)
-        )
-        unread_counts = {str(row[0]): row[1] for row in unread_result.all()}
-
-        # Get devices
-        device_result = await db_session.execute(
-            select(AiChatDevice)
-            .where(AiChatDevice.owner_user_id == user.id)
-            .order_by(AiChatDevice.created_at.desc())
-        )
-        devices = list(device_result.scalars().all())
-
-        # Group channels by device (only device-assigned channels)
-        device_channels: dict[str, list] = {str(d.id): [] for d in devices}
-        for channel in channels:
-            key = str(channel.device_id) if channel.device_id else None
-            if key and key in device_channels:
-                device_channels[key].append(channel)
+        sidebar = await _get_sidebar_data(user.id, db_session)
 
         return TemplateResponse(
             "aichat_dashboard.html",
             context={
                 "user": user,
-                "channels": channels,
-                "devices": devices,
-                "device_channels": device_channels,
-                "unread_counts": unread_counts,
+                **sidebar,
                 "hide_sidebar": True,
             },
         )
+
+    @get("/api/sidebar")
+    async def sidebar_data(
+        self, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """JSON endpoint for sidebar device/channel data."""
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+
+        sidebar = await _get_sidebar_data(user.id, db_session)
+
+        return Response(content={
+            "devices": [
+                {"id": str(d.id), "name": d.name, "status": d.status or "offline"}
+                for d in sidebar["devices"]
+            ],
+            "device_channels": {
+                did: [{"id": str(c.id), "name": c.name} for c in chs]
+                for did, chs in sidebar["device_channels"].items()
+            },
+            "archived_channels": {
+                did: [{"id": str(c.id), "name": c.name} for c in chs]
+                for did, chs in sidebar["archived_channels"].items()
+            },
+            "unread_counts": sidebar["unread_counts"],
+        })
 
     @post("/channels/{channel_id:str}/update", status_code=200)
     async def update_channel(
@@ -604,6 +650,48 @@ class AiChatController(Controller):
         await db_session.delete(channel)
         await db_session.commit()
         return Response(content={"ok": True})
+
+    @post("/channels/{channel_id:str}/archive", status_code=200)
+    async def archive_channel(
+        self, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Archive or unarchive a channel."""
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        result = await db_session.execute(
+            select(AiChatChannel).where(AiChatChannel.id == UUID(channel_id))
+        )
+        channel = result.scalar_one_or_none()
+        if not channel:
+            return Response(content={"error": "not found"}, status_code=404)
+
+        body = await request.json()
+        archived = bool(body.get("archived", True))
+        channel.archived = archived
+
+        # Send worker:stop command when archiving
+        if archived and channel.device_id:
+            device_result = await db_session.execute(
+                select(AiChatDevice).where(AiChatDevice.id == channel.device_id)
+            )
+            device = device_result.scalar_one_or_none()
+            if device and device.owner_user_id:
+                await notify_user(
+                    str(device.owner_user_id),
+                    "aichat:device-command",
+                    mode=NotificationMode.TIMESERIES,
+                    push_notify=False,
+                    command="worker:stop",
+                    payload={"channel_id": channel_id},
+                    device_id=str(device.id),
+                )
+
+        await db_session.commit()
+        return Response(content={"ok": True, "archived": archived})
 
     @get("/c/{channel_id:str}")
     async def channel_chat(
@@ -1533,6 +1621,7 @@ class AiChatDeviceApiController(Controller):
                 AiChatChannel.additional_directories,
             )
             .where(AiChatChannel.device_id == UUID(device_id))
+            .where(AiChatChannel.archived.is_(False))
         )
         channels = []
         for row in result.all():

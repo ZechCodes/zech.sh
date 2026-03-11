@@ -890,6 +890,84 @@
   to { transform: rotate(360deg); }
 }
 
+.aichat-archive-btn,
+.aichat-unarchive-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--zech-text-dim);
+  font-size: 0.9rem;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.aichat-archive-btn:hover {
+  border-color: rgba(255, 85, 0, 0.4);
+  color: var(--zech-primary);
+}
+
+.aichat-unarchive-btn:hover {
+  border-color: rgba(255, 85, 0, 0.4);
+  color: var(--zech-primary);
+}
+
+.aichat-archive-btn:disabled,
+.aichat-unarchive-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.aichat-channel-card.is-archived {
+  opacity: 0.5;
+}
+
+.aichat-channel-card.is-archived:hover {
+  opacity: 0.7;
+}
+
+.aichat-archived-section {
+  margin-top: 0.5rem;
+}
+
+.aichat-archived-toggle {
+  background: none;
+  border: none;
+  color: var(--zech-text-dim);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  padding: 0.5rem 0;
+  transition: color 0.2s;
+}
+
+.aichat-archived-toggle:hover {
+  color: var(--zech-primary);
+}
+
+.aichat-archived-toggle::before {
+  content: "\25B6";
+  display: inline-block;
+  margin-right: 0.4rem;
+  font-size: 0.5rem;
+  transition: transform 0.2s;
+}
+
+.aichat-archived-toggle.is-expanded::before {
+  transform: rotate(90deg);
+}
+
+.aichat-archived-channels.is-hidden {
+  display: none;
+}
+
 .aichat-channel-meta {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.65rem;
