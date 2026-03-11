@@ -299,12 +299,21 @@ var __aichatChannelId = (function () {
   var pendingReadIds = [];
   var readFlushTimer = null;
 
-  // Create floating "New Messages" button
+  // Create floating "New Messages" button (centered on chat section)
+  var sectionEl = messagesEl.closest(".aichat-section");
   (function () {
     newMsgBtn = document.createElement("button");
     newMsgBtn.className = "aichat-new-messages-btn is-hidden";
     newMsgBtn.type = "button";
     document.body.appendChild(newMsgBtn);
+
+    function positionBtn() {
+      if (!sectionEl || !newMsgBtn) return;
+      var rect = sectionEl.getBoundingClientRect();
+      var center = rect.left + rect.width / 2;
+      var btnWidth = newMsgBtn.offsetWidth || 120;
+      newMsgBtn.style.left = (center - btnWidth / 2) + "px";
+    }
 
     newMsgBtn.addEventListener("click", function () {
       window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
@@ -314,12 +323,22 @@ var __aichatChannelId = (function () {
     window.addEventListener("scroll", function () {
       if (isNearBottom(80)) hideNewMsgBtn();
     }, { passive: true });
+
+    window.addEventListener("resize", positionBtn, { passive: true });
+    // Position on first show (handled in showNewMsgBtn)
   })();
 
   function showNewMsgBtn() {
     if (!newMsgBtn) return;
     newMsgBtn.textContent = newMsgCount + " New Message" + (newMsgCount !== 1 ? "s" : "");
     newMsgBtn.classList.remove("is-hidden");
+    // Center on chat section
+    if (sectionEl) {
+      var rect = sectionEl.getBoundingClientRect();
+      var center = rect.left + rect.width / 2;
+      var btnWidth = newMsgBtn.offsetWidth || 120;
+      newMsgBtn.style.left = (center - btnWidth / 2) + "px";
+    }
   }
 
   function hideNewMsgBtn() {
@@ -585,6 +604,37 @@ var __aichatChannelId = (function () {
       fileInput.value = "";
     });
   }
+
+  // Drag-and-drop images anywhere on the chat area
+  (function () {
+    var section = messagesEl.closest(".aichat-section");
+    if (!section) return;
+
+    section.addEventListener("dragover", function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      section.classList.add("aichat-dragover");
+    });
+
+    section.addEventListener("dragleave", function (e) {
+      // Only remove if leaving the section entirely
+      if (!section.contains(e.relatedTarget)) {
+        section.classList.remove("aichat-dragover");
+      }
+    });
+
+    section.addEventListener("drop", function (e) {
+      e.preventDefault();
+      section.classList.remove("aichat-dragover");
+      var files = e.dataTransfer.files;
+      if (!files || !files.length) return;
+      for (var i = 0; i < files.length; i++) {
+        if (files[i].type.startsWith("image/")) {
+          uploadFile(files[i]);
+        }
+      }
+    });
+  })();
 
   function uploadFile(file) {
     if (!file.type.startsWith("image/")) return;

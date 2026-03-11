@@ -303,6 +303,7 @@
   max-width: 720px;
   flex-shrink: 0;
   min-height: calc(100dvh - 8rem);
+  position: relative;
 }
 
 .aichat-section .scan-label {
@@ -500,6 +501,16 @@
 
 .aichat-msg-read.is-read {
   color: var(--zech-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Drag-and-drop overlay
+   -------------------------------------------------------------------------- */
+
+.aichat-section.aichat-dragover {
+  outline: 2px dashed rgba(255, 85, 0, 0.4);
+  outline-offset: -4px;
+  border-radius: 8px;
 }
 
 /* --------------------------------------------------------------------------
@@ -771,8 +782,6 @@
 .aichat-new-messages-btn {
   position: fixed;
   bottom: 5rem;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 15;
   background: rgba(255, 85, 0, 0.9);
   color: #fff;
@@ -796,7 +805,7 @@
 .aichat-new-messages-btn.is-hidden {
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-50%) translateY(0.5rem);
+  transform: translateY(0.5rem);
 }
 
 /* --------------------------------------------------------------------------
