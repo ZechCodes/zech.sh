@@ -369,18 +369,28 @@ var __aichatChannelId = (function () {
   if (channelId && window.IntersectionObserver) {
     readObserver = new IntersectionObserver(function (entries) {
       for (var i = 0; i < entries.length; i++) {
-        if (entries[i].isIntersecting) {
-          var el = entries[i].target;
-          var msgId = el.getAttribute("data-message-id");
-          if (msgId) {
-            pendingReadIds.push(msgId);
-            scheduleReadFlush();
-          }
-          readObserver.unobserve(el);
-          el.removeAttribute("data-unread");
+        var entry = entries[i];
+        if (!entry.isIntersecting) continue;
+        // Only mark as read when the bottom of the message is visible
+        var bottomVisible = entry.rootBounds &&
+          entry.boundingClientRect.bottom <= entry.rootBounds.bottom + 2;
+        if (!bottomVisible) continue;
+        var el = entry.target;
+        var msgId = el.getAttribute("data-message-id");
+        if (msgId) {
+          pendingReadIds.push(msgId);
+          scheduleReadFlush();
         }
+        readObserver.unobserve(el);
+        el.removeAttribute("data-unread");
       }
-    }, { threshold: 0 }); // fires when any part of the message becomes visible
+    }, { threshold: [0, 0.5, 1] });
+
+    // Observe existing unread messages from page load
+    var unreadEls = messagesEl.querySelectorAll("[data-unread]");
+    for (var i = 0; i < unreadEls.length; i++) {
+      readObserver.observe(unreadEls[i]);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -739,24 +749,20 @@ var __aichatChannelId = (function () {
 
     messagesEl.appendChild(div);
 
+    if (sender === "claude" && messageId && readObserver) {
+      div.setAttribute("data-unread", "1");
+      readObserver.observe(div);
+    }
+
     if (atBottom) {
       // Scroll so the top of the new message is at the top of the viewport
       var msgTop = div.getBoundingClientRect().top + window.scrollY;
       var maxScroll = document.body.scrollHeight - window.innerHeight;
       window.scrollTo({ top: Math.min(msgTop - 8, maxScroll), behavior: "instant" });
-
-      // Mark Claude messages as read immediately when auto-scrolled
-      if (sender === "claude" && messageId) {
-        pendingReadIds.push(messageId);
-        scheduleReadFlush();
-      }
     } else if (sender === "claude") {
-      // User has scrolled up — show floating button, observe for read
+      // User has scrolled up — show floating button
       newMsgCount++;
       showNewMsgBtn();
-      if (readObserver && messageId) {
-        div.setAttribute("data-unread", "1");
-        readObserver.observe(div);
       }
     }
   }

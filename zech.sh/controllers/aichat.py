@@ -723,19 +723,12 @@ class AiChatController(Controller):
         has_more = len(messages) > 100
         messages = list(reversed(messages[:100]))
 
-        # Find first unread Claude message before marking all as read
+        # Find first unread Claude message (client marks as read via observer)
         first_unread_id = None
         for msg in messages:
             if msg.sender == "claude" and msg.read_by_user_at is None:
                 first_unread_id = str(msg.id)
                 break
-
-        # Mark unread Claude messages as read by user
-        now = datetime.now(timezone.utc)
-        for msg in messages:
-            if msg.sender == "claude" and msg.read_by_user_at is None:
-                msg.read_by_user_at = now
-        await db_session.commit()
 
         csrf_token = _get_or_create_csrf_token(request)
 
