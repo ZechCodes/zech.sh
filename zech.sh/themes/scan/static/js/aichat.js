@@ -605,6 +605,20 @@ var __aichatChannelId = (function () {
     });
   }
 
+  // Paste images from clipboard
+  if (input) {
+    input.addEventListener("paste", function (e) {
+      var items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          var file = items[i].getAsFile();
+          if (file) uploadFile(file);
+        }
+      }
+    });
+  }
+
   // Drag-and-drop images anywhere on the chat area
   (function () {
     var section = messagesEl.closest(".aichat-section");
