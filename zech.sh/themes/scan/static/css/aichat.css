@@ -1101,12 +1101,12 @@
   border: none;
   color: var(--zech-text-dim);
   cursor: pointer;
-  padding: 0.5rem;
-  margin-left: 0.25rem;
+  padding: 0.25rem;
+  margin-left: 0.15rem;
   vertical-align: middle;
   transition: color 0.2s;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 32px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
