@@ -96,6 +96,8 @@ if ("serviceWorker" in navigator) {
           if (cid !== channelId) totalUnread += counts[cid];
         }
         updateToggleBadge();
+        // Delay enabling tool pulse to skip SSE replay of old events
+        setTimeout(function () { toolPulseReady = true; }, 2000);
       })
       .catch(function (err) {
         console.error("Sidebar error:", err);
@@ -188,6 +190,7 @@ if ("serviceWorker" in navigator) {
 
     // Realtime updates for other channels
     var pulseTimers = {};
+    var toolPulseReady = false;
     document.addEventListener("sk:notification", function (e) {
       var d = e.detail;
       if (!d || !d.channel_id) return;
@@ -203,7 +206,7 @@ if ("serviceWorker" in navigator) {
         updateToggleBadge();
       }
 
-      if (d.type === "aichat:tool") {
+      if (d.type === "aichat:tool" && toolPulseReady) {
         var pulse = document.querySelector('[data-sidebar-pulse="' + d.channel_id + '"]');
         if (!pulse) return;
         if (pulseTimers[d.channel_id]) {
