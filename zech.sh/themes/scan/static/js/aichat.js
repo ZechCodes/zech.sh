@@ -45,6 +45,18 @@ if ("serviceWorker" in navigator) {
 
     var sidebarToggle = document.getElementById("aichatSidebarToggle");
     var sidebarBackdrop = document.getElementById("aichatSidebarBackdrop");
+    var sidebarBadge = document.getElementById("aichatSidebarBadge");
+    var totalUnread = 0;
+
+    function updateToggleBadge() {
+      if (!sidebarBadge) return;
+      if (totalUnread > 0) {
+        sidebarBadge.textContent = totalUnread;
+        sidebarBadge.classList.remove("is-hidden");
+      } else {
+        sidebarBadge.classList.add("is-hidden");
+      }
+    }
 
     function openSidebar() {
       sidebar.classList.add("is-open");
@@ -77,6 +89,13 @@ if ("serviceWorker" in navigator) {
       })
       .then(function (data) {
         renderSidebar(data);
+        // Initialize total unread from all other channels
+        var counts = data.unread_counts || {};
+        totalUnread = 0;
+        for (var cid in counts) {
+          if (cid !== channelId) totalUnread += counts[cid];
+        }
+        updateToggleBadge();
       })
       .catch(function (err) {
         console.error("Sidebar error:", err);
@@ -180,6 +199,8 @@ if ("serviceWorker" in navigator) {
           badge.textContent = count;
           badge.classList.remove("is-hidden");
         }
+        totalUnread++;
+        updateToggleBadge();
       }
 
       if (d.type === "aichat:tool") {

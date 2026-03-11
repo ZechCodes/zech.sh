@@ -198,6 +198,30 @@
   color: var(--zech-text);
 }
 
+.aichat-sidebar-toggle {
+  position: relative;
+}
+
+.aichat-sidebar-toggle-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  min-width: 1em;
+  padding: 0.15em 0.3em;
+  text-align: center;
+  background: var(--zech-primary);
+  color: var(--zech-bg);
+  border-radius: 2px;
+  line-height: 1;
+}
+
+.aichat-sidebar-toggle-badge.is-hidden {
+  display: none;
+}
+
 /* Sidebar backdrop for mobile overlay */
 .aichat-sidebar-backdrop {
   display: none;
