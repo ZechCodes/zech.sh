@@ -1036,7 +1036,7 @@ var __aichatChannelId = (function () {
         restartBtn.disabled = true;
         var deviceId = restartBtn.getAttribute("data-device-id");
 
-        fetch("/" + deviceId + "/workers/" + channelId + "/restart", {
+        fetch("/api/user-devices/" + deviceId + "/workers/" + channelId + "/restart", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
