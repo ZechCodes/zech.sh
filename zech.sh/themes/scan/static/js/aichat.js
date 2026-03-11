@@ -4,17 +4,19 @@ if ("serviceWorker" in navigator) {
 }
 
 // AI.CHAT — Real-time chat client with SSE notifications
-(function () {
-  "use strict";
 
-  var messagesEl = document.getElementById("aichatMessages");
+// ---------------------------------------------------------------------------
+// Global: channel ID from form (empty string when on home page)
+// ---------------------------------------------------------------------------
+var __aichatChannelId = (function () {
   var form = document.getElementById("aichatForm");
-  var input = document.getElementById("aichatInput");
-  if (!messagesEl || !form || !input) return;
+  return form ? (form.getAttribute("data-channel-id") || "") : "";
+})();
 
-  var channelId = form.getAttribute("data-channel-id") || "";
-
-  // Keep SSE alive for reliable real-time; push always sent separately
+// ---------------------------------------------------------------------------
+// SSE: keep alive for reliable real-time
+// ---------------------------------------------------------------------------
+(function () {
   if (window.__skriftNotifications) {
     window.__skriftNotifications.configure({
       persistConnection: true,
@@ -26,204 +28,218 @@ if ("serviceWorker" in navigator) {
   }
 
   // Suppress push notifications when this chat is visible
-  if (window.__skriftPush) {
+  if (window.__skriftPush && __aichatChannelId) {
     window.__skriftPush.onFilter(function (payload) {
-      if (payload.tag && payload.tag.indexOf(channelId) !== -1) {
+      if (payload.tag && payload.tag.indexOf(__aichatChannelId) !== -1) {
         return { cancel: true };
       }
       return payload;
     });
   }
+})();
 
-  // ---------------------------------------------------------------------------
-  // Sidebar: devices & channels with realtime unread
-  // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Sidebar: devices & channels with realtime unread
+// ---------------------------------------------------------------------------
+(function () {
+  var sidebar = document.getElementById("aichatSidebar");
+  if (!sidebar) return;
 
-  (function () {
-    var sidebar = document.getElementById("aichatSidebar");
-    if (!sidebar) return;
+  var channelId = __aichatChannelId;
+  var sidebarToggle = document.getElementById("aichatSidebarToggle");
+  var sidebarBackdrop = document.getElementById("aichatSidebarBackdrop");
+  var sidebarBadge = document.getElementById("aichatSidebarBadge");
+  var totalUnread = 0;
 
-    var sidebarToggle = document.getElementById("aichatSidebarToggle");
-    var sidebarBackdrop = document.getElementById("aichatSidebarBackdrop");
-    var sidebarBadge = document.getElementById("aichatSidebarBadge");
-    var totalUnread = 0;
+  function updateToggleBadge() {
+    if (!sidebarBadge) return;
+    if (totalUnread > 0) {
+      sidebarBadge.textContent = totalUnread;
+      sidebarBadge.classList.remove("is-hidden");
+    } else {
+      sidebarBadge.classList.add("is-hidden");
+    }
+  }
 
-    function updateToggleBadge() {
-      if (!sidebarBadge) return;
-      if (totalUnread > 0) {
-        sidebarBadge.textContent = totalUnread;
-        sidebarBadge.classList.remove("is-hidden");
+  function openSidebar() {
+    sidebar.classList.add("is-open");
+    if (sidebarBackdrop) sidebarBackdrop.classList.add("is-active");
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove("is-open");
+    if (sidebarBackdrop) sidebarBackdrop.classList.remove("is-active");
+  }
+
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener("click", function () {
+      if (sidebar.classList.contains("is-open")) {
+        closeSidebar();
       } else {
-        sidebarBadge.classList.add("is-hidden");
-      }
-    }
-
-    function openSidebar() {
-      sidebar.classList.add("is-open");
-      if (sidebarBackdrop) sidebarBackdrop.classList.add("is-active");
-    }
-
-    function closeSidebar() {
-      sidebar.classList.remove("is-open");
-      if (sidebarBackdrop) sidebarBackdrop.classList.remove("is-active");
-    }
-
-    if (sidebarToggle) {
-      sidebarToggle.addEventListener("click", function () {
-        if (sidebar.classList.contains("is-open")) {
-          closeSidebar();
-        } else {
-          openSidebar();
-        }
-      });
-    }
-
-    if (sidebarBackdrop) {
-      sidebarBackdrop.addEventListener("click", closeSidebar);
-    }
-
-    fetch("/api/sidebar")
-      .then(function (res) {
-        if (!res.ok) throw new Error("Sidebar fetch failed");
-        return res.json();
-      })
-      .then(function (data) {
-        renderSidebar(data);
-        // Initialize total unread from all other channels
-        var counts = data.unread_counts || {};
-        totalUnread = 0;
-        for (var cid in counts) {
-          if (cid !== channelId) totalUnread += counts[cid];
-        }
-        updateToggleBadge();
-        // Delay enabling tool pulse to skip SSE replay of old events
-        setTimeout(function () { toolPulseReady = true; }, 2000);
-      })
-      .catch(function (err) {
-        console.error("Sidebar error:", err);
-      });
-
-    function renderSidebar(data) {
-      sidebar.innerHTML = "";
-
-      // Header with link back to dashboard
-      var header = document.createElement("div");
-      header.className = "aichat-sidebar-header";
-      var headerLink = document.createElement("a");
-      headerLink.href = "/";
-      headerLink.textContent = "AI.CHAT";
-      header.appendChild(headerLink);
-      sidebar.appendChild(header);
-
-      var devicesContainer = document.createElement("div");
-      devicesContainer.className = "aichat-sidebar-devices";
-
-      var devices = data.devices || [];
-      for (var i = 0; i < devices.length; i++) {
-        var device = devices[i];
-        var deviceEl = document.createElement("div");
-        deviceEl.className = "aichat-sidebar-device";
-
-        // Device header
-        var deviceHeader = document.createElement("div");
-        deviceHeader.className = "aichat-sidebar-device-header";
-
-        var dot = document.createElement("span");
-        dot.className = "aichat-sidebar-device-dot" + (device.status === "online" ? " is-online" : "");
-        deviceHeader.appendChild(dot);
-
-        var name = document.createElement("span");
-        name.className = "aichat-sidebar-device-name";
-        name.textContent = device.name;
-        deviceHeader.appendChild(name);
-
-        deviceEl.appendChild(deviceHeader);
-
-        // Channels
-        var channels = (data.device_channels || {})[device.id] || [];
-        if (channels.length) {
-          var channelsEl = document.createElement("div");
-          channelsEl.className = "aichat-sidebar-channels";
-
-          for (var j = 0; j < channels.length; j++) {
-            var ch = channels[j];
-            var link = document.createElement("a");
-            link.className = "aichat-sidebar-channel";
-            link.href = "/c/" + ch.id;
-            if (ch.id === channelId) {
-              link.classList.add("is-active");
-            }
-
-            var chPulse = document.createElement("span");
-            chPulse.className = "aichat-sidebar-channel-pulse";
-            chPulse.setAttribute("data-sidebar-pulse", ch.id);
-            link.appendChild(chPulse);
-
-            var chName = document.createElement("span");
-            chName.className = "aichat-sidebar-channel-name";
-            chName.textContent = ch.name;
-            link.appendChild(chName);
-
-            var unreadCount = (data.unread_counts || {})[ch.id] || 0;
-            // Don't show unread for current channel
-            if (ch.id === channelId) unreadCount = 0;
-            var badge = document.createElement("span");
-            badge.className = "aichat-sidebar-unread" + (unreadCount === 0 ? " is-hidden" : "");
-            badge.setAttribute("data-sidebar-unread", ch.id);
-            badge.textContent = unreadCount;
-            link.appendChild(badge);
-
-            // Close sidebar on channel click (mobile)
-            link.addEventListener("click", closeSidebar);
-
-            channelsEl.appendChild(link);
-          }
-
-          deviceEl.appendChild(channelsEl);
-        }
-
-        devicesContainer.appendChild(deviceEl);
-      }
-
-      sidebar.appendChild(devicesContainer);
-    }
-
-    // Realtime updates for other channels
-    var pulseTimers = {};
-    var toolPulseReady = false;
-    document.addEventListener("sk:notification", function (e) {
-      var d = e.detail;
-      if (!d || !d.channel_id) return;
-
-      if (d.type === "aichat:message" && d.sender === "claude" && d.channel_id !== channelId) {
-        var badge = document.querySelector('[data-sidebar-unread="' + d.channel_id + '"]');
-        if (badge) {
-          var count = parseInt(badge.textContent || "0", 10) + 1;
-          badge.textContent = count;
-          badge.classList.remove("is-hidden");
-        }
-        totalUnread++;
-        updateToggleBadge();
-      }
-
-      if (d.type === "aichat:tool" && toolPulseReady) {
-        var pulse = document.querySelector('[data-sidebar-pulse="' + d.channel_id + '"]');
-        if (!pulse) return;
-        if (pulseTimers[d.channel_id]) {
-          clearTimeout(pulseTimers[d.channel_id]);
-          pulseTimers[d.channel_id] = null;
-        }
-        if (d.status === "active") {
-          pulse.classList.add("is-working");
-        } else {
-          // Delay hiding to avoid flicker between tool calls
-          pulseTimers[d.channel_id] = setTimeout(function () {
-            pulse.classList.remove("is-working");
-          }, 2000);
-        }
+        openSidebar();
       }
     });
-  })();
+  }
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener("click", closeSidebar);
+  }
+
+  fetch("/api/sidebar")
+    .then(function (res) {
+      if (!res.ok) throw new Error("Sidebar fetch failed");
+      return res.json();
+    })
+    .then(function (data) {
+      renderSidebar(data);
+      // Initialize total unread from all other channels
+      var counts = data.unread_counts || {};
+      totalUnread = 0;
+      for (var cid in counts) {
+        if (cid !== channelId) totalUnread += counts[cid];
+      }
+      updateToggleBadge();
+      // Delay enabling tool pulse to skip SSE replay of old events
+      setTimeout(function () { toolPulseReady = true; }, 2000);
+    })
+    .catch(function (err) {
+      console.error("Sidebar error:", err);
+    });
+
+  function renderSidebar(data) {
+    sidebar.innerHTML = "";
+
+    // Header with link back to home
+    var header = document.createElement("div");
+    header.className = "aichat-sidebar-header";
+    var headerLink = document.createElement("a");
+    headerLink.href = "/";
+    headerLink.textContent = "AI.CHAT";
+    header.appendChild(headerLink);
+    sidebar.appendChild(header);
+
+    var devicesContainer = document.createElement("div");
+    devicesContainer.className = "aichat-sidebar-devices";
+
+    var devices = data.devices || [];
+    for (var i = 0; i < devices.length; i++) {
+      var device = devices[i];
+      var deviceEl = document.createElement("div");
+      deviceEl.className = "aichat-sidebar-device";
+
+      // Device header
+      var deviceHeader = document.createElement("div");
+      deviceHeader.className = "aichat-sidebar-device-header";
+
+      var dot = document.createElement("span");
+      dot.className = "aichat-sidebar-device-dot" + (device.status === "online" ? " is-online" : "");
+      deviceHeader.appendChild(dot);
+
+      var name = document.createElement("span");
+      name.className = "aichat-sidebar-device-name";
+      name.textContent = device.name;
+      deviceHeader.appendChild(name);
+
+      deviceEl.appendChild(deviceHeader);
+
+      // Channels
+      var channels = (data.device_channels || {})[device.id] || [];
+      if (channels.length) {
+        var channelsEl = document.createElement("div");
+        channelsEl.className = "aichat-sidebar-channels";
+
+        for (var j = 0; j < channels.length; j++) {
+          var ch = channels[j];
+          var link = document.createElement("a");
+          link.className = "aichat-sidebar-channel";
+          link.href = "/c/" + ch.id;
+          if (ch.id === channelId) {
+            link.classList.add("is-active");
+          }
+
+          var chPulse = document.createElement("span");
+          chPulse.className = "aichat-sidebar-channel-pulse";
+          chPulse.setAttribute("data-sidebar-pulse", ch.id);
+          link.appendChild(chPulse);
+
+          var chName = document.createElement("span");
+          chName.className = "aichat-sidebar-channel-name";
+          chName.textContent = ch.name;
+          link.appendChild(chName);
+
+          var unreadCount = (data.unread_counts || {})[ch.id] || 0;
+          // Don't show unread for current channel
+          if (ch.id === channelId) unreadCount = 0;
+          var badge = document.createElement("span");
+          badge.className = "aichat-sidebar-unread" + (unreadCount === 0 ? " is-hidden" : "");
+          badge.setAttribute("data-sidebar-unread", ch.id);
+          badge.textContent = unreadCount;
+          link.appendChild(badge);
+
+          // Close sidebar on channel click (mobile)
+          link.addEventListener("click", closeSidebar);
+
+          channelsEl.appendChild(link);
+        }
+
+        deviceEl.appendChild(channelsEl);
+      }
+
+      devicesContainer.appendChild(deviceEl);
+    }
+
+    sidebar.appendChild(devicesContainer);
+  }
+
+  // Realtime updates for other channels
+  var pulseTimers = {};
+  var toolPulseReady = false;
+  document.addEventListener("sk:notification", function (e) {
+    var d = e.detail;
+    if (!d || !d.channel_id) return;
+
+    if (d.type === "aichat:message" && d.sender === "claude" && d.channel_id !== channelId) {
+      var badge = document.querySelector('[data-sidebar-unread="' + d.channel_id + '"]');
+      if (badge) {
+        var count = parseInt(badge.textContent || "0", 10) + 1;
+        badge.textContent = count;
+        badge.classList.remove("is-hidden");
+      }
+      totalUnread++;
+      updateToggleBadge();
+    }
+
+    if (d.type === "aichat:tool" && toolPulseReady) {
+      var pulse = document.querySelector('[data-sidebar-pulse="' + d.channel_id + '"]');
+      if (!pulse) return;
+      if (pulseTimers[d.channel_id]) {
+        clearTimeout(pulseTimers[d.channel_id]);
+        pulseTimers[d.channel_id] = null;
+      }
+      if (d.status === "active") {
+        pulse.classList.add("is-working");
+      } else {
+        // Delay hiding to avoid flicker between tool calls
+        pulseTimers[d.channel_id] = setTimeout(function () {
+          pulse.classList.remove("is-working");
+        }, 2000);
+      }
+    }
+  });
+})();
+
+// ---------------------------------------------------------------------------
+// Chat: messages, form, tools (only when a channel is selected)
+// ---------------------------------------------------------------------------
+(function () {
+  "use strict";
+
+  var messagesEl = document.getElementById("aichatMessages");
+  var form = document.getElementById("aichatForm");
+  var input = document.getElementById("aichatInput");
+  if (!messagesEl || !form || !input) return;
+
+  var channelId = __aichatChannelId;
 
   // ---------------------------------------------------------------------------
   // Markdown rendering

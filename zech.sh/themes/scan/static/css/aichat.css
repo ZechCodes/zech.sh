@@ -261,6 +261,39 @@
   .aichat-sidebar.is-open {
     transform: translateX(0);
   }
+
+  /* Home page: sidebar is the main content on mobile */
+  .aichat-sidebar.is-home {
+    position: static;
+    transform: none;
+    width: 100%;
+    height: auto;
+    min-height: calc(100dvh - 4rem);
+    border-right: none;
+  }
+
+  .aichat-home-layout {
+    display: none;
+  }
+}
+
+/* Home page: empty state placeholder (desktop) */
+.aichat-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: calc(100dvh - 8rem);
+}
+
+.aichat-empty-state-text {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--zech-text-dim);
+  opacity: 0.4;
 }
 
 .aichat-section {

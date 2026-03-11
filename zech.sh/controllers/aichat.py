@@ -542,14 +542,14 @@ class AiChatController(Controller):
         if not await _has_permission(user.id, db_session):
             return TemplateResponse("unauthorized.html", context={"user": user})
 
-        sidebar = await _get_sidebar_data(user.id, db_session)
-
         return TemplateResponse(
-            "aichat_dashboard.html",
+            "aichat.html",
             context={
                 "user": user,
-                **sidebar,
-                "hide_sidebar": True,
+                "channel": None,
+                "messages": [],
+                "has_more": False,
+                "csrf_token": _get_or_create_csrf_token(request),
             },
         )
 
