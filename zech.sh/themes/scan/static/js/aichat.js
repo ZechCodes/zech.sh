@@ -813,7 +813,6 @@ var __aichatChannelId = (function () {
       // User has scrolled up — show floating button
       newMsgCount++;
       showNewMsgBtn();
-      }
     }
   }
 
