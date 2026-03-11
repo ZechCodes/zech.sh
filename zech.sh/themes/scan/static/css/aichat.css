@@ -5,6 +5,7 @@
 .scan-main:has(.aichat-layout) {
   align-items: stretch;
   justify-content: flex-start;
+  padding-bottom: 0;
 }
 
 .scan-main:has(.aichat-sidebar) {
