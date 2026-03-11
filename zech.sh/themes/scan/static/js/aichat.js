@@ -969,6 +969,24 @@ var __aichatChannelId = (function () {
     return container;
   }
 
+  function renderOutput(description) {
+    var lines = description.split("\n");
+    var header = lines[0].substring(7); // strip "output:" prefix
+    var container = document.createElement("div");
+    container.className = "aichat-tool-output";
+
+    var headerEl = document.createElement("div");
+    headerEl.className = "aichat-tool-output-header";
+    headerEl.textContent = header;
+    container.appendChild(headerEl);
+
+    var pre = document.createElement("pre");
+    pre.className = "aichat-tool-output-content";
+    pre.textContent = lines.slice(1).join("\n");
+    container.appendChild(pre);
+    return container;
+  }
+
   // "View New Activity" button for tool panel
   var toolNewActivityBtn = null;
   if (toolPanelContent) {
@@ -1006,9 +1024,11 @@ var __aichatChannelId = (function () {
     var item = document.createElement("div");
     item.className = "aichat-tool-panel-item";
 
-    // Render edit diffs with syntax highlighting
+    // Render edit diffs and tool output with formatting
     if (description.indexOf("diff:") === 0) {
       item.appendChild(renderDiff(description));
+    } else if (description.indexOf("output:") === 0) {
+      item.appendChild(renderOutput(description));
     } else {
       item.textContent = description;
     }
@@ -1044,18 +1064,24 @@ var __aichatChannelId = (function () {
         var content = JSON.parse(toolDataEls[i].textContent);
         var lines = content.split("\n");
         // Reassemble multi-line descriptions: diffs start with "diff:" and
-        // continue with +/- lines; everything else is a standalone description.
+        // continue with +/- lines; outputs start with "output:" and continue
+        // until the next known prefix; everything else is standalone.
         var buf = null;
+        var bufType = null; // "diff" or "output"
         for (var j = 0; j < lines.length; j++) {
           var line = lines[j];
           if (!line) continue;
-          if (line.indexOf("diff:") === 0) {
+          var isPrefix = line.indexOf("diff:") === 0 || line.indexOf("output:") === 0;
+          if (isPrefix) {
             if (buf) addToolToPanel(buf);
             buf = line;
-          } else if (buf && (line.charAt(0) === "+" || line.charAt(0) === "-")) {
+            bufType = line.indexOf("diff:") === 0 ? "diff" : "output";
+          } else if (buf && bufType === "diff" && (line.charAt(0) === "+" || line.charAt(0) === "-")) {
+            buf += "\n" + line;
+          } else if (buf && bufType === "output") {
             buf += "\n" + line;
           } else {
-            if (buf) { addToolToPanel(buf); buf = null; }
+            if (buf) { addToolToPanel(buf); buf = null; bufType = null; }
             addToolToPanel(line);
           }
         }

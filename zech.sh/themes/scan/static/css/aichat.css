@@ -995,6 +995,26 @@
   margin-left: -1.2ch;
 }
 
+.aichat-tool-output {
+  margin: 0.15rem 0;
+}
+
+.aichat-tool-output-header {
+  color: var(--zech-primary);
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.aichat-tool-output-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
 /* Tablet: 50/50 split */
 @media (max-width: 900px) {
   .aichat-section {
