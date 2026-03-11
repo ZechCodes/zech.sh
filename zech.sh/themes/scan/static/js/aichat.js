@@ -133,6 +133,11 @@ if ("serviceWorker" in navigator) {
               link.classList.add("is-active");
             }
 
+            var chPulse = document.createElement("span");
+            chPulse.className = "aichat-sidebar-channel-pulse is-hidden";
+            chPulse.setAttribute("data-sidebar-pulse", ch.id);
+            link.appendChild(chPulse);
+
             var chName = document.createElement("span");
             chName.className = "aichat-sidebar-channel-name";
             chName.textContent = ch.name;
@@ -162,17 +167,37 @@ if ("serviceWorker" in navigator) {
       sidebar.appendChild(devicesContainer);
     }
 
-    // Realtime unread updates for other channels
+    // Realtime updates for other channels
+    var pulseTimers = {};
     document.addEventListener("sk:notification", function (e) {
       var d = e.detail;
-      if (!d || d.type !== "aichat:message" || d.sender !== "claude") return;
-      if (!d.channel_id || d.channel_id === channelId) return;
+      if (!d || !d.channel_id) return;
 
-      var badge = document.querySelector('[data-sidebar-unread="' + d.channel_id + '"]');
-      if (!badge) return;
-      var count = parseInt(badge.textContent || "0", 10) + 1;
-      badge.textContent = count;
-      badge.classList.remove("is-hidden");
+      if (d.type === "aichat:message" && d.sender === "claude" && d.channel_id !== channelId) {
+        var badge = document.querySelector('[data-sidebar-unread="' + d.channel_id + '"]');
+        if (badge) {
+          var count = parseInt(badge.textContent || "0", 10) + 1;
+          badge.textContent = count;
+          badge.classList.remove("is-hidden");
+        }
+      }
+
+      if (d.type === "aichat:tool") {
+        var pulse = document.querySelector('[data-sidebar-pulse="' + d.channel_id + '"]');
+        if (!pulse) return;
+        if (pulseTimers[d.channel_id]) {
+          clearTimeout(pulseTimers[d.channel_id]);
+          pulseTimers[d.channel_id] = null;
+        }
+        if (d.status === "active") {
+          pulse.classList.remove("is-hidden");
+        } else {
+          // Delay hiding to avoid flicker between tool calls
+          pulseTimers[d.channel_id] = setTimeout(function () {
+            pulse.classList.add("is-hidden");
+          }, 2000);
+        }
+      }
     });
   })();
 
