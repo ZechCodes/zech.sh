@@ -501,16 +501,6 @@
 }
 
 /* --------------------------------------------------------------------------
-   Drag-and-drop overlay
-   -------------------------------------------------------------------------- */
-
-.aichat-section.aichat-dragover {
-  outline: 2px dashed rgba(255, 85, 0, 0.4);
-  outline-offset: -4px;
-  border-radius: 8px;
-}
-
-/* --------------------------------------------------------------------------
    Input area
    -------------------------------------------------------------------------- */
 
@@ -520,6 +510,33 @@
   background: var(--zech-bg, #0a0a0a);
   z-index: 10;
   margin-top: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Drag-and-drop overlay (on chat form)
+   -------------------------------------------------------------------------- */
+
+.aichat-drop-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 2px dashed rgba(255, 85, 0, 0.4);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  align-items: center;
+  justify-content: center;
+}
+
+.aichat-bottom.aichat-dragover .aichat-drop-overlay {
+  display: flex;
 }
 
 .aichat-form {

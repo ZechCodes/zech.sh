@@ -619,27 +619,42 @@ var __aichatChannelId = (function () {
     });
   }
 
-  // Drag-and-drop images anywhere on the chat area
+  // Drag-and-drop images onto the chat form
   (function () {
-    var section = messagesEl.closest(".aichat-section");
-    if (!section) return;
+    var bottomEl = document.getElementById("aichatBottom");
+    if (!bottomEl) return;
 
-    section.addEventListener("dragover", function (e) {
+    // Create overlay
+    var overlay = document.createElement("div");
+    overlay.className = "aichat-drop-overlay";
+    overlay.textContent = "Upload Images";
+    bottomEl.appendChild(overlay);
+
+    var dragCounter = 0;
+
+    bottomEl.addEventListener("dragenter", function (e) {
       e.preventDefault();
-      e.dataTransfer.dropEffect = "copy";
-      section.classList.add("aichat-dragover");
+      dragCounter++;
+      bottomEl.classList.add("aichat-dragover");
     });
 
-    section.addEventListener("dragleave", function (e) {
-      // Only remove if leaving the section entirely
-      if (!section.contains(e.relatedTarget)) {
-        section.classList.remove("aichat-dragover");
+    bottomEl.addEventListener("dragover", function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    });
+
+    bottomEl.addEventListener("dragleave", function (e) {
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        bottomEl.classList.remove("aichat-dragover");
       }
     });
 
-    section.addEventListener("drop", function (e) {
+    bottomEl.addEventListener("drop", function (e) {
       e.preventDefault();
-      section.classList.remove("aichat-dragover");
+      dragCounter = 0;
+      bottomEl.classList.remove("aichat-dragover");
       var files = e.dataTransfer.files;
       if (!files || !files.length) return;
       for (var i = 0; i < files.length; i++) {
