@@ -841,6 +841,7 @@
   height: 50dvh;
   min-height: 20rem;
   overflow: hidden;
+  isolation: isolate; /* positioning context for activity button */
 }
 
 .aichat-tool-panel-header {
@@ -894,6 +895,36 @@
 
 .aichat-tool-panel-item:last-child {
   border-bottom: none;
+}
+
+.aichat-tool-new-activity-btn {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: opacity 0.2s, background 0.2s;
+  font-family: inherit;
+  z-index: 2;
+}
+
+.aichat-tool-new-activity-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.aichat-tool-new-activity-btn.is-hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .aichat-tool-diff {

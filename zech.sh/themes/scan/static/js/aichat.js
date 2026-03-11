@@ -941,12 +941,39 @@ var __aichatChannelId = (function () {
     return container;
   }
 
+  // "View New Activity" button for tool panel
+  var toolNewActivityBtn = null;
+  if (toolPanelContent) {
+    toolNewActivityBtn = document.createElement("button");
+    toolNewActivityBtn.className = "aichat-tool-new-activity-btn is-hidden";
+    toolNewActivityBtn.type = "button";
+    toolNewActivityBtn.textContent = "View New Activity";
+    toolPanel.appendChild(toolNewActivityBtn);
+
+    toolNewActivityBtn.addEventListener("click", function () {
+      toolPanelContent.scrollTop = toolPanelContent.scrollHeight;
+      toolNewActivityBtn.classList.add("is-hidden");
+    });
+
+    toolPanelContent.addEventListener("scroll", function () {
+      var nearBottom = (toolPanelContent.scrollHeight - toolPanelContent.clientHeight - toolPanelContent.scrollTop) <= 30;
+      if (nearBottom) toolNewActivityBtn.classList.add("is-hidden");
+    }, { passive: true });
+  }
+
+  function isToolPanelNearBottom() {
+    if (!toolPanelContent) return true;
+    return (toolPanelContent.scrollHeight - toolPanelContent.clientHeight - toolPanelContent.scrollTop) <= 30;
+  }
+
   function addToolToPanel(description) {
     if (!toolPanelContent) return;
 
     // Deduplicate rapid updates
     var lastItem = toolPanelContent.lastElementChild;
     if (lastItem && lastItem.textContent === description) return;
+
+    var atBottom = isToolPanelNearBottom();
 
     var item = document.createElement("div");
     item.className = "aichat-tool-panel-item";
@@ -959,7 +986,12 @@ var __aichatChannelId = (function () {
     }
 
     toolPanelContent.appendChild(item);
-    toolPanelContent.scrollTop = toolPanelContent.scrollHeight;
+
+    if (atBottom) {
+      toolPanelContent.scrollTop = toolPanelContent.scrollHeight;
+    } else if (toolNewActivityBtn) {
+      toolNewActivityBtn.classList.remove("is-hidden");
+    }
 
     // Show active state
     if (!toolIsActive) {
