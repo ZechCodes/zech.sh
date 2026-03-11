@@ -12,7 +12,7 @@ dependencies = [
     "pypdf>=5.0.0",
     "pywebpush>=2.3.0",
     "redis>=5.0.0",
-    "skrift[s3]>=0.1.0a80",
+    "skrift[s3]>=0.1.0a81",
 ]
 
 [dependency-groups]
