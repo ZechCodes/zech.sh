@@ -765,6 +765,41 @@
 }
 
 /* --------------------------------------------------------------------------
+   New messages button (floating above input)
+   -------------------------------------------------------------------------- */
+
+.aichat-new-messages-btn {
+  position: fixed;
+  bottom: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  background: rgba(255, 85, 0, 0.9);
+  color: #fff;
+  border: none;
+  border-radius: 1rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: opacity 0.2s, transform 0.2s;
+  font-family: inherit;
+}
+
+.aichat-new-messages-btn:hover {
+  background: rgba(255, 85, 0, 1);
+}
+
+.aichat-new-messages-btn.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(0.5rem);
+}
+
+/* --------------------------------------------------------------------------
    Pulse animation (used by working block)
    -------------------------------------------------------------------------- */
 

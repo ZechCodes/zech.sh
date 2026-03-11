@@ -240,6 +240,7 @@ var __aichatChannelId = (function () {
   if (!messagesEl || !form || !input) return;
 
   var channelId = __aichatChannelId;
+  var csrfToken = form.getAttribute("data-csrf") || "";
 
   // ---------------------------------------------------------------------------
   // Markdown rendering
@@ -266,8 +267,9 @@ var __aichatChannelId = (function () {
     return (document.body.scrollHeight - window.innerHeight - window.scrollY) <= (threshold || 50);
   }
 
-  // Scroll to linked message (from notification click) or bottom
+  // Scroll to linked message, new messages divider, or bottom
   var linkedMsgId = window.location.hash.match(/^#msg-(.+)$/);
+  var newMessagesDivider = document.getElementById("aichatNewMessagesDivider");
   if (linkedMsgId) {
     var linkedEl = messagesEl.querySelector('[data-message-id="' + linkedMsgId[1] + '"]');
     if (linkedEl) {
@@ -279,8 +281,106 @@ var __aichatChannelId = (function () {
     } else {
       window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
     }
+  } else if (newMessagesDivider) {
+    // Scroll so the new messages divider is near the top of the viewport
+    var dividerTop = newMessagesDivider.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: dividerTop - 60, behavior: "instant" });
   } else {
     window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
+  }
+
+  // ---------------------------------------------------------------------------
+  // New messages tracking & scroll management
+  // ---------------------------------------------------------------------------
+
+  var newMsgCount = 0;
+  var newMsgBtn = null;
+  var newMsgDividerInserted = false;
+  var pendingReadIds = [];
+  var readFlushTimer = null;
+
+  // Create floating "New Messages" button
+  (function () {
+    newMsgBtn = document.createElement("button");
+    newMsgBtn.className = "aichat-new-messages-btn is-hidden";
+    newMsgBtn.type = "button";
+    document.body.appendChild(newMsgBtn);
+
+    newMsgBtn.addEventListener("click", function () {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      hideNewMsgBtn();
+    });
+
+    window.addEventListener("scroll", function () {
+      if (isNearBottom(80)) hideNewMsgBtn();
+    }, { passive: true });
+  })();
+
+  function showNewMsgBtn() {
+    if (!newMsgBtn) return;
+    newMsgBtn.textContent = newMsgCount + " New Message" + (newMsgCount !== 1 ? "s" : "");
+    newMsgBtn.classList.remove("is-hidden");
+  }
+
+  function hideNewMsgBtn() {
+    if (!newMsgBtn) return;
+    newMsgBtn.classList.add("is-hidden");
+    newMsgCount = 0;
+    // Remove the real-time "New Messages" divider when user scrolls to bottom
+    if (newMsgDividerInserted) {
+      var rtDivider = document.getElementById("aichatNewMessagesDividerRT");
+      if (rtDivider) rtDivider.remove();
+      newMsgDividerInserted = false;
+    }
+  }
+
+  // IntersectionObserver to mark Claude messages as read when visible
+  function flushReadIds() {
+    if (!pendingReadIds.length) return;
+    var ids = pendingReadIds.slice();
+    pendingReadIds = [];
+    fetch("/c/" + channelId + "/mark-read", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify({ message_ids: ids }),
+    }).catch(function () { /* best effort */ });
+
+    // Decrement sidebar unread for this channel
+    var badge = document.querySelector('[data-sidebar-unread="' + channelId + '"]');
+    if (badge) {
+      var count = Math.max(0, parseInt(badge.textContent || "0", 10) - ids.length);
+      badge.textContent = count;
+      if (count === 0) badge.classList.add("is-hidden");
+    }
+  }
+
+  function scheduleReadFlush() {
+    if (readFlushTimer) return;
+    readFlushTimer = setTimeout(function () {
+      readFlushTimer = null;
+      flushReadIds();
+    }, 500);
+  }
+
+  var readObserver = null;
+  if (channelId && window.IntersectionObserver) {
+    readObserver = new IntersectionObserver(function (entries) {
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].isIntersecting) {
+          var el = entries[i].target;
+          var msgId = el.getAttribute("data-message-id");
+          if (msgId) {
+            pendingReadIds.push(msgId);
+            scheduleReadFlush();
+          }
+          readObserver.unobserve(el);
+          el.removeAttribute("data-unread");
+        }
+      }
+    }, { threshold: 0 }); // fires when any part of the message becomes visible
   }
 
   // ---------------------------------------------------------------------------
@@ -598,6 +698,8 @@ var __aichatChannelId = (function () {
   // ---------------------------------------------------------------------------
 
   function appendMessage(sender, content, messageId, attachments) {
+    var atBottom = isNearBottom();
+
     var div = document.createElement("div");
     div.className = "aichat-msg aichat-msg-" + sender;
     if (messageId) div.setAttribute("data-message-id", messageId);
@@ -622,9 +724,40 @@ var __aichatChannelId = (function () {
       div.appendChild(readEl);
     }
 
+    // Insert "New Messages" divider before first unseen message when scrolled up
+    if (!atBottom && sender === "claude" && !newMsgDividerInserted) {
+      var rtDivider = document.createElement("div");
+      rtDivider.className = "aichat-event-divider aichat-new-messages-divider";
+      rtDivider.id = "aichatNewMessagesDividerRT";
+      var rtLabel = document.createElement("span");
+      rtLabel.className = "aichat-event-label";
+      rtLabel.textContent = "New Messages";
+      rtDivider.appendChild(rtLabel);
+      messagesEl.appendChild(rtDivider);
+      newMsgDividerInserted = true;
+    }
+
     messagesEl.appendChild(div);
-    if (isNearBottom()) {
-      window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
+
+    if (atBottom) {
+      // Scroll so the top of the new message is at the top of the viewport
+      var msgTop = div.getBoundingClientRect().top + window.scrollY;
+      var maxScroll = document.body.scrollHeight - window.innerHeight;
+      window.scrollTo({ top: Math.min(msgTop - 8, maxScroll), behavior: "instant" });
+
+      // Mark Claude messages as read immediately when auto-scrolled
+      if (sender === "claude" && messageId) {
+        pendingReadIds.push(messageId);
+        scheduleReadFlush();
+      }
+    } else if (sender === "claude") {
+      // User has scrolled up — show floating button, observe for read
+      newMsgCount++;
+      showNewMsgBtn();
+      if (readObserver && messageId) {
+        div.setAttribute("data-unread", "1");
+        readObserver.observe(div);
+      }
     }
   }
 

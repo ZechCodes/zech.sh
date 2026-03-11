@@ -75,6 +75,11 @@
                 </span>
             </div>
             {% else %}
+            {% if first_unread_id and msg.id | string == first_unread_id %}
+            <div class="aichat-event-divider aichat-new-messages-divider" id="aichatNewMessagesDivider">
+                <span class="aichat-event-label">New Messages</span>
+            </div>
+            {% endif %}
             <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}">
                 <div class="aichat-msg-sender">{{ msg.sender | upper }}</div>
                 {% if msg.attachments %}

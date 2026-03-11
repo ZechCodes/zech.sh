@@ -723,6 +723,13 @@ class AiChatController(Controller):
         has_more = len(messages) > 100
         messages = list(reversed(messages[:100]))
 
+        # Find first unread Claude message before marking all as read
+        first_unread_id = None
+        for msg in messages:
+            if msg.sender == "claude" and msg.read_by_user_at is None:
+                first_unread_id = str(msg.id)
+                break
+
         # Mark unread Claude messages as read by user
         now = datetime.now(timezone.utc)
         for msg in messages:
@@ -741,6 +748,7 @@ class AiChatController(Controller):
                 "has_more": has_more,
                 "hide_sidebar": True,
                 "csrf_token": csrf_token,
+                "first_unread_id": first_unread_id,
             },
         )
 
@@ -860,6 +868,42 @@ class AiChatController(Controller):
 
         await db_session.commit()
         return Response(content={"ok": True, "id": str(msg.id)}, status_code=201)
+
+    @post("/c/{channel_id:str}/mark-read")
+    async def mark_read_by_user(
+        self, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Mark Claude messages as read by the user (for real-time messages)."""
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+
+        if not await _has_permission(user.id, db_session):
+            return Response(content={"error": "forbidden"}, status_code=403)
+
+        submitted_token = request.headers.get("x-csrf-token", "")
+        stored_token = request.session.get(CSRF_SESSION_KEY, "")
+        if not stored_token or not hmac_mod.compare_digest(submitted_token, stored_token):
+            return Response(content={"error": "CSRF validation failed"}, status_code=403)
+
+        body = await request.json()
+        message_ids = body.get("message_ids", [])
+        if not message_ids:
+            return Response(content={"error": "message_ids required"}, status_code=400)
+
+        now = datetime.now(timezone.utc)
+        result = await db_session.execute(
+            select(AiChatMessage)
+            .where(AiChatMessage.id.in_([UUID(mid) for mid in message_ids]))
+            .where(AiChatMessage.channel_id == UUID(channel_id))
+            .where(AiChatMessage.sender == "claude")
+            .where(AiChatMessage.read_by_user_at.is_(None))
+        )
+        for msg in result.scalars().all():
+            msg.read_by_user_at = now
+
+        await db_session.commit()
+        return Response(content={"ok": True})
 
     @post("/c/{channel_id:str}/upload")
     async def upload_attachment(
