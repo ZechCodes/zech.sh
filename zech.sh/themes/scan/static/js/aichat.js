@@ -742,7 +742,11 @@ var __aichatChannelId = (function () {
       } else {
         lineEl.className = "aichat-tool-diff-ctx";
       }
-      lineEl.textContent = line;
+      if (line.charAt(0) === "-" || line.charAt(0) === "+") {
+        lineEl.textContent = line.substring(1);
+      } else {
+        lineEl.textContent = line;
+      }
       container.appendChild(lineEl);
     }
     return container;
