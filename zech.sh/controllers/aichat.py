@@ -1868,7 +1868,8 @@ class AiChatDeviceWebSocketController(Controller):
                     event_data = n.to_dict()
                     await socket.send_text(json.dumps({
                         "type": "event",
-                        **event_data,
+                        "event_type": event_data.get("type"),
+                        **{k: v for k, v in event_data.items() if k != "type"},
                     }))
             except Exception:
                 pass  # WebSocket closed or cancelled
