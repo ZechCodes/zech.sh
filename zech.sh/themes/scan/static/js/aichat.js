@@ -515,6 +515,33 @@ if ("serviceWorker" in navigator) {
     }
   }
 
+  function renderDiff(description) {
+    var lines = description.split("\n");
+    var header = lines[0].substring(5); // strip "diff:" prefix
+    var container = document.createElement("div");
+    container.className = "aichat-tool-diff";
+
+    var headerEl = document.createElement("div");
+    headerEl.className = "aichat-tool-diff-header";
+    headerEl.textContent = header;
+    container.appendChild(headerEl);
+
+    for (var i = 1; i < lines.length; i++) {
+      var line = lines[i];
+      var lineEl = document.createElement("div");
+      if (line.charAt(0) === "-") {
+        lineEl.className = "aichat-tool-diff-del";
+      } else if (line.charAt(0) === "+") {
+        lineEl.className = "aichat-tool-diff-add";
+      } else {
+        lineEl.className = "aichat-tool-diff-ctx";
+      }
+      lineEl.textContent = line;
+      container.appendChild(lineEl);
+    }
+    return container;
+  }
+
   function addToolToPanel(description) {
     if (!toolPanelContent) return;
 
@@ -524,7 +551,14 @@ if ("serviceWorker" in navigator) {
 
     var item = document.createElement("div");
     item.className = "aichat-tool-panel-item";
-    item.textContent = description;
+
+    // Render edit diffs with syntax highlighting
+    if (description.indexOf("diff:") === 0) {
+      item.appendChild(renderDiff(description));
+    } else {
+      item.textContent = description;
+    }
+
     toolPanelContent.appendChild(item);
     toolPanelContent.scrollTop = toolPanelContent.scrollHeight;
 

@@ -569,6 +569,34 @@
   border-bottom: none;
 }
 
+.aichat-tool-diff {
+  margin: 0.15rem 0;
+}
+
+.aichat-tool-diff-header {
+  color: var(--zech-primary);
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.aichat-tool-diff-del {
+  color: #ff6b6b;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.aichat-tool-diff-add {
+  color: #69db7c;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.aichat-tool-diff-ctx {
+  color: var(--zech-text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* Tablet: 50/50 split */
 @media (max-width: 900px) {
   .aichat-section {
