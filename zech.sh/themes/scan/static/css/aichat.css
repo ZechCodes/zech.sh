@@ -116,6 +116,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.4rem 0.5rem;
+  padding-left: calc(0.5rem - 2px);
   text-decoration: none;
   color: var(--zech-text);
   border-radius: 2px;
@@ -136,16 +137,14 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--zech-primary);
-  box-shadow: 0 0 4px rgba(255, 85, 0, 0.4);
+  background: transparent;
   flex-shrink: 0;
-  animation: aichat-pulse 1.5s ease-in-out infinite;
 }
 
-.aichat-sidebar-channel-pulse.is-hidden {
-  background: transparent;
-  box-shadow: none;
-  animation: none;
+.aichat-sidebar-channel-pulse.is-working {
+  background: var(--zech-primary);
+  box-shadow: 0 0 4px rgba(255, 85, 0, 0.4);
+  animation: aichat-pulse 1.5s ease-in-out infinite;
 }
 
 .aichat-sidebar-channel-name {

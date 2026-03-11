@@ -134,7 +134,7 @@ if ("serviceWorker" in navigator) {
             }
 
             var chPulse = document.createElement("span");
-            chPulse.className = "aichat-sidebar-channel-pulse is-hidden";
+            chPulse.className = "aichat-sidebar-channel-pulse";
             chPulse.setAttribute("data-sidebar-pulse", ch.id);
             link.appendChild(chPulse);
 
@@ -190,11 +190,11 @@ if ("serviceWorker" in navigator) {
           pulseTimers[d.channel_id] = null;
         }
         if (d.status === "active") {
-          pulse.classList.remove("is-hidden");
+          pulse.classList.add("is-working");
         } else {
           // Delay hiding to avoid flicker between tool calls
           pulseTimers[d.channel_id] = setTimeout(function () {
-            pulse.classList.add("is-hidden");
+            pulse.classList.remove("is-working");
           }, 2000);
         }
       }
