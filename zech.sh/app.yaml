@@ -40,6 +40,7 @@ sites:
       - controllers.aichat:AiChatDeviceRegistrationController
       - controllers.aichat:AiChatDeviceApprovalController
       - controllers.aichat:AiChatDeviceApiController
+      - controllers.aichat:AiChatDeviceWebSocketController
       - controllers.aichat:AiChatDeviceManagementController
       - skrift.controllers.notifications:NotificationsController
       - skrift.controllers.push:PushController
