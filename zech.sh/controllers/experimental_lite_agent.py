@@ -77,6 +77,7 @@ class ExpLiteDeps:
     read_calls: int = 0
     max_read_calls: int = 3
     search_calls: int = 0
+    max_search_calls: int = 5
     emitted_researching: bool = False
     current_topic: str = ""  # Active research group topic for frontend
 
@@ -86,8 +87,15 @@ class ExpLiteDeps:
 # ---------------------------------------------------------------------------
 
 _RESEARCHER_SYSTEM_PROMPT = """\
-You are a research curator. Your job is to find 10 high-quality, readable \
+You are a research curator. Your job is to find high-quality, readable \
 web sources for a user's query and produce a detailed writing plan.
+
+## First search: fill knowledge gaps
+
+Your training data has a cutoff. **Always start** with a search designed \
+to surface recent news, updates, or changes related to the query since \
+your knowledge cutoff. This ensures the answer reflects the current state \
+of the world, not stale information.
 
 ## Source quality hierarchy (strictly prefer higher tiers)
 
@@ -105,15 +113,15 @@ even if the lower-tier result appears more directly relevant at first glance.
 
 ## Workflow
 
-1. **Search** — use `brave_search` to find candidates. Run multiple \
-searches with varied queries to cover different angles.
+1. **Search** — use `brave_search` to find candidates. You have a \
+maximum of 5 searches, so make each query count. Start with a \
+recency-focused search, then cover key angles with the remaining queries.
 2. **Verify** — use `verify_readable` on promising URLs to confirm they \
-are accessible. This is cheap — verify liberally. You need 10 readable \
-sources, so verify more than 10 to account for failures.
+are accessible. This is cheap — verify liberally.
 3. **Read** (optional, max 3) — use `read` to see the full content of a \
 source when you need deeper understanding to judge its quality or to plan \
 the writing structure. Use this sparingly.
-4. **Return** — output a `ResearchPlan` with exactly 10 sources and a \
+4. **Return** — output a `ResearchPlan` with your verified sources and a \
 detailed writing plan.
 
 ## Writing plan guidelines
@@ -129,9 +137,7 @@ what to close with
 
 ## Important
 
-- You must return exactly 10 sources. If you can't find 10 quality \
-sources, fill remaining slots with the best available, noting lower \
-confidence in the writing plan.
+- Aim for 5–10 verified sources. Quality over quantity.
 - Every source must have been verified as readable.
 - Do not fabricate URLs or titles."""
 
@@ -181,7 +187,9 @@ researcher_agent = Agent(
 
 @researcher_agent.tool
 async def brave_search(ctx: RunContext[ExpLiteDeps], query: str) -> str:
-    """Search the web for a query. Returns up to 10 results with URL, title, and description.
+    """Search the web for a query. Returns up to 5 results with URL, title, and description.
+
+    You have a maximum of 5 searches total — make each one count.
 
     Args:
         query: A focused search query.
@@ -190,6 +198,9 @@ async def brave_search(ctx: RunContext[ExpLiteDeps], query: str) -> str:
 
     if deps.budget.exhausted:
         return "Cost budget exhausted. Work with the sources you have."
+
+    if deps.search_calls >= deps.max_search_calls:
+        return "Search limit reached (5). Work with the sources you have."
 
     deps.search_calls += 1
 
@@ -211,7 +222,7 @@ async def brave_search(ctx: RunContext[ExpLiteDeps], query: str) -> str:
     ))
 
     try:
-        results = await _brave_search(query, deps.brave_api_key, count=10)
+        results = await _brave_search(query, deps.brave_api_key, count=5)
         await deps.dispatch(DetailEvent(
             type="search_done",
             payload={"topic": topic, "query": query, "num_results": len(results)},
