@@ -44,7 +44,7 @@ from controllers.deep_research_agent import (
     _brave_search,
     _jina_fetch,
 )
-from controllers.llm import calc_usage_cost, gemini_flash
+from controllers.llm import calc_usage_cost, gemini_flash, gemini_flash_lite
 from controllers.research_agent import _compact_history
 from controllers.robots import check_url_allowed
 
@@ -61,8 +61,18 @@ class SourceEntry(BaseModel):
     title: str
 
 
+class SupportingSource(BaseModel):
+    url: str
+    title: str
+    summarization_plan: str
+    """What information to extract and preserve from this source."""
+
+
 class ResearchPlan(BaseModel):
-    sources: list[SourceEntry]
+    primary_sources: list[SourceEntry]
+    """3 key sources that will be read in full by the writer."""
+    supporting_sources: list[SupportingSource]
+    """2–7 additional sources that will be summarized before the writer sees them."""
     writing_plan: str
 
 
@@ -128,8 +138,23 @@ are accessible. This is cheap — verify liberally.
 3. **Read** (optional, max 3) — use `read` to see the full content of a \
 source when you need deeper understanding to judge its quality or to plan \
 the writing structure. Use this sparingly.
-4. **Return** — output a `ResearchPlan` with your verified sources and a \
-detailed writing plan.
+4. **Return** — output a `ResearchPlan` with your sources split into \
+primary and supporting, plus a detailed writing plan.
+
+## Source selection
+
+You must select two tiers of sources:
+
+- **Primary sources (exactly 3)** — the most important, highest-quality \
+sources for answering the query. These will be read in full by the writer.
+- **Supporting sources (2–7)** — additional sources that provide context, \
+corroboration, or supplementary detail. These will be summarized before \
+the writer sees them.
+
+For each **supporting source**, write a `summarization_plan` — a clear \
+instruction for a summarizer that tells it exactly what information to \
+extract and preserve from the source. Be specific: which claims, data \
+points, quotes, or context are relevant to the writing plan.
 
 ## Writing plan guidelines
 
@@ -144,13 +169,31 @@ what to close with
 
 ## Important
 
-- Aim for 5–10 verified sources. Quality over quantity.
+- Exactly 3 primary sources. 2–7 supporting sources.
 - Every source must have been verified as readable.
 - Do not fabricate URLs or titles."""
 
+_SUMMARIZER_SYSTEM_PROMPT = """\
+You are a source summarizer for a research pipeline. You receive a web \
+page and a summarization plan that tells you what to extract.
+
+## Rules
+
+- Follow the summarization plan closely — extract exactly the information \
+it asks for.
+- Pay very close attention to context around every fact you include. \
+Preserve the original meaning, intent, and nuance.
+- If a statement is anecdotal, opinion, or unverified, label it as such.
+- Include relevant quotes when they add authority or precision.
+- Note any caveats, conditions, or qualifications that surround key claims.
+- Preserve dates, version numbers, and specifics — do not generalize.
+- Keep the summary focused and structured. Use bullet points or short \
+paragraphs."""
+
 _WRITER_SYSTEM_PROMPT = """\
-You are a research writer. You receive a writing plan and numbered source \
-documents. Your job is to write a clear, well-cited answer.
+You are a research writer. You receive a writing plan, full source \
+documents (primary), and expert summaries (supporting). Your job is to \
+write a clear, well-cited answer.
 
 ## How to write
 
@@ -370,6 +413,13 @@ async def read(ctx: RunContext[ExpLiteDeps], url: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Summarizer agent (no tools — runs in parallel via Flash Lite)
+# ---------------------------------------------------------------------------
+
+summarizer_agent = Agent(output_type=str)
+
+
+# ---------------------------------------------------------------------------
 # Writer agent (no tools)
 # ---------------------------------------------------------------------------
 
@@ -478,11 +528,14 @@ class ExperimentalLitePipeline:
             researcher_usage = researcher_result.usage()
 
             # Collapse the research tool group
+            all_sources = list(plan.primary_sources) + [
+                SourceEntry(url=s.url, title=s.title) for s in plan.supporting_sources
+            ]
             topic = deps.current_topic
             if topic:
                 await self.dispatch(DetailEvent(
                     type="result",
-                    payload={"topic": topic, "num_sources": len(plan.sources)},
+                    payload={"topic": topic, "num_sources": len(all_sources)},
                 ))
 
             # Track researcher costs
@@ -494,12 +547,12 @@ class ExperimentalLitePipeline:
             self.researcher_counter.input_tokens = researcher_usage.request_tokens or 0
             self.researcher_counter.output_tokens = researcher_usage.response_tokens or 0
 
-            # === Phase 2: Fetch remaining sources ===
+            # === Phase 2: Fetch sources + summarize supporting ===
             await self.dispatch(StageEvent(stage="researching"))
 
             # Batch-fetch any sources not already in cache
             uncached = [
-                s for s in plan.sources if s.url not in self.jina_cache
+                s for s in all_sources if s.url not in self.jina_cache
             ]
             if uncached:
                 fetch_results = await asyncio.gather(
@@ -512,15 +565,55 @@ class ExperimentalLitePipeline:
                         continue
                     self.jina_cache[source.url] = content
 
-            # Build writer input: plan + numbered sources
+            # Summarize supporting sources in parallel via Flash Lite
+            summarizer_model = gemini_flash_lite()
+            summaries: dict[str, str] = {}
+
+            async def _summarize(source: SupportingSource) -> tuple[str, str]:
+                content = self.jina_cache.get(source.url)
+                if not content:
+                    return source.url, "(content unavailable)"
+                truncated = content[:15_000]
+                prompt = (
+                    f"# Summarization Plan\n{source.summarization_plan}\n\n"
+                    f"# Source: {source.title}\n{source.url}\n\n"
+                    f"# Content\n{truncated}"
+                )
+                result = await summarizer_agent.run(
+                    prompt,
+                    model=summarizer_model,
+                    instructions=_SUMMARIZER_SYSTEM_PROMPT,
+                )
+                return source.url, result.output
+
+            if plan.supporting_sources:
+                summary_results = await asyncio.gather(
+                    *[_summarize(s) for s in plan.supporting_sources],
+                    return_exceptions=True,
+                )
+                for item in summary_results:
+                    if isinstance(item, BaseException):
+                        logger.warning("Summarization failed: %s", item)
+                        continue
+                    url, summary = item
+                    summaries[url] = summary
+
+            # Build writer input: plan + primary (full) + supporting (summarized)
             source_parts = []
-            for i, source in enumerate(plan.sources, 1):
+            idx = 1
+            for source in plan.primary_sources:
                 content = self.jina_cache.get(source.url, "(content unavailable)")
-                # Truncate each source to keep writer context manageable
                 truncated = content[:15_000] if content != "(content unavailable)" else content
                 source_parts.append(
-                    f"[{i}] {source.title} ({source.url})\n{truncated}"
+                    f"[{idx}] {source.title} ({source.url}) [FULL SOURCE]\n{truncated}"
                 )
+                idx += 1
+            for source in plan.supporting_sources:
+                summary = summaries.get(source.url, "(summary unavailable)")
+                source_parts.append(
+                    f"[{idx}] {source.title} ({source.url}) [SUMMARY]\n{summary}"
+                )
+                idx += 1
 
             writer_input = (
                 f"# User Query\n{self.query}\n\n"
