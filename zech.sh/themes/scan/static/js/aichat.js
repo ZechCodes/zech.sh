@@ -243,6 +243,121 @@ var __aichatChannelId = (function () {
   var csrfToken = form.getAttribute("data-csrf") || "";
 
   // ---------------------------------------------------------------------------
+  // E2E Encryption: decrypt incoming messages, encrypt outgoing
+  // ---------------------------------------------------------------------------
+
+  var e2e = (function () {
+    var cryptoConfig = window.__aichatCrypto || {};
+    var naclReady = typeof nacl !== "undefined" && typeof nacl.util !== "undefined";
+    var channelKey = null; // Uint8Array once decrypted
+
+    function getStoredKey() {
+      var b64 = sessionStorage.getItem("aichat:key:" + channelId);
+      if (b64 && naclReady) {
+        try { return nacl.util.decodeBase64(b64); } catch (e) {}
+      }
+      return null;
+    }
+
+    function storeKey(keyBytes) {
+      if (naclReady) {
+        sessionStorage.setItem("aichat:key:" + channelId, nacl.util.encodeBase64(keyBytes));
+      }
+    }
+
+    // Try to load channel key from sessionStorage
+    channelKey = getStoredKey();
+
+    // If we have an encrypted channel key from the server + a device master key, decrypt it
+    if (!channelKey && cryptoConfig.encryptedChannelKey && cryptoConfig.keyNonce && naclReady) {
+      var masterKeyB64 = sessionStorage.getItem("aichat:device_master_key");
+      if (masterKeyB64) {
+        try {
+          var masterKey = nacl.util.decodeBase64(masterKeyB64);
+          var ct = nacl.util.decodeBase64(cryptoConfig.encryptedChannelKey);
+          var nonce = nacl.util.decodeBase64(cryptoConfig.keyNonce);
+          var decrypted = nacl.secretbox.open(ct, nonce, masterKey);
+          if (decrypted) {
+            // decrypted is the channel_key_b64 as UTF-8 bytes
+            var channelKeyB64 = nacl.util.encodeUTF8(decrypted);
+            channelKey = nacl.util.decodeBase64(channelKeyB64);
+            storeKey(channelKey);
+          }
+        } catch (e) {
+          console.warn("E2E: failed to decrypt channel key", e);
+        }
+      }
+    }
+
+    function decrypt(ciphertextB64, nonceB64) {
+      if (!channelKey || !naclReady) return null;
+      try {
+        var ct = nacl.util.decodeBase64(ciphertextB64);
+        var nonce = nacl.util.decodeBase64(nonceB64);
+        var plain = nacl.secretbox.open(ct, nonce, channelKey);
+        if (!plain) return null;
+        return nacl.util.encodeUTF8(plain);
+      } catch (e) {
+        console.warn("E2E: decrypt failed", e);
+        return null;
+      }
+    }
+
+    function encrypt(plaintext) {
+      if (!channelKey || !naclReady) return null;
+      try {
+        var msg = nacl.util.decodeUTF8(plaintext);
+        var nonce = nacl.randomBytes(24);
+        var ct = nacl.secretbox(msg, nonce, channelKey);
+        return {
+          encrypted_payload: nacl.util.encodeBase64(ct),
+          nonce: nacl.util.encodeBase64(nonce),
+        };
+      } catch (e) {
+        console.warn("E2E: encrypt failed", e);
+        return null;
+      }
+    }
+
+    function decryptEvent(d) {
+      // Decrypt aichat:message events
+      if (d.encrypted_payload && d.nonce) {
+        var plain = decrypt(d.encrypted_payload, d.nonce);
+        if (plain) {
+          try {
+            var payload = JSON.parse(plain);
+            d.content = payload.content || "";
+            d.attachments = payload.attachments || [];
+          } catch (e) {
+            d.content = plain;
+          }
+        } else {
+          d.content = "[encrypted — unable to decrypt]";
+        }
+      }
+      // Decrypt tool descriptions
+      if (d.encrypted_description && d.description_nonce) {
+        var desc = decrypt(d.encrypted_description, d.description_nonce);
+        d.description = desc || "[encrypted]";
+      }
+      return d;
+    }
+
+    function setChannelKey(keyBytes) {
+      channelKey = keyBytes;
+      storeKey(keyBytes);
+    }
+
+    return {
+      enabled: !!channelKey,
+      decrypt: decrypt,
+      encrypt: encrypt,
+      decryptEvent: decryptEvent,
+      setChannelKey: setChannelKey,
+    };
+  })();
+
+  // ---------------------------------------------------------------------------
   // Markdown rendering
   // ---------------------------------------------------------------------------
 
@@ -741,6 +856,18 @@ var __aichatChannelId = (function () {
       payload.attachments = pendingAttachments;
     }
 
+    // E2E: encrypt outgoing message
+    if (e2e.enabled) {
+      var plainPayload = JSON.stringify({ content: content, attachments: payload.attachments || [] });
+      var encrypted = e2e.encrypt(plainPayload);
+      if (encrypted) {
+        payload = {
+          encrypted_payload: encrypted.encrypted_payload,
+          nonce: encrypted.nonce,
+        };
+      }
+    }
+
     // Clear previews and collapse expanded tool panel
     pendingAttachments = [];
     previewArea.innerHTML = "";
@@ -1227,6 +1354,9 @@ var __aichatChannelId = (function () {
     // Filter by channel if set
     if (channelId && d.channel_id && d.channel_id !== channelId) return;
 
+    // E2E: decrypt any encrypted fields in the event
+    d = e2e.decryptEvent(d);
+
     if (d.type === "aichat:message") {
       if (d.sender === "event") {
         appendEventDivider(d.content, d.message_id);
@@ -1248,7 +1378,51 @@ var __aichatChannelId = (function () {
         finalizeToolPanel();
       }
     } else if (d.type === "aichat:interaction") {
+      // Decrypt interaction content if needed
+      if (d.encrypted_payload && d.nonce) {
+        var plain = e2e.decrypt(d.encrypted_payload, d.nonce);
+        if (plain) {
+          try {
+            var payload = JSON.parse(plain);
+            d.content = payload.content || d.content;
+            d.options = payload.options || d.options;
+          } catch (ex) { d.content = plain; }
+        }
+      }
       showInteraction(d);
+    } else if (d.type === "aichat:history-response") {
+      // Handle history response from device proxy
+      var reqId = d.request_id;
+      if (reqId && window.__aichatPendingHistory && window.__aichatPendingHistory[reqId]) {
+        window.__aichatPendingHistory[reqId](d);
+        delete window.__aichatPendingHistory[reqId];
+      }
+    } else if (d.type === "aichat:rekey-response") {
+      // Handle re-key response — decrypt and store channel keys
+      var keys = d.encrypted_keys || {};
+      var masterKeyB64 = sessionStorage.getItem("aichat:device_master_key");
+      if (masterKeyB64 && typeof nacl !== "undefined") {
+        var masterKey = nacl.util.decodeBase64(masterKeyB64);
+        Object.keys(keys).forEach(function (chId) {
+          var entry = keys[chId];
+          try {
+            var ct = nacl.util.decodeBase64(entry.encrypted_key);
+            var nonce = nacl.util.decodeBase64(entry.nonce);
+            var decrypted = nacl.secretbox.open(ct, nonce, masterKey);
+            if (decrypted) {
+              var channelKeyB64 = nacl.util.encodeUTF8(decrypted);
+              var channelKeyBytes = nacl.util.decodeBase64(channelKeyB64);
+              sessionStorage.setItem("aichat:key:" + chId, nacl.util.encodeBase64(channelKeyBytes));
+              // If this is the current channel, update the e2e module
+              if (chId === channelId) {
+                e2e.setChannelKey(channelKeyBytes);
+              }
+            }
+          } catch (ex) {
+            console.warn("Failed to decrypt channel key for", chId, ex);
+          }
+        });
+      }
     }
   });
 

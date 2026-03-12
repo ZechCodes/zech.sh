@@ -171,5 +171,16 @@
 
 {% block scripts %}
 <script src="{{ static_url('skrift/js/push.js') }}"></script>
+<script src="{{ theme_url('js/nacl-fast.min.js') }}"></script>
+<script src="{{ theme_url('js/nacl-util.min.js') }}"></script>
+{% if channel %}
+<script nonce="{{ csp_nonce() }}">
+    window.__aichatCrypto = {
+        encryptedChannelKey: {{ encrypted_channel_key | tojson }},
+        keyNonce: {{ key_nonce | tojson }},
+        channelId: {{ channel.id | string | tojson }},
+    };
+</script>
+{% endif %}
 <script src="{{ theme_url('js/aichat.js') }}"></script>
 {% endblock %}
