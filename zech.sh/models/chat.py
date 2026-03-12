@@ -19,7 +19,7 @@ class ChatSession(Base):
 
     user_id: Mapped[UUID] = mapped_column(GUID(length=16), nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
-    mode: Mapped[str] = mapped_column(String(20), default="research", server_default="research", nullable=False)
+    mode: Mapped[str] = mapped_column(String(30), default="research", server_default="research", nullable=False)
     last_notification_at: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
 
 
