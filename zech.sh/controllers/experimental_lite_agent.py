@@ -25,6 +25,8 @@ from pydantic_ai.messages import (
     FunctionToolCallEvent,
     ModelMessage,
     PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
     TextPartDelta,
     ThinkingPartDelta,
 )
@@ -524,7 +526,10 @@ class ExperimentalLitePipeline:
                     if isinstance(node, ModelRequestNode):
                         async with node.stream(writer_run.ctx) as stream:
                             async for event in stream:
-                                if isinstance(event, PartDeltaEvent):
+                                if isinstance(event, PartStartEvent):
+                                    if isinstance(event.part, TextPart) and event.part.content:
+                                        await self.dispatch(TextEvent(text=event.part.content))
+                                elif isinstance(event, PartDeltaEvent):
                                     delta = event.delta
                                     if isinstance(delta, TextPartDelta) and delta.content_delta:
                                         await self.dispatch(TextEvent(text=delta.content_delta))
