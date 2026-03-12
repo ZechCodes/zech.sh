@@ -46,6 +46,12 @@
                         <span class="scan-mode-option-desc">Deep research agent</span>
                     </button>
                     {% endif %}
+                    {% if "experimental" in allowed_modes %}
+                    <button type="button" class="scan-mode-option" data-mode="experimental">
+                        <span class="scan-mode-option-name">EXPERIMENTAL</span>
+                        <span class="scan-mode-option-desc">Source-first research</span>
+                    </button>
+                    {% endif %}
                     <button type="button" class="scan-mode-option" data-mode="search">
                         <span class="scan-mode-option-name">SEARCH</span>
                         <span class="scan-mode-option-desc">Web search</span>
