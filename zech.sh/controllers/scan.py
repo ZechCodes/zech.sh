@@ -384,6 +384,16 @@ async def _run_pipeline_bg(
                         mode=pipeline_mode,
                     )
                 async for event in pipeline_gen:
+                    logger.info(
+                        "Pipeline event: type=%s class=%s matches=(stage=%s detail=%s text=%s done=%s error=%s)",
+                        getattr(event, 'type', None) or type(event).__name__,
+                        type(event),
+                        isinstance(event, DeepStageEvent),
+                        isinstance(event, DeepDetailEvent),
+                        isinstance(event, DeepTextEvent),
+                        isinstance(event, DeepDoneEvent),
+                        isinstance(event, DeepErrorEvent),
+                    )
                     if isinstance(event, DeepStageEvent):
                         accumulated_events.append(
                             {"type": "stage", "stage": event.stage}

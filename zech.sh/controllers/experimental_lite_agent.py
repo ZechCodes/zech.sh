@@ -389,8 +389,10 @@ class ExperimentalLitePipeline:
 
     async def run(self) -> None:
         try:
+            logger.info("Experimental pipeline starting for query: %s", self.query[:80])
             # === Phase 1: Researcher agent ===
             await self.dispatch(StageEvent(stage="reasoning"))
+            logger.info("Dispatched initial reasoning stage event")
 
             deps = ExpLiteDeps(
                 dispatch=self.dispatch,
@@ -580,10 +582,11 @@ class ExperimentalLitePipeline:
                 },
             ))
 
+            logger.info("Experimental pipeline complete, dispatching DoneEvent")
             await self.dispatch(DoneEvent())
 
         except Exception as exc:
-            logger.exception("Experimental lite pipeline error")
+            logger.exception("Experimental lite pipeline error: %s", exc)
             await self.dispatch(ErrorEvent(error=str(exc)))
 
 
@@ -618,11 +621,16 @@ async def run_experimental_lite_pipeline(
     )
 
     task = asyncio.create_task(pipeline.run())
+    logger.info("Experimental pipeline task created, starting event loop")
 
+    event_count = 0
     while True:
         event = await event_queue.get()
+        event_count += 1
+        logger.info("Yielding event #%d: %s", event_count, type(event).__name__)
         yield event
         if isinstance(event, (DoneEvent, ErrorEvent)):
+            logger.info("Terminal event received, breaking event loop after %d events", event_count)
             break
 
     await task
