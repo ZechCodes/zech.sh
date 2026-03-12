@@ -464,10 +464,14 @@ class ExperimentalLitePipeline:
         except (KeyError, ValueError):
             tz = timezone.utc
         now = datetime.now(tz)
-        return (
-            base_prompt
-            + f"\n\nCurrent date and time: {now.strftime('%A, %B %d, %Y %H:%M')} ({self.user_timezone or 'UTC'})"
+        year = now.year
+        date_block = (
+            f"**TODAY IS {now.strftime('%A, %B %d, %Y')} ({self.user_timezone or 'UTC'}).** "
+            f"The current year is {year}. It is NOT {year - 2} or {year - 1}. "
+            f"Do not use {year - 2} or {year - 1} in search queries unless the "
+            f"user specifically asked about those years."
         )
+        return f"{date_block}\n\n{base_prompt}"
 
     async def run(self) -> None:
         try:
