@@ -80,7 +80,7 @@
                 <span class="aichat-event-label">New Messages</span>
             </div>
             {% endif %}
-            <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}"{% if msg.sender == 'claude' and not msg.read_by_user_at %} data-unread="1"{% endif %}{% if msg.encrypted_payload %} data-encrypted-payload="{{ msg.encrypted_payload }}" data-nonce="{{ msg.nonce }}"{% endif %}>
+            <div class="aichat-msg aichat-msg-{{ msg.sender }}" data-message-id="{{ msg.id }}"{% if msg.sender == 'claude' and not msg.read_by_user_at %} data-unread="1"{% endif %}>
                 <div class="aichat-msg-sender">{{ msg.sender | upper }}</div>
                 {% if msg.attachments %}
                 <div class="aichat-msg-images">
