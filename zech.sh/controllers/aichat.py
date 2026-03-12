@@ -1553,14 +1553,28 @@ class AiChatDeviceRegistrationController(Controller):
         except Exception:
             return Response(content={"error": "invalid public_key"}, status_code=400)
 
+        # Optional X25519 public key for E2E encryption key exchange
+        x25519_public = body.get("x25519_public", "").strip()
+        if x25519_public:
+            try:
+                x_bytes = base64.b64decode(x25519_public)
+                if len(x_bytes) != 32:
+                    raise ValueError("invalid x25519 key length")
+            except Exception:
+                x25519_public = ""  # Ignore invalid key, proceed without E2E
+
         device_code = secrets.token_urlsafe(16)
         auth_url = f"https://aichat.zech.sh/devices/authorize?code={device_code}"
 
-        await _store_device_code(device_code, {
+        code_data = {
             "status": "pending",
             "public_key": public_key,
             "name": name,
-        })
+        }
+        if x25519_public:
+            code_data["x25519_public"] = x25519_public
+
+        await _store_device_code(device_code, code_data)
 
         return Response(
             content={"device_code": device_code, "auth_url": auth_url},
@@ -1581,10 +1595,14 @@ class AiChatDeviceRegistrationController(Controller):
         if data["status"] == "approved":
             # Clean up code after retrieval
             await _delete_device_code(code)
-            return Response(content={
+            resp = {
                 "status": "approved",
                 "device_id": data["device_id"],
-            })
+            }
+            # Include browser's X25519 public key for ECDH completion
+            if data.get("browser_x25519_public"):
+                resp["browser_x25519_public"] = data["browser_x25519_public"]
+            return Response(content=resp)
         elif data["status"] == "denied":
             await _delete_device_code(code)
             return Response(content={"status": "denied"})
@@ -1640,6 +1658,7 @@ class AiChatDeviceApprovalController(Controller):
                 "device_code": code,
                 "csrf_token": csrf_token,
                 "hide_sidebar": True,
+                "device_x25519_public": data.get("x25519_public", ""),
             },
         )
 
@@ -1677,6 +1696,9 @@ class AiChatDeviceApprovalController(Controller):
         if action != "approve":
             return Response(content={"error": "invalid action"}, status_code=400)
 
+        # Accept browser's X25519 public key for E2E key exchange
+        browser_x25519_public = body.get("browser_x25519_public", "").strip()
+
         # Create the device
         device = AiChatDevice(
             name=data["name"],
@@ -1687,12 +1709,16 @@ class AiChatDeviceApprovalController(Controller):
         db_session.add(device)
         await db_session.flush()
 
-        # Update the code with device_id for the manager to retrieve
-        await _update_device_code(code, {
+        # Update the code with device_id and browser's X25519 key for the manager to retrieve
+        code_update = {
             **data,
             "status": "approved",
             "device_id": str(device.id),
-        })
+        }
+        if browser_x25519_public:
+            code_update["browser_x25519_public"] = browser_x25519_public
+
+        await _update_device_code(code, code_update)
 
         await db_session.commit()
 

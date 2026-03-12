@@ -24,6 +24,9 @@
         <p class="aichat-authorize-hint">
             Approving will allow this device to run AI agents and manage channels on your behalf.
         </p>
+        {% if device_x25519_public %}
+        <p class="aichat-authorize-e2e-badge">🔒 E2E encryption enabled</p>
+        {% endif %}
         <div class="aichat-authorize-actions">
             <button id="approveBtn" class="aichat-authorize-approve">APPROVE</button>
             <button id="denyBtn" class="aichat-authorize-deny">DENY</button>
@@ -36,10 +39,66 @@
 
 {% block scripts %}
 {% if not error %}
+<script src="{{ theme_url('js/nacl-fast.min.js') }}" nonce="{{ csp_nonce() }}"></script>
+<script src="{{ theme_url('js/nacl-util.min.js') }}" nonce="{{ csp_nonce() }}"></script>
 <script nonce="{{ csp_nonce() }}">
 (function() {
     const code = {{ device_code | tojson }};
     const csrf = {{ csrf_token | tojson }};
+    const deviceX25519Public = {{ (device_x25519_public or '') | tojson }};
+
+    // --- E2E Key Exchange Helpers ---
+
+    function b64ToUint8(b64) {
+        return nacl.util.decodeBase64(b64);
+    }
+
+    function uint8ToB64(arr) {
+        return nacl.util.encodeBase64(arr);
+    }
+
+    async function deriveDeviceMasterKey(sharedSecret) {
+        // HKDF-SHA256 to match Python's cryptography.hazmat HKDF
+        const salt = new TextEncoder().encode('aichat-device-key');
+        const info = new TextEncoder().encode('v1');
+
+        // Import shared secret as HKDF key material
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw', sharedSecret, 'HKDF', false, ['deriveBits']
+        );
+
+        // Derive 256-bit key
+        const derived = await crypto.subtle.deriveBits(
+            { name: 'HKDF', hash: 'SHA-256', salt: salt, info: info },
+            keyMaterial, 256
+        );
+
+        return new Uint8Array(derived);
+    }
+
+    async function performKeyExchange() {
+        if (!deviceX25519Public) return { browserPublicB64: '', masterKeyB64: '' };
+
+        // Generate browser's ephemeral X25519 keypair
+        const browserKP = nacl.box.keyPair();
+
+        // Compute shared secret: X25519(browserPrivate, devicePublic)
+        const devicePub = b64ToUint8(deviceX25519Public);
+        const sharedSecret = nacl.scalarMult(browserKP.secretKey, devicePub);
+
+        // Derive device master key via HKDF
+        const masterKey = await deriveDeviceMasterKey(sharedSecret);
+
+        // Store master key in sessionStorage for this session
+        sessionStorage.setItem('aichat:device_master_key', uint8ToB64(masterKey));
+
+        return {
+            browserPublicB64: uint8ToB64(browserKP.publicKey),
+            masterKeyB64: uint8ToB64(masterKey),
+        };
+    }
+
+    // --- Authorization ---
 
     async function authorize(action) {
         const approveBtn = document.getElementById('approveBtn');
@@ -50,19 +109,32 @@
         denyBtn.disabled = true;
 
         try {
+            let bodyData = { code, action };
+
+            // Perform ECDH key exchange on approve
+            if (action === 'approve' && deviceX25519Public) {
+                const kx = await performKeyExchange();
+                if (kx.browserPublicB64) {
+                    bodyData.browser_x25519_public = kx.browserPublicB64;
+                }
+            }
+
             const resp = await fetch('/devices/authorize', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-Token': csrf,
                 },
-                body: JSON.stringify({ code, action }),
+                body: JSON.stringify(bodyData),
             });
             const data = await resp.json();
 
             statusMsg.classList.add('is-visible');
             if (data.ok && action === 'approve') {
-                statusMsg.innerHTML = '<span class="aichat-authorize-success">Device approved. You can close this page.</span>';
+                const e2eNote = deviceX25519Public
+                    ? ' E2E encryption keys exchanged.'
+                    : '';
+                statusMsg.innerHTML = '<span class="aichat-authorize-success">Device approved.' + e2eNote + ' You can close this page.</span>';
             } else if (data.ok && action === 'deny') {
                 statusMsg.innerHTML = '<span>Device denied.</span>';
             } else {
