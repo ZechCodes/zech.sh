@@ -1755,7 +1755,10 @@ var __aichatChannelId = (function () {
         appendMessage(d.sender, d.content, d.message_id, d.attachments);
       } else if (!d.content && !d.encrypted_payload && d.message_id) {
         if (d.sender === "user") {
-          // User messages are rendered optimistically on submit — skip notification
+          // User messages are rendered optimistically on submit — backfill message_id
+          // so read receipts can find the element later
+          var optimistic = messagesEl.querySelector('.aichat-msg-user:not([data-message-id])');
+          if (optimistic) optimistic.setAttribute("data-message-id", d.message_id);
         } else {
           // Encrypted, relay hasn't arrived yet — defer rendering
           var capturedId = d.message_id;
