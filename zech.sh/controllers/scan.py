@@ -360,7 +360,7 @@ async def _run_pipeline_bg(
                 asyncio.create_task(_generate_and_send_title())
 
             try:
-                if chat_mode == "experimental_research":
+                if chat_mode in ("research", "experimental_research"):
                     from controllers.experimental_lite_agent import run_experimental_lite_pipeline
                     pipeline_gen = run_experimental_lite_pipeline(
                         query,
@@ -372,7 +372,6 @@ async def _run_pipeline_bg(
                         prior_fetched_urls=prior_fetched_urls or None,
                     )
                 else:
-                    pipeline_mode = "lite" if chat_mode == "research" else "deep"
                     pipeline_gen = run_agent_research_pipeline(
                         query,
                         brave_api_key,
@@ -381,7 +380,7 @@ async def _run_pipeline_bg(
                         user_timezone=tz,
                         prior_agent_messages=prior_agent_messages,
                         prior_fetched_urls=prior_fetched_urls or None,
-                        mode=pipeline_mode,
+                        mode="deep",
                     )
                 async for event in pipeline_gen:
                     if isinstance(event, DeepStageEvent):
@@ -579,7 +578,7 @@ async def _get_allowed_modes(user_id: UUID | None, db_session: AsyncSession) -> 
         return allowed
     perms = await get_user_permissions(db_session, str(user_id))
     if ADMINISTRATOR_PERMISSION in perms.permissions:
-        return {"search", "launch", "chat", "discover", "deep", "experimental"}
+        return {"search", "launch", "chat", "discover", "deep"}
     allowed.add("launch")
     for mode, perm in _MODE_PERMISSION_MAP.items():
         if perm in perms.permissions:
@@ -706,11 +705,9 @@ class ScanController(Controller):
                     )
                 return Redirect(path=chat_url)
 
-            if mode == "experimental":
-                classification = "EXPERIMENTAL_RESEARCH"
-            elif mode == "deep":
+            if mode == "deep":
                 classification = "DEEP_RESEARCH"
-            elif mode == "discover":
+            elif mode in ("discover", "experimental"):
                 classification = "RESEARCH"
             elif mode == "search":
                 classification = "SEARCH"
@@ -725,12 +722,10 @@ class ScanController(Controller):
             accept = request.headers.get("accept", "")
             is_json = "application/json" in accept
 
-            if classification in ("RESEARCH", "DEEP_RESEARCH", "EXPERIMENTAL_RESEARCH"):
+            if classification in ("RESEARCH", "DEEP_RESEARCH"):
                 if not user:
                     return TemplateResponse("unauthorized.html")
-                if classification == "EXPERIMENTAL_RESEARCH":
-                    chat_mode = "experimental_research"
-                elif classification == "DEEP_RESEARCH":
+                if classification == "DEEP_RESEARCH":
                     chat_mode = "deep_research"
                 else:
                     chat_mode = "research"

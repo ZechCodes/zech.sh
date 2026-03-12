@@ -8,7 +8,7 @@
 
 {% block content %}
 <section class="chat-section">
-    <div class="scan-label">{% if chat.mode == 'experimental_research' %}EXPERIMENTAL.RESEARCH{% elif chat.mode == 'deep_research' %}DEEP.RESEARCH{% else %}RESEARCH.CHAT{% endif %}</div>
+    <div class="scan-label">{% if chat.mode == 'deep_research' %}DEEP.RESEARCH{% else %}RESEARCH.CHAT{% endif %}</div>
 
     <div class="chat-messages" id="chatMessages">
         {% for msg in messages %}
