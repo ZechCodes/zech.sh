@@ -32,3 +32,5 @@ class AiChatMessage(Base):
         DateTimeUTC(timezone=True), nullable=True
     )
     attachments: Mapped[list | None] = mapped_column(JSON, nullable=True, default=None)
+    encrypted_payload: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    nonce: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)

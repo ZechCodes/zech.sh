@@ -809,6 +809,8 @@ class AiChatController(Controller):
             user_id=user.id,
             channel_id=channel.id,
             attachments=clean_attachments or None,
+            encrypted_payload=encrypted_payload if is_encrypted else None,
+            nonce=msg_nonce if is_encrypted else None,
         )
         db_session.add(msg)
         await db_session.flush()
@@ -1027,6 +1029,8 @@ class AiChatController(Controller):
                     "content": m.content,
                     "read_by_claude_at": m.read_by_claude_at.isoformat() if m.read_by_claude_at else None,
                     "attachments": m.attachments or [],
+                    "encrypted_payload": m.encrypted_payload,
+                    "nonce": m.nonce,
                 }
                 for m in messages
             ],
@@ -1191,6 +1195,8 @@ async def _do_send_message(
         content=content if not is_encrypted else "[encrypted]",
         channel_id=channel_id,
         attachments=clean_attachments or None,
+        encrypted_payload=encrypted_payload if is_encrypted else None,
+        nonce=nonce if is_encrypted else None,
     )
     db_session.add(msg)
     await db_session.flush()
