@@ -1197,6 +1197,9 @@ var __aichatChannelId = (function () {
       }
     }
 
+    // Optimistically render the user's message (E2E: notification will be metadata-only)
+    appendMessage("user", content, null, payload.attachments || pendingAttachments);
+
     // Clear previews and collapse expanded tool panel
     pendingAttachments = [];
     previewArea.innerHTML = "";
@@ -1751,20 +1754,24 @@ var __aichatChannelId = (function () {
         delete contentRelayBuffer[d.message_id];
         appendMessage(d.sender, d.content, d.message_id, d.attachments);
       } else if (!d.content && !d.encrypted_payload && d.message_id) {
-        // Encrypted, relay hasn't arrived yet — defer rendering
-        var capturedId = d.message_id;
-        var capturedSender = d.sender;
-        var capturedAttachments = d.attachments;
-        pendingMessages[capturedId] = {
-          sender: capturedSender,
-          messageId: capturedId,
-          attachments: capturedAttachments,
-          timer: setTimeout(function() {
-            delete pendingMessages[capturedId];
-            appendMessage(capturedSender || "claude", "", capturedId, capturedAttachments);
-            requestHistoryForEncrypted();
-          }, 3000)
-        };
+        if (d.sender === "user") {
+          // User messages are rendered optimistically on submit — skip notification
+        } else {
+          // Encrypted, relay hasn't arrived yet — defer rendering
+          var capturedId = d.message_id;
+          var capturedSender = d.sender;
+          var capturedAttachments = d.attachments;
+          pendingMessages[capturedId] = {
+            sender: capturedSender,
+            messageId: capturedId,
+            attachments: capturedAttachments,
+            timer: setTimeout(function() {
+              delete pendingMessages[capturedId];
+              appendMessage(capturedSender || "claude", "", capturedId, capturedAttachments);
+              requestHistoryForEncrypted();
+            }, 3000)
+          };
+        }
       } else {
         appendMessage(d.sender, d.content, d.message_id, d.attachments);
       }
