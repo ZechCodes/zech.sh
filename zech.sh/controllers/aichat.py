@@ -774,8 +774,11 @@ class AiChatController(Controller):
         body = await request.json()
         content = body.get("content", "").strip()
         attachments = body.get("attachments") or []
+        encrypted_payload = body.get("encrypted_payload", "")
+        msg_nonce = body.get("nonce", "")
+        is_encrypted = bool(encrypted_payload and msg_nonce)
 
-        if not content and not attachments:
+        if not content and not attachments and not is_encrypted:
             return Response(content={"error": "empty message"}, status_code=400)
 
         # Validate and sanitize attachments
@@ -791,7 +794,7 @@ class AiChatController(Controller):
 
         msg = AiChatMessage(
             sender="user",
-            content=content,
+            content=content if not is_encrypted else "[encrypted]",
             user_id=user.id,
             channel_id=channel.id,
             attachments=clean_attachments or None,
@@ -799,16 +802,24 @@ class AiChatController(Controller):
         db_session.add(msg)
         await db_session.flush()
 
+        notification_kwargs = {
+            "sender": "user",
+            "message_id": str(msg.id),
+            "channel_id": str(channel.id),
+        }
+        if is_encrypted:
+            notification_kwargs["encrypted_payload"] = encrypted_payload
+            notification_kwargs["nonce"] = msg_nonce
+        else:
+            notification_kwargs["content"] = content
+            notification_kwargs["attachments"] = clean_attachments
+
         await notify_user(
             str(user.id),
             "aichat:message",
             mode=NotificationMode.TIMESERIES,
             push_notify=False,
-            sender="user",
-            content=content,
-            message_id=str(msg.id),
-            channel_id=str(channel.id),
-            attachments=clean_attachments,
+            **notification_kwargs,
         )
 
         await db_session.commit()
