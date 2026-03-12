@@ -64,8 +64,10 @@
             <button class="aichat-load-more" id="aichatLoadMore" type="button">Load older messages</button>
             {% endif %}
             {% for msg in messages %}
-            {% if msg.sender == 'tools' %}
+            {% if msg.sender == 'tools' and msg.content != '[encrypted]' %}
             <script type="application/json" class="aichat-tool-data">{{ msg.content | tojson }}</script>
+            {% elif msg.sender == 'tools' %}
+            <span class="aichat-encrypted-tools-marker" hidden></span>
             {% elif msg.sender == 'event' %}
             <div class="aichat-event-divider" data-message-id="{{ msg.id }}">
                 <span class="aichat-event-label">

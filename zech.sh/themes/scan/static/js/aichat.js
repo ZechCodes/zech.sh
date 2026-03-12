@@ -392,9 +392,11 @@ var __aichatChannelId = (function () {
     function requestHistoryForEncrypted() {
       if (!channelKey) return;
       var encEls = document.querySelectorAll('.aichat-msg-content[data-raw="[encrypted]"]');
-      if (!encEls.length) return;
+      var encToolMarkers = document.querySelectorAll(".aichat-encrypted-tools-marker");
+      if (!encEls.length && !encToolMarkers.length) return;
 
-      console.log("E2E: requesting history from device for " + encEls.length + " encrypted messages");
+      console.log("E2E: requesting history from device for " + encEls.length + " encrypted messages" +
+        (encToolMarkers.length ? " + " + encToolMarkers.length + " encrypted tool entries" : ""));
 
       var requestId = "hist-" + Date.now() + "-" + Math.random().toString(36).substr(2, 6);
       if (!window.__aichatPendingHistory) window.__aichatPendingHistory = {};
@@ -441,6 +443,47 @@ var __aichatChannelId = (function () {
           }
         }
         console.log("E2E: decrypted " + count + " historical messages via device relay");
+
+        // Handle tool messages from history
+        var toolEntries = [];
+        for (var k = 0; k < messages.length; k++) {
+          var tm = messages[k];
+          if (tm.sender !== "tools") continue;
+          var toolContent = null;
+          if (tm.encrypted_payload && tm.nonce) {
+            var rawTool = decrypt(tm.encrypted_payload, tm.nonce);
+            if (rawTool) {
+              // Device wraps as {content, attachments} before encrypting
+              try {
+                var wrapper = JSON.parse(rawTool);
+                toolContent = wrapper.content || rawTool;
+              } catch (ex) {
+                toolContent = rawTool;
+              }
+            }
+          } else if (tm.content) {
+            toolContent = tm.content;
+          }
+          if (!toolContent) continue;
+
+          // Device stores tool content as JSON: {status, tool, description}
+          try {
+            var toolData = JSON.parse(toolContent);
+            if (toolData.description) toolEntries.push(toolData.description);
+          } catch (ex) {
+            // Might be raw text (legacy format)
+            if (toolContent !== "[encrypted]") toolEntries.push(toolContent);
+          }
+        }
+
+        if (toolEntries.length > 0) {
+          clearToolPanel();
+          for (var t = 0; t < toolEntries.length; t++) {
+            addToolToPanel(toolEntries[t]);
+          }
+          finalizeToolPanel();
+          console.log("E2E: hydrated " + toolEntries.length + " tool entries from device history");
+        }
       };
 
       var csrfTok = form ? (form.getAttribute("data-csrf") || "") : "";
@@ -1432,6 +1475,11 @@ var __aichatChannelId = (function () {
     toolIsActive = false;
     if (toolPanelPulse) toolPanelPulse.classList.add("is-done");
     if (toolPanelLabel) toolPanelLabel.textContent = "TOOLS";
+  }
+
+  function clearToolPanel() {
+    if (!toolPanelContent) return;
+    toolPanelContent.innerHTML = "";
   }
 
   // Hydrate tool panel from persisted tool messages
