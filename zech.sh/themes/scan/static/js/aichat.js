@@ -1791,7 +1791,8 @@ var __aichatChannelId = (function () {
       markAsRead(d.message_ids || []);
     } else if (d.type === "aichat:tool") {
       if (d.status === "active") {
-        addToolToPanel(d.description || "Working...");
+        // When encrypted, description is empty — skip placeholder, relay will provide it
+        if (d.description) addToolToPanel(d.description);
       } else if (d.status === "idle") {
         finalizeToolPanel();
       }
