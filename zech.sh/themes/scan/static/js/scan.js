@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Mode dropdown
-    var modeLabels = { launch: 'LAUNCH', discover: 'DISCOVER', deep: 'DEEP', search: 'SEARCH', chat: 'CHAT' };
+    var modeLabels = { launch: 'LAUNCH', discover: 'DISCOVER', deep: 'DEEP', experimental: 'EXPERIMENTAL', search: 'SEARCH', chat: 'CHAT' };
     var formEl = document.querySelector('.scan-form:not(#chatFollowup):not(#searchBar)');
     var allowedModes = ['search'];
     try {
