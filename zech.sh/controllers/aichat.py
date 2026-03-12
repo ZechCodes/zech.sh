@@ -742,6 +742,8 @@ class AiChatController(Controller):
                 "hide_sidebar": True,
                 "csrf_token": csrf_token,
                 "first_unread_id": first_unread_id,
+                "encrypted_channel_key": channel.encrypted_channel_key or "",
+                "key_nonce": channel.key_nonce or "",
             },
         )
 
@@ -1867,8 +1869,40 @@ async def _dispatch_ws_message(
             return await _do_list_device_channels(db_session, device_id)
         case "report_status":
             return await _do_report_device_status(db_session, device_id, msg)
+        case "register_channel_key":
+            return await _do_register_channel_key(
+                db_session, channel_id,
+                msg.get("encrypted_channel_key", ""),
+                msg.get("key_nonce", ""),
+            )
         case _:
             raise ValueError(f"Unknown message type: {msg_type}")
+
+
+async def _do_register_channel_key(
+    db_session: AsyncSession,
+    channel_id: UUID | None,
+    encrypted_channel_key: str,
+    key_nonce: str,
+) -> dict:
+    """Store an encrypted channel key on the channel record."""
+    if not channel_id:
+        raise ValueError("channel_id required")
+    if not encrypted_channel_key or not key_nonce:
+        raise ValueError("encrypted_channel_key and key_nonce required")
+
+    result = await db_session.execute(
+        select(AiChatChannel).where(AiChatChannel.id == channel_id)
+    )
+    channel = result.scalar_one_or_none()
+    if not channel:
+        raise ValueError("Channel not found")
+
+    channel.encrypted_channel_key = encrypted_channel_key
+    channel.key_nonce = key_nonce
+    await db_session.commit()
+
+    return {"ok": True}
 
 
 class AiChatDeviceWebSocketController(Controller):

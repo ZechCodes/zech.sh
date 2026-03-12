@@ -31,3 +31,10 @@ class AiChatChannel(Base):
     archived: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
+    # E2E encryption: channel key encrypted with device master key
+    encrypted_channel_key: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+    key_nonce: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
