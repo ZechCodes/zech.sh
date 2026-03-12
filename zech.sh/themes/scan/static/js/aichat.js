@@ -252,7 +252,7 @@ var __aichatChannelId = (function () {
     var channelKey = null; // Uint8Array once decrypted
 
     function getStoredKey() {
-      var b64 = sessionStorage.getItem("aichat:key:" + channelId);
+      var b64 = localStorage.getItem("aichat:key:" + channelId);
       if (b64 && naclReady) {
         try { return nacl.util.decodeBase64(b64); } catch (e) {}
       }
@@ -261,16 +261,16 @@ var __aichatChannelId = (function () {
 
     function storeKey(keyBytes) {
       if (naclReady) {
-        sessionStorage.setItem("aichat:key:" + channelId, nacl.util.encodeBase64(keyBytes));
+        localStorage.setItem("aichat:key:" + channelId, nacl.util.encodeBase64(keyBytes));
       }
     }
 
-    // Try to load channel key from sessionStorage
+    // Try to load channel key from localStorage
     channelKey = getStoredKey();
 
     // If we have an encrypted channel key from the server + a device master key, decrypt it
     if (!channelKey && cryptoConfig.encryptedChannelKey && cryptoConfig.keyNonce && naclReady) {
-      var masterKeyB64 = sessionStorage.getItem("aichat:device_master_key");
+      var masterKeyB64 = localStorage.getItem("aichat:device_master_key");
       if (masterKeyB64) {
         try {
           var masterKey = nacl.util.decodeBase64(masterKeyB64);
@@ -533,7 +533,7 @@ var __aichatChannelId = (function () {
         .then(function (derived) {
           var masterKey = new Uint8Array(derived);
           var masterKeyB64 = nacl.util.encodeBase64(masterKey);
-          sessionStorage.setItem("aichat:device_master_key", masterKeyB64);
+          localStorage.setItem("aichat:device_master_key", masterKeyB64);
 
           // If we already have an encrypted channel key from the server, try to decrypt it now
           if (cryptoConfig.encryptedChannelKey && cryptoConfig.keyNonce) {
@@ -591,7 +591,7 @@ var __aichatChannelId = (function () {
       setChannelKey: setChannelKey,
     };
 
-    // If key was loaded from sessionStorage at init, decrypt page-load messages
+    // If key was loaded from localStorage at init, decrypt page-load messages
     if (channelKey) {
       setTimeout(onKeyReady, 0);
     }
@@ -1707,7 +1707,7 @@ var __aichatChannelId = (function () {
     } else if (d.type === "aichat:rekey-response") {
       // Handle re-key response — decrypt and store channel keys
       var keys = d.encrypted_keys || {};
-      var masterKeyB64 = sessionStorage.getItem("aichat:device_master_key");
+      var masterKeyB64 = localStorage.getItem("aichat:device_master_key");
       if (masterKeyB64 && typeof nacl !== "undefined") {
         var masterKey = nacl.util.decodeBase64(masterKeyB64);
         Object.keys(keys).forEach(function (chId) {
@@ -1719,7 +1719,7 @@ var __aichatChannelId = (function () {
             if (decrypted) {
               var channelKeyB64 = nacl.util.encodeUTF8(decrypted);
               var channelKeyBytes = nacl.util.decodeBase64(channelKeyB64);
-              sessionStorage.setItem("aichat:key:" + chId, nacl.util.encodeBase64(channelKeyBytes));
+              localStorage.setItem("aichat:key:" + chId, nacl.util.encodeBase64(channelKeyBytes));
               // If this is the current channel, update the e2e module
               if (chId === channelId) {
                 e2e.setChannelKey(channelKeyBytes);
