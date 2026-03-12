@@ -331,8 +331,10 @@ var __aichatChannelId = (function () {
           } catch (e) {
             d.content = plain;
           }
+          d._decrypted = true;
         } else {
-          d.content = "[encrypted — unable to decrypt]";
+          d.content = "";
+          d._pendingDecrypt = true;
         }
       }
       // Decrypt tool descriptions
@@ -343,9 +345,119 @@ var __aichatChannelId = (function () {
       return d;
     }
 
+    // Called after a channel key becomes available — retry pending messages
+    // and replace page-load "[encrypted]" placeholders via device history.
+    function onKeyReady() {
+      // Flush real-time messages that arrived before the key was ready
+      var pending = document.querySelectorAll("[data-encrypted-payload]");
+      for (var i = 0; i < pending.length; i++) {
+        var el = pending[i];
+        var plain = decrypt(el.getAttribute("data-encrypted-payload"), el.getAttribute("data-nonce"));
+        if (plain) {
+          try {
+            var payload = JSON.parse(plain);
+            var contentEl = el.querySelector(".aichat-msg-content");
+            if (contentEl) contentEl.innerHTML = renderMarkdown(payload.content || "");
+            // Handle attachments if present
+            if (payload.attachments && payload.attachments.length) {
+              var imgContainer = createImageElements(payload.attachments);
+              if (imgContainer) {
+                var existingImgs = el.querySelector(".aichat-msg-images");
+                if (existingImgs) existingImgs.remove();
+                var senderEl = el.querySelector(".aichat-msg-sender");
+                if (senderEl && senderEl.nextSibling) {
+                  el.insertBefore(imgContainer, senderEl.nextSibling);
+                } else {
+                  el.insertBefore(imgContainer, contentEl);
+                }
+              }
+            }
+          } catch (ex) {
+            var contentEl2 = el.querySelector(".aichat-msg-content");
+            if (contentEl2) contentEl2.innerHTML = renderMarkdown(plain);
+          }
+          el.removeAttribute("data-encrypted-payload");
+          el.removeAttribute("data-nonce");
+        }
+      }
+
+      // Replace page-load "[encrypted]" messages via device history request
+      replaceEncryptedHistory();
+    }
+
+    function replaceEncryptedHistory() {
+      if (!channelKey) return;
+      var encEls = document.querySelectorAll('.aichat-msg-content[data-raw="[encrypted]"]');
+      if (!encEls.length) return;
+
+      var msgIds = [];
+      for (var i = 0; i < encEls.length; i++) {
+        var msgEl = encEls[i].closest("[data-message-id]");
+        if (msgEl) msgIds.push(msgEl.getAttribute("data-message-id"));
+      }
+      if (!msgIds.length) return;
+
+      var requestId = "hist-" + Date.now() + "-" + Math.random().toString(36).substr(2, 6);
+      if (!window.__aichatPendingHistory) window.__aichatPendingHistory = {};
+
+      var timeoutId = setTimeout(function () {
+        delete window.__aichatPendingHistory[requestId];
+        console.warn("E2E: history request timed out");
+      }, 10000);
+
+      window.__aichatPendingHistory[requestId] = function (resp) {
+        clearTimeout(timeoutId);
+        var messages = resp.messages || [];
+        for (var j = 0; j < messages.length; j++) {
+          var m = messages[j];
+          if (m.encrypted_payload && m.nonce) {
+            var plain = decrypt(m.encrypted_payload, m.nonce);
+            if (plain) {
+              try {
+                var payload = JSON.parse(plain);
+                var target = document.querySelector('[data-message-id="' + m.id + '"] .aichat-msg-content');
+                if (target) {
+                  target.innerHTML = renderMarkdown(payload.content || "");
+                  target.removeAttribute("data-raw");
+                  // Handle attachments
+                  if (payload.attachments && payload.attachments.length) {
+                    var msgDiv = target.closest("[data-message-id]");
+                    if (msgDiv) {
+                      var imgContainer = createImageElements(payload.attachments);
+                      if (imgContainer) {
+                        var existingImgs = msgDiv.querySelector(".aichat-msg-images");
+                        if (existingImgs) existingImgs.remove();
+                        msgDiv.insertBefore(imgContainer, target);
+                      }
+                    }
+                  }
+                }
+              } catch (ex) {
+                var target2 = document.querySelector('[data-message-id="' + m.id + '"] .aichat-msg-content');
+                if (target2) { target2.innerHTML = renderMarkdown(plain); target2.removeAttribute("data-raw"); }
+              }
+            }
+          }
+        }
+      };
+
+      var csrfTok = form ? (form.getAttribute("data-csrf") || "") : "";
+      fetch("/c/" + channelId + "/request-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfTok },
+        body: JSON.stringify({ request_id: requestId, limit: Math.min(msgIds.length + 10, 200) }),
+      }).catch(function (err) {
+        clearTimeout(timeoutId);
+        delete window.__aichatPendingHistory[requestId];
+        console.warn("E2E: history request failed", err);
+      });
+    }
+
     function setChannelKey(keyBytes) {
       channelKey = keyBytes;
       storeKey(keyBytes);
+      api.enabled = true;
+      onKeyReady();
     }
 
     // Auto-rekey: if device supports E2E but we have no channel key, trigger ECDH
@@ -386,9 +498,12 @@ var __aichatChannelId = (function () {
               var decrypted = nacl.secretbox.open(ct, n, masterKey);
               if (decrypted) {
                 var ckB64 = nacl.util.encodeUTF8(decrypted);
-                channelKey = nacl.util.decodeBase64(ckB64);
-                storeKey(channelKey);
+                var keyBytes = nacl.util.decodeBase64(ckB64);
+                channelKey = keyBytes;
+                storeKey(keyBytes);
+                api.enabled = true;
                 console.log("E2E: decrypted channel key from server after rekey");
+                onKeyReady();
                 return; // No need to POST rekey — we got the key from stored data
               }
             } catch (e) {
@@ -420,16 +535,23 @@ var __aichatChannelId = (function () {
         });
     }
 
-    // Run auto-rekey after a short delay (let SSE connect first)
-    setTimeout(autoRekey, 1000);
+    // Run auto-rekey immediately (don't wait)
+    setTimeout(autoRekey, 0);
 
-    return {
+    var api = {
       enabled: !!channelKey,
       decrypt: decrypt,
       encrypt: encrypt,
       decryptEvent: decryptEvent,
       setChannelKey: setChannelKey,
     };
+
+    // If key was loaded from sessionStorage at init, trigger history replacement
+    if (channelKey) {
+      setTimeout(replaceEncryptedHistory, 0);
+    }
+
+    return api;
   })();
 
   // ---------------------------------------------------------------------------
@@ -694,26 +816,80 @@ var __aichatChannelId = (function () {
       loadMoreBtn.disabled = true;
       loadMoreBtn.textContent = "Loading...";
 
-      fetch("/c/" + channelId + "/messages?before=" + encodeURIComponent(beforeId))
-        .then(function (res) {
-          if (!res.ok) throw new Error("Load failed");
-          return res.json();
-        })
-        .then(function (data) {
-          prependMessages(data.messages);
-          if (!data.has_more) {
+      if (e2e.enabled) {
+        // Use device history request for E2E channels (server DB only has "[encrypted]")
+        var requestId = "older-" + Date.now() + "-" + Math.random().toString(36).substr(2, 6);
+        if (!window.__aichatPendingHistory) window.__aichatPendingHistory = {};
+
+        var timeoutId = setTimeout(function () {
+          delete window.__aichatPendingHistory[requestId];
+          loadMoreBtn.disabled = false;
+          loadMoreBtn.textContent = "Load older messages";
+          console.warn("E2E: load-older history request timed out");
+        }, 10000);
+
+        window.__aichatPendingHistory[requestId] = function (resp) {
+          clearTimeout(timeoutId);
+          var messages = (resp.messages || []).map(function (m) {
+            if (m.encrypted_payload && m.nonce) {
+              var plain = e2e.decrypt(m.encrypted_payload, m.nonce);
+              if (plain) {
+                try {
+                  var payload = JSON.parse(plain);
+                  m.content = payload.content || "";
+                  m.attachments = payload.attachments || [];
+                } catch (ex) { m.content = plain; }
+              } else {
+                m.content = "[encrypted]";
+              }
+            }
+            return m;
+          });
+          prependMessages(messages);
+          if (!resp.has_more) {
             loadMoreBtn.remove();
             loadMoreBtn = null;
           } else {
             loadMoreBtn.disabled = false;
             loadMoreBtn.textContent = "Load older messages";
           }
-        })
-        .catch(function (err) {
+        };
+
+        var csrfTok = form ? (form.getAttribute("data-csrf") || "") : "";
+        fetch("/c/" + channelId + "/request-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfTok },
+          body: JSON.stringify({ request_id: requestId, before: beforeId, limit: 100 }),
+        }).catch(function (err) {
+          clearTimeout(timeoutId);
+          delete window.__aichatPendingHistory[requestId];
           console.error("Load older messages error:", err);
           loadMoreBtn.disabled = false;
           loadMoreBtn.textContent = "Load older messages";
         });
+      } else {
+        // Non-E2E: fetch directly from server
+        fetch("/c/" + channelId + "/messages?before=" + encodeURIComponent(beforeId))
+          .then(function (res) {
+            if (!res.ok) throw new Error("Load failed");
+            return res.json();
+          })
+          .then(function (data) {
+            prependMessages(data.messages);
+            if (!data.has_more) {
+              loadMoreBtn.remove();
+              loadMoreBtn = null;
+            } else {
+              loadMoreBtn.disabled = false;
+              loadMoreBtn.textContent = "Load older messages";
+            }
+          })
+          .catch(function (err) {
+            console.error("Load older messages error:", err);
+            loadMoreBtn.disabled = false;
+            loadMoreBtn.textContent = "Load older messages";
+          });
+      }
     });
   }
 
@@ -1443,6 +1619,14 @@ var __aichatChannelId = (function () {
         finalizeToolPanel();
       }
       appendMessage(d.sender, d.content, d.message_id, d.attachments);
+      // Tag DOM element with encrypted data so it can be retried after key arrives
+      if (d._pendingDecrypt && d.message_id) {
+        var msgEl = document.querySelector('[data-message-id="' + d.message_id + '"]');
+        if (msgEl) {
+          msgEl.setAttribute("data-encrypted-payload", d.encrypted_payload);
+          msgEl.setAttribute("data-nonce", d.nonce);
+        }
+      }
       }
     } else if (d.type === "aichat:read") {
       markAsRead(d.message_ids || []);
