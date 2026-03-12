@@ -573,12 +573,15 @@ class ExperimentalLitePipeline:
             summarizer_model = gemini_flash_lite()
             summaries: dict[str, str] = {}
 
+            _sum_topic = "Summarizing sources"
+
             async def _summarize(source: SupportingSource) -> tuple[str, str]:
                 content = self.jina_cache.get(source.url)
                 if not content:
                     await self.dispatch(DetailEvent(
                         type="summarize_done",
                         payload={
+                            "topic": _sum_topic,
                             "url": source.url,
                             "plan": source.summarization_plan,
                             "failed": True,
@@ -589,6 +592,7 @@ class ExperimentalLitePipeline:
                 await self.dispatch(DetailEvent(
                     type="summarize",
                     payload={
+                        "topic": _sum_topic,
                         "url": source.url,
                         "title": source.title,
                         "plan": source.summarization_plan,
@@ -610,6 +614,7 @@ class ExperimentalLitePipeline:
                 await self.dispatch(DetailEvent(
                     type="summarize_done",
                     payload={
+                        "topic": _sum_topic,
                         "url": source.url,
                         "plan": source.summarization_plan,
                         "summary": result.output,
