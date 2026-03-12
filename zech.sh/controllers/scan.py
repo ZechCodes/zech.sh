@@ -413,23 +413,37 @@ async def _run_pipeline_bg(
                         accumulated_text += event.text
                         await _notify("scan:text", text=event.text)
                     elif isinstance(event, DeepDoneEvent):
-                        assistant_msg = ChatMessage(
-                            chat_id=chat_id,
-                            role="assistant",
-                            content=accumulated_text,
-                            events_json=json.dumps(accumulated_events),
-                            usage_json=json.dumps(usage_data),
-                            agent_messages_json=agent_messages_json,
-                        )
-                        db_session.add(assistant_msg)
-                        # Update last_notification_at for replay cursor
-                        chat_result = await db_session.execute(
-                            select(ChatSession).where(ChatSession.id == chat_id)
-                        )
-                        chat_obj = chat_result.scalar_one_or_none()
-                        if chat_obj:
-                            chat_obj.last_notification_at = time.time()
-                        await db_session.commit()
+                        # Save assistant message — retry once on stale prepared
+                        # statement errors (e.g. after schema migrations).
+                        for _attempt in range(2):
+                            try:
+                                assistant_msg = ChatMessage(
+                                    chat_id=chat_id,
+                                    role="assistant",
+                                    content=accumulated_text,
+                                    events_json=json.dumps(accumulated_events),
+                                    usage_json=json.dumps(usage_data),
+                                    agent_messages_json=agent_messages_json,
+                                )
+                                db_session.add(assistant_msg)
+                                # Update last_notification_at for replay cursor
+                                chat_result = await db_session.execute(
+                                    select(ChatSession).where(ChatSession.id == chat_id)
+                                )
+                                chat_obj = chat_result.scalar_one_or_none()
+                                if chat_obj:
+                                    chat_obj.last_notification_at = time.time()
+                                await db_session.commit()
+                                break
+                            except Exception:
+                                logger.exception(
+                                    "Failed to save assistant message (attempt %d) for chat %s",
+                                    _attempt + 1, chat_id,
+                                )
+                                try:
+                                    await db_session.rollback()
+                                except Exception:
+                                    pass
                         await _notify("scan:done")
                     elif isinstance(event, DeepErrorEvent):
                         accumulated_events.append(
