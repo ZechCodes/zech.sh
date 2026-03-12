@@ -486,6 +486,47 @@ window.ScanPipeline = (function () {
           delete fetchChildren[data.url];
         }
 
+      } else if (data.type === "summarize") {
+        state.totalToolCalls++;
+        if (group) {
+          var fav = createFaviconImg(data.url);
+          var favHtml = fav ? fav.outerHTML + " " : "";
+          var html = '<span class="tool-spinner-sm"></span> ' + favHtml +
+            "Summarizing " + escapeHtml(truncateUrl(data.url));
+          var child = addChild(group, html, true);
+          fetchChildren["sum:" + data.url] = { child: child, group: group };
+          updateSubline(group);
+        }
+
+      } else if (data.type === "summarize_done") {
+        var sumEntry = fetchChildren["sum:" + data.url];
+        if (sumEntry) {
+          var child = sumEntry.child;
+          var g = sumEntry.group;
+          var fav = createFaviconImg(data.url);
+          var favHtml = fav ? fav.outerHTML + " " : "";
+          var verb = data.failed ? "Failed" : "Summarized";
+          var doneHtml = '<span class="tool-icon-done">' + (data.failed ? "\u2717" : "\u2713") +
+            '</span> ' + favHtml + verb + " " + escapeHtml(truncateUrl(data.url));
+          finishChild(g, child, doneHtml);
+          if (!data.failed && data.summary) {
+            child.classList.add("has-content");
+            var contentEl = document.createElement("div");
+            contentEl.className = "tool-child-content";
+            contentEl.hidden = true;
+            var planHtml = '<strong>Plan:</strong> ' + escapeHtml(data.plan || "");
+            var summaryHtml = renderMarkdown(data.summary);
+            contentEl.innerHTML = planHtml + '<hr style="opacity:0.2;margin:8px 0">' + summaryHtml;
+            child.appendChild(contentEl);
+            child.addEventListener("click", function (ev) {
+              ev.stopPropagation();
+              contentEl.hidden = !contentEl.hidden;
+              child.classList.toggle("is-expanded", !contentEl.hidden);
+            });
+          }
+          delete fetchChildren["sum:" + data.url];
+        }
+
       } else if (data.type === "result") {
         if (group) collapseGroup(group, data.num_sources || 0);
 

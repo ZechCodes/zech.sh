@@ -572,7 +572,25 @@ class ExperimentalLitePipeline:
             async def _summarize(source: SupportingSource) -> tuple[str, str]:
                 content = self.jina_cache.get(source.url)
                 if not content:
+                    await self.dispatch(DetailEvent(
+                        type="summarize_done",
+                        payload={
+                            "url": source.url,
+                            "plan": source.summarization_plan,
+                            "failed": True,
+                        },
+                    ))
                     return source.url, "(content unavailable)"
+
+                await self.dispatch(DetailEvent(
+                    type="summarize",
+                    payload={
+                        "url": source.url,
+                        "title": source.title,
+                        "plan": source.summarization_plan,
+                    },
+                ))
+
                 truncated = content[:15_000]
                 prompt = (
                     f"# Summarization Plan\n{source.summarization_plan}\n\n"
@@ -584,9 +602,24 @@ class ExperimentalLitePipeline:
                     model=summarizer_model,
                     instructions=_SUMMARIZER_SYSTEM_PROMPT,
                 )
+
+                await self.dispatch(DetailEvent(
+                    type="summarize_done",
+                    payload={
+                        "url": source.url,
+                        "plan": source.summarization_plan,
+                        "summary": result.output,
+                    },
+                ))
                 return source.url, result.output
 
             if plan.supporting_sources:
+                # Emit a tool group for the summarization phase
+                await self.dispatch(DetailEvent(
+                    type="research",
+                    payload={"topic": "Summarizing sources"},
+                ))
+
                 summary_results = await asyncio.gather(
                     *[_summarize(s) for s in plan.supporting_sources],
                     return_exceptions=True,
@@ -597,6 +630,15 @@ class ExperimentalLitePipeline:
                         continue
                     url, summary = item
                     summaries[url] = summary
+
+                # Collapse the summarization group
+                await self.dispatch(DetailEvent(
+                    type="result",
+                    payload={
+                        "topic": "Summarizing sources",
+                        "num_sources": len(summaries),
+                    },
+                ))
 
             # Build writer input: plan + primary (full) + supporting (summarized)
             source_parts = []
