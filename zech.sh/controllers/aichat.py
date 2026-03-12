@@ -51,6 +51,29 @@ register_role(
 )
 
 # ---------------------------------------------------------------------------
+# Device WebSocket connection registry (for direct push to devices)
+# ---------------------------------------------------------------------------
+
+_device_ws_connections: dict[str, WebSocket] = {}
+
+
+async def _push_to_device_ws(device_id: str, payload: dict) -> bool:
+    """Push a message directly to a device's WebSocket connection (bypasses notifications)."""
+    ws = _device_ws_connections.get(device_id)
+    if not ws:
+        return False
+    try:
+        await ws.send_text(json.dumps({
+            "type": "event",
+            "event_type": payload.get("event_type", ""),
+            **{k: v for k, v in payload.items() if k != "event_type"},
+        }))
+        return True
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -818,10 +841,7 @@ class AiChatController(Controller):
             "message_id": str(msg.id),
             "channel_id": str(channel.id),
         }
-        if is_encrypted:
-            notification_kwargs["encrypted_payload"] = encrypted_payload
-            notification_kwargs["nonce"] = msg_nonce
-        else:
+        if not is_encrypted:
             notification_kwargs["content"] = content
             notification_kwargs["attachments"] = clean_attachments
 
@@ -832,6 +852,18 @@ class AiChatController(Controller):
             push_notify=False,
             **notification_kwargs,
         )
+
+        # For encrypted messages, push content directly to device WebSocket
+        # (bypasses notification persistence)
+        if is_encrypted and channel.device_id:
+            await _push_to_device_ws(str(channel.device_id), {
+                "event_type": "aichat:user-content",
+                "encrypted_payload": encrypted_payload,
+                "nonce": msg_nonce,
+                "message_id": str(msg.id),
+                "channel_id": str(channel.id),
+                "sender": "user",
+            })
 
         await db_session.commit()
         return Response(content={"ok": True})
@@ -1207,10 +1239,7 @@ async def _do_send_message(
             "message_id": str(msg.id),
             "channel_id": str(channel_id),
         }
-        if is_encrypted:
-            notification_kwargs["encrypted_payload"] = encrypted_payload
-            notification_kwargs["nonce"] = nonce
-        else:
+        if not is_encrypted:
             notification_kwargs["content"] = content
             notification_kwargs["attachments"] = clean_attachments
 
@@ -1392,10 +1421,7 @@ async def _do_tool_status(
             "tool": tool,
             "channel_id": str(channel_id),
         }
-        if is_encrypted:
-            notification_kwargs["encrypted_description"] = encrypted_description
-            notification_kwargs["description_nonce"] = description_nonce
-        else:
+        if not is_encrypted:
             notification_kwargs["description"] = description
 
         await notify_user(
@@ -1428,18 +1454,17 @@ async def _do_create_interaction(
 
     target_user_id = await _get_target_user_id(db_session, channel_id)
     if target_user_id:
+        is_encrypted = bool(encrypted_payload and nonce)
         notification_kwargs: dict = dict(
             interaction_id=interaction_id,
             interaction_type=interaction_type,
-            content=content,
             channel_id=str(channel_id),
         )
-        if options:
-            notification_kwargs["options"] = options
-            notification_kwargs["multi_select"] = multi_select
-        if encrypted_payload and nonce:
-            notification_kwargs["encrypted_payload"] = encrypted_payload
-            notification_kwargs["nonce"] = nonce
+        if not is_encrypted:
+            notification_kwargs["content"] = content
+            if options:
+                notification_kwargs["options"] = options
+                notification_kwargs["multi_select"] = multi_select
         await notify_user(
             target_user_id,
             "aichat:interaction",
@@ -2019,6 +2044,14 @@ async def _dispatch_ws_message(
                 msg.get("encrypted_channel_key", ""),
                 msg.get("key_nonce", ""),
             )
+        case "relay_content":
+            return await _do_relay_to_browser(
+                db_session, device_id,
+                "aichat:content-relay",
+                mode=NotificationMode.EPHEMERAL,
+                **{k: v for k, v in msg.items()
+                   if k not in ("type", "channel_id")},
+            )
         case "rekey_response":
             return await _do_relay_to_browser(
                 db_session, device_id,
@@ -2043,6 +2076,7 @@ async def _do_relay_to_browser(
     db_session: AsyncSession,
     device_id: str,
     event_type: str,
+    mode: NotificationMode = NotificationMode.TIMESERIES,
     **kwargs,
 ) -> dict:
     """Relay a message from the device to the browser via SSE notification."""
@@ -2057,7 +2091,7 @@ async def _do_relay_to_browser(
     await notify_user(
         owner_id,
         event_type,
-        mode=NotificationMode.TIMESERIES,
+        mode=mode,
         push_notify=False,
         **kwargs,
     )
@@ -2196,6 +2230,9 @@ class AiChatDeviceWebSocketController(Controller):
 
         forwarder = asyncio.create_task(forward_events())
 
+        # --- Register for direct WS push ---
+        _device_ws_connections[device_id] = socket
+
         logger.info("Device %s WebSocket connected (owner=%s)", device_id, owner_id_str)
 
         # --- Message receive loop ---
@@ -2244,6 +2281,7 @@ class AiChatDeviceWebSocketController(Controller):
             pass  # Disconnect
         finally:
             forwarder.cancel()
+            _device_ws_connections.pop(device_id, None)
             notifications.unregister_connection(nid, q)
             logger.info("Device %s WebSocket disconnected", device_id)
 

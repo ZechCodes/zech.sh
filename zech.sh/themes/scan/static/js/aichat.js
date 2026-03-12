@@ -1681,6 +1681,46 @@ var __aichatChannelId = (function () {
   // Notification handler
   // ---------------------------------------------------------------------------
 
+  // Content relay buffer: stash encrypted content that arrives before its notification
+  var contentRelayBuffer = {};
+  var contentRelayTimeouts = {};
+
+  function scheduleHistoryFallback(msgId) {
+    if (contentRelayTimeouts[msgId]) return;
+    contentRelayTimeouts[msgId] = setTimeout(function () {
+      delete contentRelayTimeouts[msgId];
+      // If message still shows placeholder, request history from device
+      var el = document.querySelector('[data-message-id="' + msgId + '"] .aichat-msg-content');
+      if (el && el.getAttribute("data-raw") === "[encrypted]") {
+        console.log("E2E: content relay timeout for " + msgId + " — falling back to history");
+        requestHistoryForEncrypted();
+      }
+    }, 3000);
+  }
+
+  function applyContentRelay(msgId, content, attachments) {
+    if (contentRelayTimeouts[msgId]) {
+      clearTimeout(contentRelayTimeouts[msgId]);
+      delete contentRelayTimeouts[msgId];
+    }
+    var el = document.querySelector('[data-message-id="' + msgId + '"] .aichat-msg-content');
+    if (el) {
+      el.innerHTML = renderMarkdown(content || "");
+      el.removeAttribute("data-raw");
+      if (attachments && attachments.length) {
+        var msgDiv = el.closest("[data-message-id]");
+        if (msgDiv) {
+          var imgContainer = createImageElements(attachments);
+          if (imgContainer) {
+            var existingImgs = msgDiv.querySelector(".aichat-msg-images");
+            if (existingImgs) existingImgs.remove();
+            msgDiv.insertBefore(imgContainer, el);
+          }
+        }
+      }
+    }
+  }
+
   document.addEventListener("sk:notification", function (e) {
     var d = e.detail;
     if (!d) return;
@@ -1701,13 +1741,26 @@ var __aichatChannelId = (function () {
       if (d.sender === "claude") {
         finalizeToolPanel();
       }
+      // Check if content relay arrived before notification
+      var buffered = contentRelayBuffer[d.message_id];
+      if (!d.content && !d.encrypted_payload && buffered) {
+        d.content = buffered.content;
+        d.attachments = buffered.attachments;
+        delete contentRelayBuffer[d.message_id];
+      }
       appendMessage(d.sender, d.content, d.message_id, d.attachments);
-      // Tag DOM element with encrypted data so it can be retried after key arrives
+      // If metadata-only (encrypted, no content yet), mark for relay and schedule fallback
+      if (!d.content && !d.encrypted_payload && d.message_id) {
+        var msgEl = document.querySelector('[data-message-id="' + d.message_id + '"] .aichat-msg-content');
+        if (msgEl) msgEl.setAttribute("data-raw", "[encrypted]");
+        scheduleHistoryFallback(d.message_id);
+      }
+      // Legacy: tag DOM element with encrypted data for key-arrival retry
       if (d._pendingDecrypt && d.message_id) {
-        var msgEl = document.querySelector('[data-message-id="' + d.message_id + '"]');
-        if (msgEl) {
-          msgEl.setAttribute("data-encrypted-payload", d.encrypted_payload);
-          msgEl.setAttribute("data-nonce", d.nonce);
+        var msgEl2 = document.querySelector('[data-message-id="' + d.message_id + '"]');
+        if (msgEl2) {
+          msgEl2.setAttribute("data-encrypted-payload", d.encrypted_payload);
+          msgEl2.setAttribute("data-nonce", d.nonce);
         }
       }
       }
@@ -1720,7 +1773,7 @@ var __aichatChannelId = (function () {
         finalizeToolPanel();
       }
     } else if (d.type === "aichat:interaction") {
-      // Decrypt interaction content if needed
+      // Decrypt interaction content if needed (legacy inline encryption)
       if (d.encrypted_payload && d.nonce) {
         var plain = e2e.decrypt(d.encrypted_payload, d.nonce);
         if (plain) {
@@ -1731,7 +1784,53 @@ var __aichatChannelId = (function () {
           } catch (ex) { d.content = plain; }
         }
       }
-      showInteraction(d);
+      // If metadata-only (content coming via relay), stash interaction data for later
+      if (!d.content && d.interaction_id) {
+        window.__aichatPendingInteraction = d;
+      } else {
+        showInteraction(d);
+      }
+    } else if (d.type === "aichat:content-relay") {
+      // Ephemeral content relay from device — decrypt and apply
+      var ct = d.content_type || "message";
+      if (d.encrypted_payload && d.nonce) {
+        var relayPlain = e2e.decrypt(d.encrypted_payload, d.nonce);
+        if (relayPlain) {
+          if (ct === "message" && d.message_id) {
+            try {
+              var relayPayload = JSON.parse(relayPlain);
+              var relayContent = relayPayload.content || "";
+              var relayAttachments = relayPayload.attachments || [];
+            } catch (ex) {
+              var relayContent = relayPlain;
+              var relayAttachments = [];
+            }
+            // Check if the message element exists yet
+            var relayEl = document.querySelector('[data-message-id="' + d.message_id + '"]');
+            if (relayEl) {
+              applyContentRelay(d.message_id, relayContent, relayAttachments);
+            } else {
+              // Buffer for when the notification arrives
+              contentRelayBuffer[d.message_id] = { content: relayContent, attachments: relayAttachments };
+            }
+          } else if (ct === "tool") {
+            addToolToPanel(relayPlain);
+          } else if (ct === "interaction") {
+            try {
+              var intPayload = JSON.parse(relayPlain);
+              var pendingInt = window.__aichatPendingInteraction;
+              if (pendingInt) {
+                pendingInt.content = intPayload.content || "";
+                pendingInt.options = intPayload.options || [];
+                showInteraction(pendingInt);
+                window.__aichatPendingInteraction = null;
+              }
+            } catch (ex) {
+              console.warn("E2E: failed to parse interaction relay", ex);
+            }
+          }
+        }
+      }
     } else if (d.type === "aichat:history-response") {
       // Handle history response from device proxy
       var reqId = d.request_id;

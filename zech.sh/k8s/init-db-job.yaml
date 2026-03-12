@@ -48,6 +48,18 @@ spec:
                   name: zech-sh-secrets
                   key: redis-url
                   optional: true
+            - name: SPACES_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: zech-sh-secrets
+                  key: spaces-access-key-id
+                  optional: true
+            - name: SPACES_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zech-sh-secrets
+                  key: spaces-secret-access-key
+                  optional: true
           resources:
             requests:
               memory: "128Mi"
