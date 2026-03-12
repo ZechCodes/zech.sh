@@ -97,6 +97,13 @@ to surface recent news, updates, or changes related to the query since \
 your knowledge cutoff. This ensures the answer reflects the current state \
 of the world, not stale information.
 
+## Search query style
+
+Do NOT add dates or years to your search queries unless the user \
+specifically asked about a time period or the topic genuinely requires \
+recent information. Most queries are better served by general searches \
+that let the search engine rank by relevance.
+
 ## Source quality hierarchy (strictly prefer higher tiers)
 
 1. **Primary / official** — documentation, specs, official blogs, \
