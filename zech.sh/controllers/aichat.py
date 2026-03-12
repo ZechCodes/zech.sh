@@ -1417,6 +1417,8 @@ async def _do_create_interaction(
     content: str,
     options: list | None = None,
     multi_select: bool = False,
+    encrypted_payload: str = "",
+    nonce: str = "",
 ) -> dict:
     """Create an interaction request (question or plan) for the user."""
     if interaction_type not in ("question", "plan"):
@@ -1435,6 +1437,9 @@ async def _do_create_interaction(
         if options:
             notification_kwargs["options"] = options
             notification_kwargs["multi_select"] = multi_select
+        if encrypted_payload and nonce:
+            notification_kwargs["encrypted_payload"] = encrypted_payload
+            notification_kwargs["nonce"] = nonce
         await notify_user(
             target_user_id,
             "aichat:interaction",
@@ -1990,6 +1995,8 @@ async def _dispatch_ws_message(
                 msg.get("interaction_type", ""), msg.get("content", ""),
                 options=msg.get("options"),
                 multi_select=msg.get("multi_select", False),
+                encrypted_payload=msg.get("encrypted_payload", ""),
+                nonce=msg.get("nonce", ""),
             )
         case "report_directories":
             return await _do_report_directories(
