@@ -2178,13 +2178,20 @@ class AiChatDeviceWebSocketController(Controller):
                 while True:
                     n = await q.get()
                     event_data = n.to_dict()
+                    event_type = event_data.get("type")
+                    logger.info(
+                        "Device %s: forwarding event type=%s to WebSocket",
+                        device_id, event_type,
+                    )
                     await socket.send_text(json.dumps({
                         "type": "event",
-                        "event_type": event_data.get("type"),
+                        "event_type": event_type,
                         **{k: v for k, v in event_data.items() if k != "type"},
                     }))
-            except Exception:
-                pass  # WebSocket closed or cancelled
+            except Exception as exc:
+                logger.warning(
+                    "Device %s: forward_events stopped: %s", device_id, exc,
+                )
 
         forwarder = asyncio.create_task(forward_events())
 
