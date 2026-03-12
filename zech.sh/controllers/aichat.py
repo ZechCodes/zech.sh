@@ -1055,6 +1055,82 @@ class AiChatController(Controller):
 
         return Response(content={"ok": True})
 
+    @post("/c/{channel_id:str}/request-history")
+    async def request_history(
+        self, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Request message history from device via server relay.
+
+        Browser sends {before, limit}, server forwards to device via WS,
+        device responds with encrypted messages. Response comes back via SSE.
+        """
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+
+        # CSRF verification
+        submitted_token = request.headers.get("x-csrf-token", "")
+        stored_token = request.session.get(CSRF_SESSION_KEY, "")
+        if not stored_token or not hmac_mod.compare_digest(submitted_token, stored_token):
+            return Response(content={"error": "CSRF validation failed"}, status_code=403)
+
+        body = await request.json()
+        request_id = body.get("request_id", secrets.token_urlsafe(8))
+
+        # Forward to device via notification
+        await notify_user(
+            user.id,
+            "aichat:history-request",
+            mode=NotificationMode.TIMESERIES,
+            push_notify=False,
+            channel_id=channel_id,
+            request_id=request_id,
+            before=body.get("before"),
+            limit=min(body.get("limit", 100), 200),
+        )
+
+        return Response(content={"ok": True, "request_id": request_id})
+
+    @post("/c/{channel_id:str}/rekey")
+    async def rekey(
+        self, channel_id: str, request: Request, db_session: AsyncSession
+    ) -> Response:
+        """Request channel key re-encryption from device for a new browser session.
+
+        Browser sends its X25519 public key. Server forwards to device.
+        Device computes new shared secret, re-encrypts channel keys, responds via WS.
+        Response comes back to browser via SSE.
+        """
+        user = await _get_user(request, db_session)
+        if not user:
+            return Response(content={"error": "unauthorized"}, status_code=401)
+
+        # CSRF verification
+        submitted_token = request.headers.get("x-csrf-token", "")
+        stored_token = request.session.get(CSRF_SESSION_KEY, "")
+        if not stored_token or not hmac_mod.compare_digest(submitted_token, stored_token):
+            return Response(content={"error": "CSRF validation failed"}, status_code=403)
+
+        body = await request.json()
+        browser_x25519_public = body.get("browser_x25519_public", "")
+        if not browser_x25519_public:
+            return Response(content={"error": "browser_x25519_public required"}, status_code=400)
+
+        request_id = secrets.token_urlsafe(8)
+
+        # Forward to device via notification
+        await notify_user(
+            user.id,
+            "aichat:rekey-request",
+            mode=NotificationMode.TIMESERIES,
+            push_notify=False,
+            channel_id=channel_id,
+            request_id=request_id,
+            browser_x25519_public=browser_x25519_public,
+        )
+
+        return Response(content={"ok": True, "request_id": request_id})
+
 
 # ---------------------------------------------------------------------------
 # Shared business logic (used by both HTTP API and WebSocket handler)
@@ -1066,9 +1142,13 @@ async def _do_send_message(
     channel_id: UUID,
     content: str,
     attachments: list[dict] | None = None,
+    encrypted_payload: str = "",
+    nonce: str = "",
 ) -> dict:
     """Create a claude message, notify the user, and send push."""
     content = (content or "").strip()
+    is_encrypted = bool(encrypted_payload and nonce)
+
     clean_attachments: list[dict] = []
     if attachments:
         for att in attachments[:10]:
@@ -1080,12 +1160,13 @@ async def _do_send_message(
                     "url": str(att["url"]),
                 })
 
-    if not content and not clean_attachments:
+    if not content and not clean_attachments and not is_encrypted:
         raise ValueError("empty message")
 
+    # Store message — content may be empty if encrypted
     msg = AiChatMessage(
         sender="claude",
-        content=content,
+        content=content if not is_encrypted else "[encrypted]",
         channel_id=channel_id,
         attachments=clean_attachments or None,
     )
@@ -1099,19 +1180,31 @@ async def _do_send_message(
         )
         channel_name = ch_result.scalar_one_or_none() or "Agent"
 
+        notification_kwargs = {
+            "sender": "claude",
+            "message_id": str(msg.id),
+            "channel_id": str(channel_id),
+        }
+        if is_encrypted:
+            notification_kwargs["encrypted_payload"] = encrypted_payload
+            notification_kwargs["nonce"] = nonce
+        else:
+            notification_kwargs["content"] = content
+            notification_kwargs["attachments"] = clean_attachments
+
         await notify_user(
             target_user_id,
             "aichat:message",
             mode=NotificationMode.TIMESERIES,
             push_notify=False,
-            sender="claude",
-            content=content,
-            message_id=str(msg.id),
-            channel_id=str(channel_id),
-            attachments=clean_attachments,
+            **notification_kwargs,
         )
 
-        truncated = content[:120] + "..." if len(content) > 120 else content
+        # Push notification — generic body when encrypted
+        if is_encrypted:
+            truncated = "New message"
+        else:
+            truncated = content[:120] + "..." if len(content) > 120 else content
         try:
             await send_push(
                 db_session,
@@ -1210,13 +1303,18 @@ async def _do_tool_status(
     status: str,
     tool: str = "",
     description: str = "",
+    encrypted_description: str = "",
+    description_nonce: str = "",
 ) -> dict:
     """Update tool status with DB persistence and notification."""
     if status not in ("active", "done", "idle"):
         raise ValueError("invalid status")
+    is_encrypted = bool(encrypted_description and description_nonce)
 
     # Persist tool use in a "tools" message block
-    if status == "active" and description:
+    # When encrypted, use placeholder — real data lives on device
+    db_description = "[encrypted]" if is_encrypted else description
+    if status == "active" and (description or is_encrypted):
         last_claude = await db_session.execute(
             select(AiChatMessage.created_at)
             .where(
@@ -1248,12 +1346,12 @@ async def _do_tool_status(
         if tools_msg:
             existing = tools_msg.content or ""
             lines = [l for l in existing.split("\n") if l]
-            if not lines or lines[-1] != description:
-                tools_msg.content = existing + "\n" + description if existing else description
+            if not lines or lines[-1] != db_description:
+                tools_msg.content = existing + "\n" + db_description if existing else db_description
         else:
             tools_msg = AiChatMessage(
                 sender="tools",
-                content=description,
+                content=db_description,
                 channel_id=channel_id,
             )
             db_session.add(tools_msg)
@@ -1267,16 +1365,24 @@ async def _do_tool_status(
         else:
             group = f"aichat:tool:{channel_id}"
 
+        notification_kwargs = {
+            "status": status,
+            "tool": tool,
+            "channel_id": str(channel_id),
+        }
+        if is_encrypted:
+            notification_kwargs["encrypted_description"] = encrypted_description
+            notification_kwargs["description_nonce"] = description_nonce
+        else:
+            notification_kwargs["description"] = description
+
         await notify_user(
             target_user_id,
             "aichat:tool",
             mode=NotificationMode.QUEUED,
             group=group,
             push_notify=False,
-            status=status,
-            tool=tool,
-            description=description,
-            channel_id=str(channel_id),
+            **notification_kwargs,
         )
 
     return {"ok": True}
@@ -1837,6 +1943,8 @@ async def _dispatch_ws_message(
             return await _do_send_message(
                 db_session, channel_id, msg.get("content", ""),
                 msg.get("attachments"),
+                encrypted_payload=msg.get("encrypted_payload", ""),
+                nonce=msg.get("nonce", ""),
             )
         case "mark_read":
             return await _do_mark_read(
@@ -1851,6 +1959,8 @@ async def _dispatch_ws_message(
                 db_session, channel_id,
                 msg.get("status", ""), msg.get("tool", ""),
                 msg.get("description", ""),
+                encrypted_description=msg.get("encrypted_description", ""),
+                description_nonce=msg.get("description_nonce", ""),
             )
         case "create_interaction":
             return await _do_create_interaction(
@@ -1875,8 +1985,49 @@ async def _dispatch_ws_message(
                 msg.get("encrypted_channel_key", ""),
                 msg.get("key_nonce", ""),
             )
+        case "rekey_response":
+            return await _do_relay_to_browser(
+                db_session, device_id,
+                "aichat:rekey-response",
+                request_id=msg.get("request_id", ""),
+                encrypted_keys=msg.get("encrypted_keys", {}),
+            )
+        case "history_response":
+            return await _do_relay_to_browser(
+                db_session, device_id,
+                "aichat:history-response",
+                request_id=msg.get("request_id", ""),
+                channel_id=msg.get("channel_id", ""),
+                messages=msg.get("messages", []),
+                has_more=msg.get("has_more", False),
+            )
         case _:
             raise ValueError(f"Unknown message type: {msg_type}")
+
+
+async def _do_relay_to_browser(
+    db_session: AsyncSession,
+    device_id: str,
+    event_type: str,
+    **kwargs,
+) -> dict:
+    """Relay a message from the device to the browser via SSE notification."""
+    # Look up device owner
+    result = await db_session.execute(
+        select(AiChatDevice.owner_user_id).where(AiChatDevice.id == UUID(device_id))
+    )
+    owner_id = result.scalar_one_or_none()
+    if not owner_id:
+        raise ValueError("Device not found")
+
+    await notify_user(
+        owner_id,
+        event_type,
+        mode=NotificationMode.TIMESERIES,
+        push_notify=False,
+        **kwargs,
+    )
+    return {}
 
 
 async def _do_register_channel_key(
