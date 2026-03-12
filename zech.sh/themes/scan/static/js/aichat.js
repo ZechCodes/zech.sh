@@ -1684,6 +1684,7 @@ var __aichatChannelId = (function () {
   // Content relay buffer: stash encrypted content that arrives before its notification
   var contentRelayBuffer = {};
   var contentRelayTimeouts = {};
+  var pendingMessages = {};  // msgId -> { sender, messageId, attachments, timer }
 
   function scheduleHistoryFallback(msgId) {
     if (contentRelayTimeouts[msgId]) return;
@@ -1744,16 +1745,28 @@ var __aichatChannelId = (function () {
       // Check if content relay arrived before notification
       var buffered = contentRelayBuffer[d.message_id];
       if (!d.content && !d.encrypted_payload && buffered) {
+        // Relay arrived first (rare) — render immediately
         d.content = buffered.content;
         d.attachments = buffered.attachments;
         delete contentRelayBuffer[d.message_id];
-      }
-      appendMessage(d.sender, d.content, d.message_id, d.attachments);
-      // If metadata-only (encrypted, no content yet), mark for relay and schedule fallback
-      if (!d.content && !d.encrypted_payload && d.message_id) {
-        var msgEl = document.querySelector('[data-message-id="' + d.message_id + '"] .aichat-msg-content');
-        if (msgEl) msgEl.setAttribute("data-raw", "[encrypted]");
-        scheduleHistoryFallback(d.message_id);
+        appendMessage(d.sender, d.content, d.message_id, d.attachments);
+      } else if (!d.content && !d.encrypted_payload && d.message_id) {
+        // Encrypted, relay hasn't arrived yet — defer rendering
+        var capturedId = d.message_id;
+        var capturedSender = d.sender;
+        var capturedAttachments = d.attachments;
+        pendingMessages[capturedId] = {
+          sender: capturedSender,
+          messageId: capturedId,
+          attachments: capturedAttachments,
+          timer: setTimeout(function() {
+            delete pendingMessages[capturedId];
+            appendMessage(capturedSender || "claude", "", capturedId, capturedAttachments);
+            requestHistoryForEncrypted();
+          }, 3000)
+        };
+      } else {
+        appendMessage(d.sender, d.content, d.message_id, d.attachments);
       }
       // Legacy: tag DOM element with encrypted data for key-arrival retry
       if (d._pendingDecrypt && d.message_id) {
@@ -1805,13 +1818,21 @@ var __aichatChannelId = (function () {
               var relayContent = relayPlain;
               var relayAttachments = [];
             }
-            // Check if the message element exists yet
-            var relayEl = document.querySelector('[data-message-id="' + d.message_id + '"]');
-            if (relayEl) {
-              applyContentRelay(d.message_id, relayContent, relayAttachments);
+            // Check if message is waiting for content (deferred rendering)
+            var pending = pendingMessages[d.message_id];
+            if (pending) {
+              clearTimeout(pending.timer);
+              delete pendingMessages[d.message_id];
+              appendMessage(pending.sender, relayContent, pending.messageId, relayAttachments);
             } else {
-              // Buffer for when the notification arrives
-              contentRelayBuffer[d.message_id] = { content: relayContent, attachments: relayAttachments };
+              // Check if the message element exists yet (fallback DOM path)
+              var relayEl = document.querySelector('[data-message-id="' + d.message_id + '"]');
+              if (relayEl) {
+                applyContentRelay(d.message_id, relayContent, relayAttachments);
+              } else {
+                // Buffer for when the notification arrives
+                contentRelayBuffer[d.message_id] = { content: relayContent, attachments: relayAttachments };
+              }
             }
           } else if (ct === "tool") {
             addToolToPanel(relayPlain);
