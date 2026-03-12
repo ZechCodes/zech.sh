@@ -76,6 +76,7 @@ class ExpLiteDeps:
     max_read_calls: int = 3
     search_calls: int = 0
     emitted_researching: bool = False
+    current_topic: str = ""  # Active research group topic for frontend
 
 
 # ---------------------------------------------------------------------------
@@ -190,21 +191,28 @@ async def brave_search(ctx: RunContext[ExpLiteDeps], query: str) -> str:
 
     deps.search_calls += 1
 
-    # Emit researching stage on first search
+    # Emit researching stage + create tool group on first search
     if not deps.emitted_researching:
         deps.emitted_researching = True
+        deps.current_topic = query
         await deps.dispatch(StageEvent(stage="researching"))
+        await deps.dispatch(DetailEvent(
+            type="research",
+            payload={"topic": query},
+        ))
+
+    topic = deps.current_topic
 
     await deps.dispatch(DetailEvent(
         type="search",
-        payload={"topic": query, "query": query},
+        payload={"topic": topic, "query": query},
     ))
 
     try:
         results = await _brave_search(query, deps.brave_api_key, count=10)
         await deps.dispatch(DetailEvent(
             type="search_done",
-            payload={"topic": query, "query": query, "num_results": len(results)},
+            payload={"topic": topic, "query": query, "num_results": len(results)},
         ))
     except Exception:
         logger.exception("Brave search failed for %r", query)
@@ -244,6 +252,8 @@ async def verify_readable(ctx: RunContext[ExpLiteDeps], url: str) -> str:
     if url in deps.jina_cache:
         return "readable (already cached)"
 
+    topic = deps.current_topic
+
     # Robots.txt check
     if deps.db_session is not None:
         try:
@@ -253,13 +263,13 @@ async def verify_readable(ctx: RunContext[ExpLiteDeps], url: str) -> str:
         if not allowed:
             await deps.dispatch(DetailEvent(
                 type="fetch_done",
-                payload={"topic": "verify", "url": url, "failed": True},
+                payload={"topic": topic, "url": url, "failed": True},
             ))
             return f"failed: blocked by robots.txt"
 
     await deps.dispatch(DetailEvent(
         type="fetch",
-        payload={"topic": "verify", "url": url},
+        payload={"topic": topic, "url": url},
     ))
 
     try:
@@ -271,7 +281,7 @@ async def verify_readable(ctx: RunContext[ExpLiteDeps], url: str) -> str:
     if not content:
         await deps.dispatch(DetailEvent(
             type="fetch_done",
-            payload={"topic": "verify", "url": url, "failed": True},
+            payload={"topic": topic, "url": url, "failed": True},
         ))
         return f"failed: could not fetch content"
 
@@ -279,7 +289,7 @@ async def verify_readable(ctx: RunContext[ExpLiteDeps], url: str) -> str:
     deps.jina_cache[url] = content
     await deps.dispatch(DetailEvent(
         type="fetch_done",
-        payload={"topic": "verify", "url": url, "content": content[:200]},
+        payload={"topic": topic, "url": url, "content": content[:200]},
     ))
     return "readable"
 
@@ -310,10 +320,12 @@ async def read(ctx: RunContext[ExpLiteDeps], url: str) -> str:
         ))
         return content[:20_000]
 
+    topic = deps.current_topic
+
     # Fetch fresh
     await deps.dispatch(DetailEvent(
         type="fetch",
-        payload={"topic": "read", "url": url},
+        payload={"topic": topic, "url": url},
     ))
 
     try:
@@ -325,7 +337,7 @@ async def read(ctx: RunContext[ExpLiteDeps], url: str) -> str:
     if not content:
         await deps.dispatch(DetailEvent(
             type="fetch_done",
-            payload={"topic": "read", "url": url, "failed": True},
+            payload={"topic": topic, "url": url, "failed": True},
         ))
         return "Failed to fetch content for this URL."
 
@@ -392,7 +404,6 @@ class ExperimentalLitePipeline:
             logger.info("Experimental pipeline starting for query: %s", self.query[:80])
             # === Phase 1: Researcher agent ===
             await self.dispatch(StageEvent(stage="reasoning"))
-            logger.info("Dispatched initial reasoning stage event")
 
             deps = ExpLiteDeps(
                 dispatch=self.dispatch,
@@ -445,6 +456,14 @@ class ExperimentalLitePipeline:
 
             plan: ResearchPlan = researcher_result.output
             researcher_usage = researcher_result.usage()
+
+            # Collapse the research tool group
+            topic = deps.current_topic
+            if topic:
+                await self.dispatch(DetailEvent(
+                    type="result",
+                    payload={"topic": topic, "num_sources": len(plan.sources)},
+                ))
 
             # Track researcher costs
             self.budget.add(
@@ -621,16 +640,11 @@ async def run_experimental_lite_pipeline(
     )
 
     task = asyncio.create_task(pipeline.run())
-    logger.info("Experimental pipeline task created, starting event loop")
 
-    event_count = 0
     while True:
         event = await event_queue.get()
-        event_count += 1
-        logger.info("Yielding event #%d: %s", event_count, type(event).__name__)
         yield event
         if isinstance(event, (DoneEvent, ErrorEvent)):
-            logger.info("Terminal event received, breaking event loop after %d events", event_count)
             break
 
     await task
