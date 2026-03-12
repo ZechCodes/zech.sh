@@ -20,3 +20,5 @@ class AiChatDevice(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(
         DateTimeUTC(timezone=True), nullable=True
     )
+    # X25519 public key for E2E key exchange (base64-encoded, 32 bytes raw)
+    x25519_public: Mapped[str | None] = mapped_column(Text, nullable=True)

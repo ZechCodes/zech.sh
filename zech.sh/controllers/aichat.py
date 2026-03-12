@@ -732,6 +732,16 @@ class AiChatController(Controller):
 
         csrf_token = _get_or_create_csrf_token(request)
 
+        # Look up device's X25519 public key for E2E auto-rekey
+        device_x25519_public = ""
+        if channel.device_id:
+            dev_result = await db_session.execute(
+                select(AiChatDevice.x25519_public).where(
+                    AiChatDevice.id == channel.device_id
+                )
+            )
+            device_x25519_public = dev_result.scalar_one_or_none() or ""
+
         return TemplateResponse(
             "aichat.html",
             context={
@@ -744,6 +754,7 @@ class AiChatController(Controller):
                 "first_unread_id": first_unread_id,
                 "encrypted_channel_key": channel.encrypted_channel_key or "",
                 "key_nonce": channel.key_nonce or "",
+                "device_x25519_public": device_x25519_public,
             },
         )
 
@@ -1990,6 +2001,11 @@ async def _dispatch_ws_message(
             return await _do_list_device_channels(db_session, device_id)
         case "report_status":
             return await _do_report_device_status(db_session, device_id, msg)
+        case "update_device_x25519":
+            return await _do_update_device_x25519(
+                db_session, device_id,
+                msg.get("x25519_public", ""),
+            )
         case "register_channel_key":
             return await _do_register_channel_key(
                 db_session, channel_id,
@@ -2039,6 +2055,37 @@ async def _do_relay_to_browser(
         **kwargs,
     )
     return {}
+
+
+async def _do_update_device_x25519(
+    db_session: AsyncSession,
+    device_id: str,
+    x25519_public: str,
+) -> dict:
+    """Update the device's X25519 public key for E2E key exchange."""
+    if not x25519_public:
+        raise ValueError("x25519_public required")
+
+    # Validate key length (32 bytes raw)
+    import base64
+    try:
+        raw = base64.b64decode(x25519_public)
+        if len(raw) != 32:
+            raise ValueError("X25519 public key must be 32 bytes")
+    except Exception:
+        raise ValueError("Invalid X25519 public key")
+
+    result = await db_session.execute(
+        select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise ValueError("Device not found")
+
+    device.x25519_public = x25519_public
+    await db_session.commit()
+
+    return {"ok": True}
 
 
 async def _do_register_channel_key(

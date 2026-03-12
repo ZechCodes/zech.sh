@@ -348,6 +348,81 @@ var __aichatChannelId = (function () {
       storeKey(keyBytes);
     }
 
+    // Auto-rekey: if device supports E2E but we have no channel key, trigger ECDH
+    function autoRekey() {
+      if (channelKey || !naclReady) return; // Already have key or no nacl
+      var devicePubB64 = cryptoConfig.deviceX25519Public;
+      if (!devicePubB64) return; // Device doesn't support E2E
+
+      console.log("E2E: no channel key — initiating key exchange with device");
+
+      // Generate browser's ephemeral X25519 keypair
+      var browserKP = nacl.box.keyPair();
+
+      // Compute shared secret: X25519(browserPrivate, devicePublic)
+      var devicePub = nacl.util.decodeBase64(devicePubB64);
+      var sharedSecret = nacl.scalarMult(browserKP.secretKey, devicePub);
+
+      // Derive device master key via HKDF-SHA256 (Web Crypto)
+      var salt = new TextEncoder().encode("aichat-device-key");
+      var info = new TextEncoder().encode("v1");
+      crypto.subtle.importKey("raw", sharedSecret, "HKDF", false, ["deriveBits"])
+        .then(function (keyMaterial) {
+          return crypto.subtle.deriveBits(
+            { name: "HKDF", hash: "SHA-256", salt: salt, info: info },
+            keyMaterial, 256
+          );
+        })
+        .then(function (derived) {
+          var masterKey = new Uint8Array(derived);
+          var masterKeyB64 = nacl.util.encodeBase64(masterKey);
+          sessionStorage.setItem("aichat:device_master_key", masterKeyB64);
+
+          // If we already have an encrypted channel key from the server, try to decrypt it now
+          if (cryptoConfig.encryptedChannelKey && cryptoConfig.keyNonce) {
+            try {
+              var ct = nacl.util.decodeBase64(cryptoConfig.encryptedChannelKey);
+              var n = nacl.util.decodeBase64(cryptoConfig.keyNonce);
+              var decrypted = nacl.secretbox.open(ct, n, masterKey);
+              if (decrypted) {
+                var ckB64 = nacl.util.encodeUTF8(decrypted);
+                channelKey = nacl.util.decodeBase64(ckB64);
+                storeKey(channelKey);
+                console.log("E2E: decrypted channel key from server after rekey");
+                return; // No need to POST rekey — we got the key from stored data
+              }
+            } catch (e) {
+              // Fall through to rekey POST
+            }
+          }
+
+          // POST rekey request to get channel keys from device
+          var browserPubB64 = nacl.util.encodeBase64(browserKP.publicKey);
+          fetch("/c/" + channelId + "/rekey", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRF-Token": csrfToken,
+            },
+            body: JSON.stringify({ browser_x25519_public: browserPubB64 }),
+          }).then(function (resp) {
+            if (resp.ok) {
+              console.log("E2E: rekey request sent — waiting for device response via SSE");
+            } else {
+              console.warn("E2E: rekey request failed", resp.status);
+            }
+          }).catch(function (err) {
+            console.warn("E2E: rekey request error", err);
+          });
+        })
+        .catch(function (err) {
+          console.warn("E2E: HKDF derivation failed", err);
+        });
+    }
+
+    // Run auto-rekey after a short delay (let SSE connect first)
+    setTimeout(autoRekey, 1000);
+
     return {
       enabled: !!channelKey,
       decrypt: decrypt,

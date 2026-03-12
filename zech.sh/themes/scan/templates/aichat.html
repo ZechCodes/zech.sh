@@ -179,6 +179,7 @@
         encryptedChannelKey: {{ encrypted_channel_key | tojson }},
         keyNonce: {{ key_nonce | tojson }},
         channelId: {{ channel.id | string | tojson }},
+        deviceX25519Public: {{ device_x25519_public | tojson }},
     };
 </script>
 {% endif %}
