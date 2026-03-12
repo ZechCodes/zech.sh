@@ -502,16 +502,33 @@ var __aichatChannelId = (function () {
       channelKey = keyBytes;
       storeKey(keyBytes);
       api.enabled = true;
+      hideRekeyBanner();
       onKeyReady();
     }
 
-    // Auto-rekey: if device supports E2E but we have no channel key, trigger ECDH
-    function autoRekey() {
-      if (channelKey || !naclReady) return; // Already have key or no nacl
-      var devicePubB64 = cryptoConfig.deviceX25519Public;
-      if (!devicePubB64) return; // Device doesn't support E2E
+    // Rekey banner UI
+    var rekeyBanner = document.getElementById("aichatRekeyBanner");
+    var rekeyBtn = document.getElementById("aichatRekeyBtn");
+    var rekeyStatus = document.getElementById("aichatRekeyStatus");
 
-      console.log("E2E: no channel key — initiating key exchange with device");
+    function showRekeyBanner() {
+      if (rekeyBanner) rekeyBanner.removeAttribute("hidden");
+    }
+
+    function hideRekeyBanner() {
+      if (rekeyBanner) rekeyBanner.setAttribute("hidden", "");
+    }
+
+    // Request key exchange with device
+    function doRekey() {
+      if (channelKey || !naclReady) return;
+      var devicePubB64 = cryptoConfig.deviceX25519Public;
+      if (!devicePubB64) return;
+
+      if (rekeyBtn) rekeyBtn.disabled = true;
+      if (rekeyStatus) rekeyStatus.textContent = "Requesting...";
+
+      console.log("E2E: initiating key exchange with device");
 
       // Generate browser's ephemeral X25519 keypair
       var browserKP = nacl.box.keyPair();
@@ -548,8 +565,9 @@ var __aichatChannelId = (function () {
                 storeKey(keyBytes);
                 api.enabled = true;
                 console.log("E2E: decrypted channel key from server after rekey");
+                hideRekeyBanner();
                 onKeyReady();
-                return; // No need to POST rekey — we got the key from stored data
+                return;
               }
             } catch (e) {
               // Fall through to rekey POST
@@ -568,20 +586,37 @@ var __aichatChannelId = (function () {
           }).then(function (resp) {
             if (resp.ok) {
               console.log("E2E: rekey request sent — waiting for device response via SSE");
+              if (rekeyStatus) rekeyStatus.textContent = "Waiting for device...";
             } else {
               console.warn("E2E: rekey request failed", resp.status);
+              if (rekeyStatus) rekeyStatus.textContent = "Failed (" + resp.status + ")";
+              if (rekeyBtn) rekeyBtn.disabled = false;
             }
           }).catch(function (err) {
             console.warn("E2E: rekey request error", err);
+            if (rekeyStatus) rekeyStatus.textContent = "Error — try again";
+            if (rekeyBtn) rekeyBtn.disabled = false;
           });
         })
         .catch(function (err) {
           console.warn("E2E: HKDF derivation failed", err);
+          if (rekeyStatus) rekeyStatus.textContent = "Key derivation failed";
+          if (rekeyBtn) rekeyBtn.disabled = false;
         });
     }
 
-    // Run auto-rekey immediately (don't wait)
-    setTimeout(autoRekey, 0);
+    if (rekeyBtn) {
+      rekeyBtn.addEventListener("click", doRekey);
+    }
+
+    // Show banner if E2E is needed but we have no key
+    function checkRekeyNeeded() {
+      if (channelKey || !naclReady) return;
+      var devicePubB64 = cryptoConfig.deviceX25519Public;
+      if (!devicePubB64) return; // Device doesn't support E2E
+      showRekeyBanner();
+    }
+    setTimeout(checkRekeyNeeded, 0);
 
     var api = {
       enabled: !!channelKey,

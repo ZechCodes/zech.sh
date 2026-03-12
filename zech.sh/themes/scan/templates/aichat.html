@@ -102,6 +102,13 @@
             {% endfor %}
         </div>
 
+        <!-- E2E rekey banner -->
+        <div class="aichat-rekey-banner" id="aichatRekeyBanner" hidden>
+            <span class="aichat-rekey-text">Messages are encrypted. Request a key to decrypt.</span>
+            <button class="aichat-rekey-btn" id="aichatRekeyBtn" type="button">REQUEST KEY</button>
+            <span class="aichat-rekey-status" id="aichatRekeyStatus"></span>
+        </div>
+
         <!-- Interaction overlay (plans + questions) -->
         <div class="aichat-interaction-overlay" id="aichatInteractionOverlay">
             <div class="aichat-interaction-scrim"></div>
