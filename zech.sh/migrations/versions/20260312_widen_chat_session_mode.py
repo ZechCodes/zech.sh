@@ -3,7 +3,7 @@
 Needed for 'experimental_research' mode (23 chars).
 
 Revision ID: g9j5e7f6h234
-Revises: f8i4d6e5g123
+Revises: e7h3c5d4f012
 Create Date: 2026-03-12
 """
 
@@ -13,7 +13,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "g9j5e7f6h234"
-down_revision: str = "f8i4d6e5g123"
+down_revision: str = "e7h3c5d4f012"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
