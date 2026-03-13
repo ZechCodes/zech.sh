@@ -1031,8 +1031,37 @@ class AiChatController(Controller):
             return Response(content={"error": "not found"}, status_code=404)
 
         before = request.query_params.get("before")
-        if not before:
-            return Response(content={"error": "before param required"}, status_code=400)
+        after = request.query_params.get("after")
+        if not before and not after:
+            return Response(content={"error": "before or after param required"}, status_code=400)
+
+        if after:
+            # Fetch messages newer than the given message ID
+            after_msg = await db_session.get(AiChatMessage, UUID(after))
+            if not after_msg:
+                return Response(content={"error": "message not found"}, status_code=404)
+
+            result = await db_session.execute(
+                select(AiChatMessage)
+                .where(AiChatMessage.channel_id == channel.id)
+                .where(AiChatMessage.created_at > after_msg.created_at)
+                .order_by(AiChatMessage.created_at.asc())
+                .limit(100)
+            )
+            messages = list(result.scalars().all())
+
+            return Response(content={
+                "messages": [
+                    {
+                        "id": str(m.id),
+                        "sender": m.sender,
+                        "content": m.content,
+                        "read_by_claude_at": m.read_by_claude_at.isoformat() if m.read_by_claude_at else None,
+                        "attachments": m.attachments or [],
+                    }
+                    for m in messages
+                ],
+            })
 
         before_msg = await db_session.get(AiChatMessage, UUID(before))
         if not before_msg:

@@ -1688,6 +1688,7 @@ var __aichatChannelId = (function () {
   var contentRelayBuffer = {};
   var contentRelayTimeouts = {};
   var pendingMessages = {};  // msgId -> { sender, messageId, attachments, timer }
+  var missedWhileHidden = false;  // true when SSE messages arrived while tab was hidden
 
   function scheduleHistoryFallback(msgId) {
     if (contentRelayTimeouts[msgId]) return;
@@ -1725,12 +1726,59 @@ var __aichatChannelId = (function () {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Visibility: skip SSE rendering when hidden, fetch on focus
+  // ---------------------------------------------------------------------------
+
+  function getLastMessageId() {
+    var msgs = messagesEl.querySelectorAll(".aichat-msg[data-message-id]");
+    if (!msgs.length) return null;
+    return msgs[msgs.length - 1].getAttribute("data-message-id");
+  }
+
+  function fetchMissedMessages() {
+    var lastId = getLastMessageId();
+    if (!lastId || !channelId) return;
+    var url = "/c/" + channelId + "/messages?after=" + encodeURIComponent(lastId);
+    fetch(url, { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var messages = data.messages || [];
+        for (var i = 0; i < messages.length; i++) {
+          var m = messages[i];
+          // Skip if already in DOM
+          if (document.querySelector('[data-message-id="' + m.id + '"]')) continue;
+          if (m.sender === "event") {
+            appendEventDivider(m.content, m.id);
+          } else {
+            appendMessage(m.sender, m.content, m.id, m.attachments);
+          }
+        }
+      })
+      .catch(function (err) {
+        console.warn("Failed to fetch missed messages:", err);
+      });
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && missedWhileHidden) {
+      missedWhileHidden = false;
+      fetchMissedMessages();
+    }
+  });
+
   document.addEventListener("sk:notification", function (e) {
     var d = e.detail;
     if (!d) return;
 
     // Filter by channel if set
     if (channelId && d.channel_id && d.channel_id !== channelId) return;
+
+    // Skip message rendering when tab is hidden — fetch on focus instead
+    if (document.hidden && (d.type === "aichat:message" || d.type === "aichat:content-relay")) {
+      missedWhileHidden = true;
+      return;
+    }
 
     // E2E: decrypt any encrypted fields in the event
     d = e2e.decryptEvent(d);
