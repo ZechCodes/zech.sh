@@ -2423,5 +2423,15 @@ var __aichatChannelId = (function () {
           });
       });
     }
+
+    var manualRekeyBtn = document.getElementById("aichatManualRekeyBtn");
+    if (manualRekeyBtn) {
+      manualRekeyBtn.addEventListener("click", function () {
+        manualRekeyBtn.disabled = true;
+        manualRekeyBtn.textContent = "RE-KEYING…";
+        modal.classList.remove("is-active");
+        e2e.handleStaleKey();
+      });
+    }
   }
 })();

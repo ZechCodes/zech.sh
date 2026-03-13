@@ -56,6 +56,12 @@
                     {% endif %}
                     <button class="aichat-modal-btn aichat-modal-archive" id="aichatArchiveBtn" type="button">ARCHIVE</button>
                 </div>
+                {% if channel.device_id %}
+                <div class="aichat-modal-divider"></div>
+                <div class="aichat-modal-actions">
+                    <button class="aichat-modal-btn aichat-modal-rekey" id="aichatManualRekeyBtn" type="button">RE-KEY ENCRYPTION</button>
+                </div>
+                {% endif %}
             </div>
         </div>
 
