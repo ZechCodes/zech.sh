@@ -696,15 +696,14 @@ var __aichatChannelId = (function () {
           );
         })
         .then(function (derived) {
-          var masterKey = new Uint8Array(derived);
+          var transportKey = new Uint8Array(derived);
 
-          // The derived key IS the encryption key (no per-channel layer)
-          // Store locally but don't enable yet — wait for device ack
-          channelKey = masterKey;
-          storeKey(masterKey);
-          console.log("E2E: derived encryption key from ECDH");
+          // Store transport key temporarily — the rekey response will tell us
+          // whether this IS the encryption key or if we need to unwrap the real one
+          window.__aichatTransportKey = transportKey;
+          console.log("E2E: derived transport key from ECDH");
 
-          // POST rekey request so device derives the same key
+          // POST rekey request so device can derive the same transport key
           var browserPubB64 = nacl.util.encodeBase64(browserKP.publicKey);
           fetch("/c/" + channelId + "/rekey", {
             method: "POST",
@@ -715,7 +714,7 @@ var __aichatChannelId = (function () {
             body: JSON.stringify({ browser_x25519_public: browserPubB64 }),
           }).then(function (resp) {
             if (resp.ok) {
-              console.log("E2E: rekey request sent — waiting for device ack");
+              console.log("E2E: rekey request sent — waiting for device response");
               if (rekeyStatus) rekeyStatus.textContent = "Waiting for device...";
             } else {
               console.warn("E2E: rekey request failed", resp.status);
@@ -2198,11 +2197,33 @@ var __aichatChannelId = (function () {
         }
         break;
       case "aichat:rekey-response":
-        // Device acked the rekey — both sides now have the same key
-        console.log("E2E: device confirmed re-key");
-        e2e.enabled = true;
-        e2e.hideRekeyBanner();
-        e2e.onKeyReady();
+        var transportKey = window.__aichatTransportKey;
+        delete window.__aichatTransportKey;
+        if (!transportKey || typeof nacl === "undefined") break;
+
+        var encKey = null;
+        if (d.encrypted_key && d.nonce) {
+          // Device wrapped its existing encryption key with our transport key — unwrap it
+          try {
+            var ek_ct = nacl.util.decodeBase64(d.encrypted_key);
+            var ek_nonce = nacl.util.decodeBase64(d.nonce);
+            var unwrapped = nacl.secretbox.open(ek_ct, ek_nonce, transportKey);
+            if (unwrapped) {
+              // unwrapped is the encryption_key_b64 as UTF-8 bytes
+              var encKeyB64 = nacl.util.encodeUTF8(unwrapped);
+              encKey = nacl.util.decodeBase64(encKeyB64);
+              console.log("E2E: unwrapped encryption key from device");
+            }
+          } catch (ex) {
+            console.warn("E2E: failed to unwrap encryption key", ex);
+          }
+        }
+        if (!encKey) {
+          // First exchange — transport key IS the encryption key
+          encKey = transportKey;
+          console.log("E2E: transport key is the encryption key (first exchange)");
+        }
+        e2e.setChannelKey(encKey);
         break;
     }
   });
