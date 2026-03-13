@@ -836,11 +836,12 @@ var __aichatChannelId = (function () {
     }
     setTimeout(checkRekeyNeeded, 0);
 
-    // Handle stale key detection — clear bad keys and auto-rekey
+    // Handle stale key detection — clear channel key and rekey.
+    // Does NOT remove device_master_key — that would break other channels.
+    // doRekey() will derive a new master key via ECDH if needed.
     function handleStaleKey() {
-      console.log("E2E: clearing stale keys and initiating rekey");
+      console.log("E2E: clearing stale channel key and initiating rekey");
       localStorage.removeItem("aichat:key:" + channelId);
-      localStorage.removeItem("aichat:device_master_key");
       channelKey = null;
       api.enabled = false;
       showRekeyBanner();
