@@ -404,6 +404,9 @@ var __aichatChannelId = (function () {
     var cryptoConfig = window.__aichatCrypto || {};
     var naclReady = typeof nacl !== "undefined" && typeof nacl.util !== "undefined";
     var channelKey = null; // Uint8Array once decrypted
+    var decryptFailCount = 0;
+    var STALE_KEY_THRESHOLD = 2;
+    var staleKeyDetected = false;
 
     function getStoredKey() {
       var b64 = localStorage.getItem("aichat:key:" + channelId);
@@ -443,16 +446,60 @@ var __aichatChannelId = (function () {
       }
     }
 
+    // Startup validation: if we have a cached key AND server has an encrypted key,
+    // verify they match. Detects stale keys proactively before any messages arrive.
+    if (channelKey && cryptoConfig.encryptedChannelKey && cryptoConfig.keyNonce && naclReady) {
+      var _masterB64 = localStorage.getItem("aichat:device_master_key");
+      if (_masterB64) {
+        try {
+          var _mk = nacl.util.decodeBase64(_masterB64);
+          var _ck = nacl.util.decodeBase64(cryptoConfig.encryptedChannelKey);
+          var _cn = nacl.util.decodeBase64(cryptoConfig.keyNonce);
+          var _serverDecrypted = nacl.secretbox.open(_ck, _cn, _mk);
+          if (_serverDecrypted) {
+            var _serverKeyB64 = nacl.util.encodeUTF8(_serverDecrypted);
+            var _serverKeyBytes = nacl.util.decodeBase64(_serverKeyB64);
+            var _cachedB64 = nacl.util.encodeBase64(channelKey);
+            var _serverB64 = nacl.util.encodeBase64(_serverKeyBytes);
+            if (_cachedB64 !== _serverB64) {
+              console.warn("E2E: cached channel key differs from server — updating");
+              channelKey = _serverKeyBytes;
+              storeKey(_serverKeyBytes);
+            }
+          }
+        } catch (e) {
+          // Master key can't decrypt server's channel key — master key is stale
+          console.warn("E2E: master key cannot decrypt server channel key — scheduling rekey");
+          staleKeyDetected = true;
+          setTimeout(handleStaleKey, 0);
+        }
+      }
+    }
+
     function decrypt(ciphertextB64, nonceB64) {
       if (!channelKey || !naclReady) return null;
       try {
         var ct = nacl.util.decodeBase64(ciphertextB64);
         var nonce = nacl.util.decodeBase64(nonceB64);
         var plain = nacl.secretbox.open(ct, nonce, channelKey);
-        if (!plain) return null;
+        if (!plain) {
+          decryptFailCount++;
+          if (decryptFailCount >= STALE_KEY_THRESHOLD && !staleKeyDetected) {
+            staleKeyDetected = true;
+            console.warn("E2E: " + decryptFailCount + " consecutive failures — stale key detected");
+            setTimeout(handleStaleKey, 0);
+          }
+          return null;
+        }
+        decryptFailCount = 0;
         return nacl.util.encodeUTF8(plain);
       } catch (e) {
         console.warn("E2E: decrypt failed", e);
+        decryptFailCount++;
+        if (decryptFailCount >= STALE_KEY_THRESHOLD && !staleKeyDetected) {
+          staleKeyDetected = true;
+          setTimeout(handleStaleKey, 0);
+        }
         return null;
       }
     }
@@ -670,6 +717,8 @@ var __aichatChannelId = (function () {
       channelKey = keyBytes;
       storeKey(keyBytes);
       api.enabled = true;
+      decryptFailCount = 0;
+      staleKeyDetected = false;
       hideRekeyBanner();
       onKeyReady();
     }
@@ -689,7 +738,8 @@ var __aichatChannelId = (function () {
 
     // Request key exchange with device
     function doRekey() {
-      if (channelKey || !naclReady) return;
+      if (!naclReady) return;
+      if (channelKey && !staleKeyDetected) return;
       var devicePubB64 = cryptoConfig.deviceX25519Public;
       if (!devicePubB64) return;
 
@@ -786,6 +836,20 @@ var __aichatChannelId = (function () {
     }
     setTimeout(checkRekeyNeeded, 0);
 
+    // Handle stale key detection — clear bad keys and auto-rekey
+    function handleStaleKey() {
+      console.log("E2E: clearing stale keys and initiating rekey");
+      localStorage.removeItem("aichat:key:" + channelId);
+      localStorage.removeItem("aichat:device_master_key");
+      channelKey = null;
+      api.enabled = false;
+      showRekeyBanner();
+      var rekeyText = document.getElementById("aichatRekeyText");
+      if (rekeyText) rekeyText.textContent = "Encryption keys are out of date. Re-keying\u2026";
+      if (rekeyStatus) rekeyStatus.textContent = "";
+      doRekey();
+    }
+
     var api = {
       enabled: !!channelKey,
       decrypt: decrypt,
@@ -794,6 +858,7 @@ var __aichatChannelId = (function () {
       setChannelKey: setChannelKey,
       requestHistoryForEncrypted: requestHistoryForEncrypted,
       decryptMessageElement: decryptMessageElement,
+      handleStaleKey: handleStaleKey,
     };
 
     // If key was loaded from localStorage at init, decrypt page-load messages
