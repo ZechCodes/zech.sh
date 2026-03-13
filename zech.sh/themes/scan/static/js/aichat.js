@@ -739,12 +739,13 @@ var __aichatChannelId = (function () {
       rekeyBtn.addEventListener("click", doRekey);
     }
 
-    // Show banner if E2E is needed but we have no key
+    // Auto-rekey if E2E is needed but we have no key
     function checkRekeyNeeded() {
       if (channelKey || !naclReady) return;
       var devicePubB64 = cryptoConfig.deviceX25519Public;
       if (!devicePubB64) return; // Device doesn't support E2E
       showRekeyBanner();
+      doRekey(); // Auto-trigger instead of waiting for button click
     }
     setTimeout(checkRekeyNeeded, 0);
 
