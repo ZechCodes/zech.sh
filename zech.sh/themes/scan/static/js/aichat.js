@@ -2201,36 +2201,32 @@ var __aichatChannelId = (function () {
         }
         break;
       case "aichat:rekey-response":
-        // Match response to our pending request by request_id
         var rkId = d.request_id || "";
         var pending = window.__aichatPendingRekeys || {};
         var transportKey = pending[rkId];
         if (!transportKey || typeof nacl === "undefined") break;
         delete pending[rkId];
 
-        var encKey = null;
-        if (d.encrypted_key && d.nonce) {
-          // Device wrapped its existing encryption key with our transport key — unwrap it
-          try {
-            var ek_ct = nacl.util.decodeBase64(d.encrypted_key);
-            var ek_nonce = nacl.util.decodeBase64(d.nonce);
-            var unwrapped = nacl.secretbox.open(ek_ct, ek_nonce, transportKey);
-            if (unwrapped) {
-              // unwrapped is the encryption_key_b64 as UTF-8 bytes
-              var encKeyB64 = nacl.util.encodeUTF8(unwrapped);
-              encKey = nacl.util.decodeBase64(encKeyB64);
-              console.log("E2E: unwrapped encryption key from device");
-            }
-          } catch (ex) {
-            console.warn("E2E: failed to unwrap encryption key", ex);
+        if (!d.encrypted_key || !d.nonce) {
+          console.warn("E2E: rekey-response missing encrypted_key/nonce");
+          break;
+        }
+
+        try {
+          var ek_ct = nacl.util.decodeBase64(d.encrypted_key);
+          var ek_nonce = nacl.util.decodeBase64(d.nonce);
+          var unwrapped = nacl.secretbox.open(ek_ct, ek_nonce, transportKey);
+          if (unwrapped) {
+            var encKeyB64 = nacl.util.encodeUTF8(unwrapped);
+            var encKey = nacl.util.decodeBase64(encKeyB64);
+            e2e.setChannelKey(encKey);
+            console.log("E2E: unwrapped encryption key from device");
+          } else {
+            console.warn("E2E: unwrap returned null — transport key mismatch");
           }
+        } catch (ex) {
+          console.warn("E2E: failed to unwrap encryption key", ex);
         }
-        if (!encKey) {
-          // First exchange — transport key IS the encryption key
-          encKey = transportKey;
-          console.log("E2E: transport key is the encryption key (first exchange)");
-        }
-        e2e.setChannelKey(encKey);
         break;
     }
   });

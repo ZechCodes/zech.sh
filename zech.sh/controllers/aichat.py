@@ -2201,6 +2201,7 @@ async def _dispatch_ws_message(
             return await _do_relay_to_browser(
                 db_session, device_id,
                 "aichat:rekey-response",
+                mode=NotificationMode.EPHEMERAL,
                 **rekey_kwargs,
             )
         case "history_response":
