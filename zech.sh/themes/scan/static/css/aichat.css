@@ -1919,6 +1919,92 @@
 }
 
 /* --------------------------------------------------------------------------
+   E2E key mismatch warning overlay
+   -------------------------------------------------------------------------- */
+
+.aichat-key-warning-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.aichat-key-warning-overlay[hidden] {
+  display: none;
+}
+
+.aichat-key-warning-panel {
+  max-width: 420px;
+  padding: 2rem;
+  text-align: center;
+  border: 1px solid rgba(255, 60, 0, 0.4);
+  border-radius: 8px;
+  background: rgba(20, 0, 0, 0.9);
+}
+
+.aichat-key-warning-icon {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 0.75rem;
+  color: #ff3c00;
+}
+
+.aichat-key-warning-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #ff3c00;
+  margin: 0 0 1rem;
+}
+
+.aichat-key-warning-body {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0 0 0.75rem;
+}
+
+.aichat-key-warning-rekey {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 0.5rem 1.5rem;
+  margin-top: 0.5rem;
+  border: 1px solid rgba(255, 60, 0, 0.4);
+  border-radius: 4px;
+  background: rgba(255, 60, 0, 0.12);
+  color: #ff3c00;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.aichat-key-warning-rekey:hover {
+  background: rgba(255, 60, 0, 0.25);
+  border-color: rgba(255, 60, 0, 0.6);
+}
+
+.aichat-key-warning-rekey:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.aichat-key-warning-status {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* --------------------------------------------------------------------------
    Interaction overlay (plans + questions)
    -------------------------------------------------------------------------- */
 

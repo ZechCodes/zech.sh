@@ -453,6 +453,29 @@ var __aichatChannelId = (function () {
       }
     }
 
+    var keyMismatchShown = false;
+    var keyWarningOverlay = document.getElementById("aichatKeyWarningOverlay");
+
+    function showKeyMismatchWarning() {
+      if (keyMismatchShown) return;
+      keyMismatchShown = true;
+      if (keyWarningOverlay) keyWarningOverlay.removeAttribute("hidden");
+      var btn = document.getElementById("aichatKeyWarningRekey");
+      if (btn) {
+        btn.addEventListener("click", function () {
+          btn.disabled = true;
+          var status = document.getElementById("aichatKeyWarningStatus");
+          if (status) status.textContent = "Requesting new key\u2026";
+          manualRekey();
+        });
+      }
+    }
+
+    function dismissKeyMismatchWarning() {
+      keyMismatchShown = false;
+      if (keyWarningOverlay) keyWarningOverlay.setAttribute("hidden", "");
+    }
+
     function decryptEvent(d) {
       // Decrypt aichat:message events
       if (d.encrypted_payload && d.nonce) {
@@ -466,6 +489,11 @@ var __aichatChannelId = (function () {
             d.content = plain;
           }
           d._decrypted = true;
+        } else if (channelKey) {
+          // We have a key but decryption failed — key mismatch
+          d.content = "";
+          d._pendingDecrypt = true;
+          showKeyMismatchWarning();
         } else {
           d.content = "";
           d._pendingDecrypt = true;
@@ -474,6 +502,7 @@ var __aichatChannelId = (function () {
       // Decrypt tool descriptions
       if (d.encrypted_description && d.description_nonce) {
         var desc = decrypt(d.encrypted_description, d.description_nonce);
+        if (!desc && channelKey) showKeyMismatchWarning();
         d.description = desc || "[encrypted]";
       }
       return d;
@@ -651,6 +680,7 @@ var __aichatChannelId = (function () {
       storeKey(keyBytes);
       api.enabled = true;
       hideRekeyBanner();
+      dismissKeyMismatchWarning();
       onKeyReady();
     }
 

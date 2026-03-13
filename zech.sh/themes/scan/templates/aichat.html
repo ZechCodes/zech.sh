@@ -115,6 +115,25 @@
             <span class="aichat-rekey-status" id="aichatRekeyStatus"></span>
         </div>
 
+        <!-- E2E key mismatch security warning -->
+        <div class="aichat-key-warning-overlay" id="aichatKeyWarningOverlay" hidden>
+            <div class="aichat-key-warning-panel">
+                <div class="aichat-key-warning-icon">&#x26A0;</div>
+                <h2 class="aichat-key-warning-title">Encryption Key Mismatch</h2>
+                <p class="aichat-key-warning-body">
+                    A message could not be decrypted. This means the device's encryption
+                    key has changed &mdash; either the device manager rekeyed, or a third
+                    party may be attempting to intercept messages.
+                </p>
+                <p class="aichat-key-warning-body">
+                    If you trust this is safe (e.g. you just restarted the manager),
+                    request a new key below. Otherwise, investigate before proceeding.
+                </p>
+                <button class="aichat-key-warning-rekey" id="aichatKeyWarningRekey" type="button">REQUEST NEW KEY</button>
+                <span class="aichat-key-warning-status" id="aichatKeyWarningStatus"></span>
+            </div>
+        </div>
+
         <!-- Interaction overlay (plans + questions) -->
         <div class="aichat-interaction-overlay" id="aichatInteractionOverlay">
             <div class="aichat-interaction-scrim"></div>
