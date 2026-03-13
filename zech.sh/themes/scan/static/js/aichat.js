@@ -503,15 +503,19 @@ var __aichatChannelId = (function () {
     // and request history from device to replace page-load "[encrypted]" text.
     function onKeyReady() {
       // 1. Decrypt real-time messages that arrived before the key was ready
-      var pending = document.querySelectorAll("[data-encrypted-payload]");
-      for (var i = 0; i < pending.length; i++) {
-        var el = pending[i];
-        decryptMessageElement(el);
+      var pendingEls = document.querySelectorAll("[data-encrypted-payload]");
+      for (var i = 0; i < pendingEls.length; i++) {
+        decryptMessageElement(pendingEls[i]);
       }
-      if (pending.length) console.log("E2E: decrypted " + pending.length + " buffered messages");
+      if (pendingEls.length) console.log("E2E: decrypted " + pendingEls.length + " buffered messages");
 
-      // 2. Request history from device to replace "[encrypted]" page-load messages
-      requestHistoryForEncrypted();
+      // 2. Delegate to receive layer if available
+      if (typeof receiveLayer !== "undefined") {
+        receiveLayer.onKeyReady();
+      } else {
+        // Fallback: request history directly
+        requestHistoryForEncrypted();
+      }
     }
 
     function decryptMessageElement(el) {
@@ -569,29 +573,39 @@ var __aichatChannelId = (function () {
           if (m.encrypted_payload && m.nonce) {
             var plain = decrypt(m.encrypted_payload, m.nonce);
             if (plain) {
+              var histContent, histAttachments;
+              try {
+                var payload = JSON.parse(plain);
+                histContent = payload.content || "";
+                histAttachments = payload.attachments || [];
+              } catch (ex) {
+                histContent = plain;
+                histAttachments = [];
+              }
+
+              // Try receiveLayer first (for pending entries not yet in DOM)
+              if (typeof receiveLayer !== "undefined" && receiveLayer.applyHistoryMessage(m.id, histContent, histAttachments)) {
+                count++;
+                continue;
+              }
+
+              // Fall back to patching existing DOM elements
               var target = document.querySelector('[data-message-id="' + m.id + '"] .aichat-msg-content');
               if (target) {
-                try {
-                  var payload = JSON.parse(plain);
-                  target.innerHTML = renderMarkdown(payload.content || "");
-                  target.removeAttribute("data-raw");
-                  if (payload.attachments && payload.attachments.length) {
-                    var msgDiv = target.closest("[data-message-id]");
-                    if (msgDiv) {
-                      var imgContainer = createImageElements(payload.attachments);
-                      if (imgContainer) {
-                        var existingImgs = msgDiv.querySelector(".aichat-msg-images");
-                        if (existingImgs) existingImgs.remove();
-                        msgDiv.insertBefore(imgContainer, target);
-                      }
+                target.innerHTML = renderMarkdown(histContent);
+                target.removeAttribute("data-raw");
+                if (histAttachments.length) {
+                  var msgDiv = target.closest("[data-message-id]");
+                  if (msgDiv) {
+                    var imgContainer = createImageElements(histAttachments);
+                    if (imgContainer) {
+                      var existingImgs = msgDiv.querySelector(".aichat-msg-images");
+                      if (existingImgs) existingImgs.remove();
+                      msgDiv.insertBefore(imgContainer, target);
                     }
                   }
-                  count++;
-                } catch (ex) {
-                  target.innerHTML = renderMarkdown(plain);
-                  target.removeAttribute("data-raw");
-                  count++;
                 }
+                count++;
               }
             }
           }
@@ -778,6 +792,8 @@ var __aichatChannelId = (function () {
       encrypt: encrypt,
       decryptEvent: decryptEvent,
       setChannelKey: setChannelKey,
+      requestHistoryForEncrypted: requestHistoryForEncrypted,
+      decryptMessageElement: decryptMessageElement,
     };
 
     // If key was loaded from localStorage at init, decrypt page-load messages
@@ -786,6 +802,290 @@ var __aichatChannelId = (function () {
     }
 
     return api;
+  })();
+
+  // ---------------------------------------------------------------------------
+  // Receive layer: buffers, decrypts, and delivers messages
+  // ---------------------------------------------------------------------------
+
+  var receiveLayer = (function () {
+    // Notifications awaiting their content-relay
+    var pending = {};  // messageId -> { sender, attachments, timestamp }
+
+    // Content-relays that arrived before their notification
+    var relayBuffer = {};  // messageId -> { content, attachments, timestamp }
+
+    // Optimistic user messages awaiting server confirmation
+    var optimisticQueue = [];  // [{ content, attachments, timestamp }]
+
+    // Dedup: prevent rendering the same message twice
+    var rendered = {};  // messageId -> true
+
+    // Interaction waiting for its content-relay
+    var pendingInteraction = null;
+
+    // Whether messages arrived while tab was hidden
+    var missedWhileHidden = false;
+
+    function handleMessage(d) {
+      // Dedup check
+      if (d.message_id && rendered[d.message_id]) return;
+
+      // Events render immediately (no encryption)
+      if (d.sender === "event") {
+        if (d.message_id) rendered[d.message_id] = true;
+        appendEventDivider(d.content, d.message_id);
+        if (d.content === "plan:enter") { isPlanning = true; wantsPlanning = true; }
+        else if (d.content === "plan:exit") { isPlanning = false; wantsPlanning = false; }
+        if (modeToggle) modeToggle.classList.toggle("is-planning", wantsPlanning);
+        return;
+      }
+
+      // User messages: reconcile with optimistic renders
+      if (d.sender === "user") {
+        if (d.message_id) rendered[d.message_id] = true;
+        optimisticQueue.shift();
+        var optimistic = messagesEl.querySelector('.aichat-msg-user:not([data-message-id])');
+        if (optimistic) optimistic.setAttribute("data-message-id", d.message_id);
+        return;
+      }
+
+      // Claude messages: finalize tool panel
+      if (d.sender === "claude") {
+        finalizeToolPanel();
+      }
+
+      // Check if content-relay arrived first
+      var buffered = relayBuffer[d.message_id];
+      if (buffered) {
+        delete relayBuffer[d.message_id];
+        rendered[d.message_id] = true;
+        appendMessage(d.sender, buffered.content, d.message_id, buffered.attachments);
+        return;
+      }
+
+      // Content available (decrypted inline or plaintext)
+      if (d.content) {
+        rendered[d.message_id] = true;
+        appendMessage(d.sender, d.content, d.message_id, d.attachments);
+        return;
+      }
+
+      // Encrypted, relay hasn't arrived yet — buffer without rendering
+      pending[d.message_id] = {
+        sender: d.sender,
+        attachments: d.attachments,
+        timestamp: Date.now(),
+      };
+    }
+
+    function handleContentRelay(d) {
+      var ct = d.content_type || "message";
+
+      if (d.encrypted_payload && d.nonce) {
+        var relayPlain = e2e.decrypt(d.encrypted_payload, d.nonce);
+        if (!relayPlain) {
+          console.warn("E2E: content-relay decrypt failed (key not ready?)");
+          return;
+        }
+
+        if (ct === "message" && d.message_id) {
+          var relayContent, relayAttachments;
+          try {
+            var relayPayload = JSON.parse(relayPlain);
+            relayContent = relayPayload.content || "";
+            relayAttachments = relayPayload.attachments || [];
+          } catch (ex) {
+            relayContent = relayPlain;
+            relayAttachments = [];
+          }
+
+          // Check if notification is waiting for this content
+          var entry = pending[d.message_id];
+          if (entry) {
+            delete pending[d.message_id];
+            rendered[d.message_id] = true;
+            appendMessage(entry.sender, relayContent, d.message_id, relayAttachments);
+            return;
+          }
+
+          // Check if message element already exists in DOM
+          var relayEl = document.querySelector('[data-message-id="' + d.message_id + '"]');
+          if (relayEl) {
+            applyContentRelay(d.message_id, relayContent, relayAttachments);
+            return;
+          }
+
+          // Buffer for when notification arrives
+          relayBuffer[d.message_id] = {
+            content: relayContent,
+            attachments: relayAttachments,
+            timestamp: Date.now(),
+          };
+        } else if (ct === "tool") {
+          addToolToPanel(relayPlain);
+        } else if (ct === "interaction") {
+          try {
+            var intPayload = JSON.parse(relayPlain);
+            if (pendingInteraction) {
+              pendingInteraction.content = intPayload.content || "";
+              pendingInteraction.options = intPayload.options || [];
+              showInteraction(pendingInteraction);
+              pendingInteraction = null;
+            }
+          } catch (ex) {
+            console.warn("E2E: failed to parse interaction relay", ex);
+          }
+        }
+      }
+    }
+
+    function handleTool(d) {
+      if (d.status === "active") {
+        if (d.description) addToolToPanel(d.description);
+      } else if (d.status === "idle") {
+        finalizeToolPanel();
+      }
+    }
+
+    function handleInteraction(d) {
+      // Decrypt interaction content if needed
+      if (d.encrypted_payload && d.nonce) {
+        var plain = e2e.decrypt(d.encrypted_payload, d.nonce);
+        if (plain) {
+          try {
+            var payload = JSON.parse(plain);
+            d.content = payload.content || d.content;
+            d.options = payload.options || d.options;
+          } catch (ex) { d.content = plain; }
+        }
+      }
+      // If metadata-only (content coming via relay), stash for later
+      if (!d.content && d.interaction_id) {
+        pendingInteraction = d;
+      } else {
+        showInteraction(d);
+      }
+    }
+
+    function handleRead(d) {
+      markAsRead(d.message_ids || []);
+    }
+
+    function registerOptimistic(content, attachments) {
+      optimisticQueue.push({ content: content, attachments: attachments, timestamp: Date.now() });
+    }
+
+    function reconcileOptimistic() {
+      // Remove all untagged optimistic user messages
+      var untagged = messagesEl.querySelectorAll('.aichat-msg-user:not([data-message-id])');
+      for (var i = 0; i < untagged.length; i++) {
+        untagged[i].remove();
+      }
+      optimisticQueue = [];
+    }
+
+    function flushMissed() {
+      if (!missedWhileHidden) return;
+      missedWhileHidden = false;
+
+      var lastId = getLastMessageId();
+      if (!lastId || !channelId) return;
+
+      var url = "/c/" + channelId + "/messages?after=" + encodeURIComponent(lastId);
+      fetch(url, { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var messages = data.messages || [];
+          var hasUserMessages = false;
+
+          for (var i = 0; i < messages.length; i++) {
+            var m = messages[i];
+            if (rendered[m.id]) continue;
+            if (document.querySelector('[data-message-id="' + m.id + '"]')) continue;
+
+            if (m.sender === "event") {
+              rendered[m.id] = true;
+              appendEventDivider(m.content, m.id);
+            } else if (m.content && m.content !== "[encrypted]") {
+              rendered[m.id] = true;
+              appendMessage(m.sender, m.content, m.id, m.attachments);
+              if (m.sender === "user") hasUserMessages = true;
+            } else {
+              // Encrypted — add to pending, don't render
+              pending[m.id] = { sender: m.sender, attachments: m.attachments || [], timestamp: Date.now() };
+            }
+          }
+
+          if (hasUserMessages) reconcileOptimistic();
+
+          // Request history from device for encrypted messages
+          if (Object.keys(pending).length > 0) {
+            e2e.requestHistoryForEncrypted();
+          }
+        })
+        .catch(function (err) {
+          console.warn("Failed to fetch missed messages:", err);
+        });
+    }
+
+    function onKeyReady() {
+      // Decrypt real-time messages that arrived before the key was ready
+      var els = document.querySelectorAll("[data-encrypted-payload]");
+      for (var i = 0; i < els.length; i++) {
+        if (e2e.decryptMessageElement) e2e.decryptMessageElement(els[i]);
+      }
+
+      // Request history from device to replace "[encrypted]" page-load messages
+      e2e.requestHistoryForEncrypted();
+    }
+
+    // Bridge: resolve pending entries from history responses
+    function applyHistoryMessage(id, content, attachments) {
+      var entry = pending[id];
+      if (entry) {
+        delete pending[id];
+        rendered[id] = true;
+        appendMessage(entry.sender, content, id, attachments);
+        return true;
+      }
+      return false;
+    }
+
+    // Stale entry cleanup (every 15 seconds)
+    setInterval(function () {
+      var now = Date.now();
+      var STALE_MS = 30000;
+      var needsHistory = false;
+
+      Object.keys(pending).forEach(function (id) {
+        if (now - pending[id].timestamp > STALE_MS) {
+          needsHistory = true;
+        }
+      });
+
+      Object.keys(relayBuffer).forEach(function (id) {
+        if (now - relayBuffer[id].timestamp > STALE_MS) {
+          delete relayBuffer[id];
+        }
+      });
+
+      if (needsHistory) e2e.requestHistoryForEncrypted();
+    }, 15000);
+
+    return {
+      handleMessage: handleMessage,
+      handleContentRelay: handleContentRelay,
+      handleTool: handleTool,
+      handleInteraction: handleInteraction,
+      handleRead: handleRead,
+      registerOptimistic: registerOptimistic,
+      flushMissed: flushMissed,
+      onKeyReady: onKeyReady,
+      applyHistoryMessage: applyHistoryMessage,
+      get missedWhileHidden() { return missedWhileHidden; },
+      set missedWhileHidden(val) { missedWhileHidden = val; },
+    };
   })();
 
   // ---------------------------------------------------------------------------
@@ -1353,6 +1653,7 @@ var __aichatChannelId = (function () {
 
     // Optimistically render the user's message (E2E: notification will be metadata-only)
     appendMessage("user", content, null, payload.attachments || pendingAttachments);
+    receiveLayer.registerOptimistic(content, payload.attachments || pendingAttachments);
 
     // Clear previews and collapse expanded tool panel
     pendingAttachments = [];
@@ -1835,33 +2136,10 @@ var __aichatChannelId = (function () {
   }
 
   // ---------------------------------------------------------------------------
-  // Notification handler
+  // Notification handler (thin dispatcher → receiveLayer)
   // ---------------------------------------------------------------------------
 
-  // Content relay buffer: stash encrypted content that arrives before its notification
-  var contentRelayBuffer = {};
-  var contentRelayTimeouts = {};
-  var pendingMessages = {};  // msgId -> { sender, messageId, attachments, timer }
-  var missedWhileHidden = false;  // true when SSE messages arrived while tab was hidden
-
-  function scheduleHistoryFallback(msgId) {
-    if (contentRelayTimeouts[msgId]) return;
-    contentRelayTimeouts[msgId] = setTimeout(function () {
-      delete contentRelayTimeouts[msgId];
-      // If message still shows placeholder, request history from device
-      var el = document.querySelector('[data-message-id="' + msgId + '"] .aichat-msg-content');
-      if (el && el.getAttribute("data-raw") === "[encrypted]") {
-        console.log("E2E: content relay timeout for " + msgId + " — falling back to history");
-        requestHistoryForEncrypted();
-      }
-    }, 3000);
-  }
-
   function applyContentRelay(msgId, content, attachments) {
-    if (contentRelayTimeouts[msgId]) {
-      clearTimeout(contentRelayTimeouts[msgId]);
-      delete contentRelayTimeouts[msgId];
-    }
     var el = document.querySelector('[data-message-id="' + msgId + '"] .aichat-msg-content');
     if (el) {
       el.innerHTML = renderMarkdown(content || "");
@@ -1880,224 +2158,90 @@ var __aichatChannelId = (function () {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Visibility: skip SSE rendering when hidden, fetch on focus
-  // ---------------------------------------------------------------------------
-
   function getLastMessageId() {
     var msgs = messagesEl.querySelectorAll(".aichat-msg[data-message-id]");
     if (!msgs.length) return null;
     return msgs[msgs.length - 1].getAttribute("data-message-id");
   }
 
-  function fetchMissedMessages() {
-    var lastId = getLastMessageId();
-    if (!lastId || !channelId) return;
-    var url = "/c/" + channelId + "/messages?after=" + encodeURIComponent(lastId);
-    fetch(url, { credentials: "same-origin" })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var messages = data.messages || [];
-        for (var i = 0; i < messages.length; i++) {
-          var m = messages[i];
-          // Skip if already in DOM
-          if (document.querySelector('[data-message-id="' + m.id + '"]')) continue;
-          if (m.sender === "event") {
-            appendEventDivider(m.content, m.id);
-          } else {
-            appendMessage(m.sender, m.content, m.id, m.attachments);
-          }
-        }
-      })
-      .catch(function (err) {
-        console.warn("Failed to fetch missed messages:", err);
-      });
-  }
+  // ---------------------------------------------------------------------------
+  // Visibility: skip SSE rendering when hidden, flush on focus
+  // ---------------------------------------------------------------------------
 
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden && missedWhileHidden) {
-      missedWhileHidden = false;
-      fetchMissedMessages();
+    if (!document.hidden) {
+      receiveLayer.flushMissed();
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // SSE notification dispatcher
+  // ---------------------------------------------------------------------------
 
   document.addEventListener("sk:notification", function (e) {
     var d = e.detail;
     if (!d) return;
 
-    // Filter by channel if set
+    // Filter by channel
     if (channelId && d.channel_id && d.channel_id !== channelId) return;
 
-    // Skip message rendering when tab is hidden — fetch on focus instead
+    // Buffer when tab is hidden
     if (document.hidden && (d.type === "aichat:message" || d.type === "aichat:content-relay")) {
-      missedWhileHidden = true;
+      receiveLayer.missedWhileHidden = true;
       return;
     }
 
-    // E2E: decrypt any encrypted fields in the event
+    // Decrypt any inline encrypted fields
     d = e2e.decryptEvent(d);
 
-    if (d.type === "aichat:message") {
-      if (d.sender === "event") {
-        appendEventDivider(d.content, d.message_id);
-        if (d.content === "plan:enter") { isPlanning = true; wantsPlanning = true; }
-        else if (d.content === "plan:exit") { isPlanning = false; wantsPlanning = false; }
-        if (modeToggle) modeToggle.classList.toggle("is-planning", wantsPlanning);
-      } else {
-      if (d.sender === "claude") {
-        finalizeToolPanel();
-      }
-      // Check if content relay arrived before notification
-      var buffered = contentRelayBuffer[d.message_id];
-      if (!d.content && !d.encrypted_payload && buffered) {
-        // Relay arrived first (rare) — render immediately
-        d.content = buffered.content;
-        d.attachments = buffered.attachments;
-        delete contentRelayBuffer[d.message_id];
-        appendMessage(d.sender, d.content, d.message_id, d.attachments);
-      } else if (!d.content && !d.encrypted_payload && d.message_id) {
-        if (d.sender === "user") {
-          // User messages are rendered optimistically on submit — backfill message_id
-          // so read receipts can find the element later
-          var optimistic = messagesEl.querySelector('.aichat-msg-user:not([data-message-id])');
-          if (optimistic) optimistic.setAttribute("data-message-id", d.message_id);
-        } else {
-          // Encrypted, relay hasn't arrived yet — defer rendering
-          var capturedId = d.message_id;
-          var capturedSender = d.sender;
-          var capturedAttachments = d.attachments;
-          pendingMessages[capturedId] = {
-            sender: capturedSender,
-            messageId: capturedId,
-            attachments: capturedAttachments,
-            timer: setTimeout(function() {
-              delete pendingMessages[capturedId];
-              appendMessage(capturedSender || "claude", "", capturedId, capturedAttachments);
-              requestHistoryForEncrypted();
-            }, 3000)
-          };
+    switch (d.type) {
+      case "aichat:message":
+        receiveLayer.handleMessage(d);
+        break;
+      case "aichat:content-relay":
+        receiveLayer.handleContentRelay(d);
+        break;
+      case "aichat:tool":
+        receiveLayer.handleTool(d);
+        break;
+      case "aichat:interaction":
+        receiveLayer.handleInteraction(d);
+        break;
+      case "aichat:read":
+        receiveLayer.handleRead(d);
+        break;
+      case "aichat:history-response":
+        var reqId = d.request_id;
+        if (reqId && window.__aichatPendingHistory && window.__aichatPendingHistory[reqId]) {
+          window.__aichatPendingHistory[reqId](d);
+          delete window.__aichatPendingHistory[reqId];
         }
-      } else {
-        appendMessage(d.sender, d.content, d.message_id, d.attachments);
-      }
-      // Legacy: tag DOM element with encrypted data for key-arrival retry
-      if (d._pendingDecrypt && d.message_id) {
-        var msgEl2 = document.querySelector('[data-message-id="' + d.message_id + '"]');
-        if (msgEl2) {
-          msgEl2.setAttribute("data-encrypted-payload", d.encrypted_payload);
-          msgEl2.setAttribute("data-nonce", d.nonce);
-        }
-      }
-      }
-    } else if (d.type === "aichat:read") {
-      markAsRead(d.message_ids || []);
-    } else if (d.type === "aichat:tool") {
-      if (d.status === "active") {
-        // When encrypted, description is empty — skip placeholder, relay will provide it
-        if (d.description) addToolToPanel(d.description);
-      } else if (d.status === "idle") {
-        finalizeToolPanel();
-      }
-    } else if (d.type === "aichat:interaction") {
-      // Decrypt interaction content if needed (legacy inline encryption)
-      if (d.encrypted_payload && d.nonce) {
-        var plain = e2e.decrypt(d.encrypted_payload, d.nonce);
-        if (plain) {
-          try {
-            var payload = JSON.parse(plain);
-            d.content = payload.content || d.content;
-            d.options = payload.options || d.options;
-          } catch (ex) { d.content = plain; }
-        }
-      }
-      // If metadata-only (content coming via relay), stash interaction data for later
-      if (!d.content && d.interaction_id) {
-        window.__aichatPendingInteraction = d;
-      } else {
-        showInteraction(d);
-      }
-    } else if (d.type === "aichat:content-relay") {
-      // Ephemeral content relay from device — decrypt and apply
-      var ct = d.content_type || "message";
-      if (d.encrypted_payload && d.nonce) {
-        var relayPlain = e2e.decrypt(d.encrypted_payload, d.nonce);
-        if (relayPlain) {
-          if (ct === "message" && d.message_id) {
+        break;
+      case "aichat:rekey-response":
+        var keys = d.encrypted_keys || {};
+        var masterKeyB64 = localStorage.getItem("aichat:device_master_key");
+        if (masterKeyB64 && typeof nacl !== "undefined") {
+          var masterKey = nacl.util.decodeBase64(masterKeyB64);
+          Object.keys(keys).forEach(function (chId) {
+            var entry = keys[chId];
             try {
-              var relayPayload = JSON.parse(relayPlain);
-              var relayContent = relayPayload.content || "";
-              var relayAttachments = relayPayload.attachments || [];
-            } catch (ex) {
-              var relayContent = relayPlain;
-              var relayAttachments = [];
-            }
-            // Check if message is waiting for content (deferred rendering)
-            var pending = pendingMessages[d.message_id];
-            if (pending) {
-              clearTimeout(pending.timer);
-              delete pendingMessages[d.message_id];
-              appendMessage(pending.sender, relayContent, pending.messageId, relayAttachments);
-            } else {
-              // Check if the message element exists yet (fallback DOM path)
-              var relayEl = document.querySelector('[data-message-id="' + d.message_id + '"]');
-              if (relayEl) {
-                applyContentRelay(d.message_id, relayContent, relayAttachments);
-              } else {
-                // Buffer for when the notification arrives
-                contentRelayBuffer[d.message_id] = { content: relayContent, attachments: relayAttachments };
-              }
-            }
-          } else if (ct === "tool") {
-            addToolToPanel(relayPlain);
-          } else if (ct === "interaction") {
-            try {
-              var intPayload = JSON.parse(relayPlain);
-              var pendingInt = window.__aichatPendingInteraction;
-              if (pendingInt) {
-                pendingInt.content = intPayload.content || "";
-                pendingInt.options = intPayload.options || [];
-                showInteraction(pendingInt);
-                window.__aichatPendingInteraction = null;
+              var ct = nacl.util.decodeBase64(entry.encrypted_key);
+              var nonce = nacl.util.decodeBase64(entry.nonce);
+              var decrypted = nacl.secretbox.open(ct, nonce, masterKey);
+              if (decrypted) {
+                var channelKeyB64 = nacl.util.encodeUTF8(decrypted);
+                var channelKeyBytes = nacl.util.decodeBase64(channelKeyB64);
+                localStorage.setItem("aichat:key:" + chId, nacl.util.encodeBase64(channelKeyBytes));
+                if (chId === channelId) {
+                  e2e.setChannelKey(channelKeyBytes);
+                }
               }
             } catch (ex) {
-              console.warn("E2E: failed to parse interaction relay", ex);
+              console.warn("Failed to decrypt channel key for", chId, ex);
             }
-          }
+          });
         }
-      }
-    } else if (d.type === "aichat:history-response") {
-      // Handle history response from device proxy
-      var reqId = d.request_id;
-      if (reqId && window.__aichatPendingHistory && window.__aichatPendingHistory[reqId]) {
-        window.__aichatPendingHistory[reqId](d);
-        delete window.__aichatPendingHistory[reqId];
-      }
-    } else if (d.type === "aichat:rekey-response") {
-      // Handle re-key response — decrypt and store channel keys
-      var keys = d.encrypted_keys || {};
-      var masterKeyB64 = localStorage.getItem("aichat:device_master_key");
-      if (masterKeyB64 && typeof nacl !== "undefined") {
-        var masterKey = nacl.util.decodeBase64(masterKeyB64);
-        Object.keys(keys).forEach(function (chId) {
-          var entry = keys[chId];
-          try {
-            var ct = nacl.util.decodeBase64(entry.encrypted_key);
-            var nonce = nacl.util.decodeBase64(entry.nonce);
-            var decrypted = nacl.secretbox.open(ct, nonce, masterKey);
-            if (decrypted) {
-              var channelKeyB64 = nacl.util.encodeUTF8(decrypted);
-              var channelKeyBytes = nacl.util.decodeBase64(channelKeyB64);
-              localStorage.setItem("aichat:key:" + chId, nacl.util.encodeBase64(channelKeyBytes));
-              // If this is the current channel, update the e2e module
-              if (chId === channelId) {
-                e2e.setChannelKey(channelKeyBytes);
-              }
-            }
-          } catch (ex) {
-            console.warn("Failed to decrypt channel key for", chId, ex);
-          }
-        });
-      }
+        break;
     }
   });
 
