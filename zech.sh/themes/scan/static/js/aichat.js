@@ -529,7 +529,10 @@ var __aichatChannelId = (function () {
 
     function decryptMessageElement(el) {
       var plain = decrypt(el.getAttribute("data-encrypted-payload"), el.getAttribute("data-nonce"));
-      if (!plain) return false;
+      if (!plain) {
+        if (channelKey) showKeyMismatchWarning();
+        return false;
+      }
       try {
         var payload = JSON.parse(plain);
         var contentEl = el.querySelector(".aichat-msg-content");
@@ -620,6 +623,15 @@ var __aichatChannelId = (function () {
           }
         }
         console.log("E2E: decrypted " + count + " historical messages via device relay");
+
+        // Detect key mismatch: we got encrypted messages but couldn't decrypt any
+        var encryptedCount = 0;
+        for (var ec = 0; ec < messages.length; ec++) {
+          if (messages[ec].encrypted_payload && messages[ec].nonce && messages[ec].sender !== "tools") encryptedCount++;
+        }
+        if (encryptedCount > 0 && count === 0 && channelKey) {
+          showKeyMismatchWarning();
+        }
 
         // Handle tool messages from history
         var toolEntries = [];
