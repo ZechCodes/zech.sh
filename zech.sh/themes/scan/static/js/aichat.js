@@ -406,7 +406,8 @@ var __aichatChannelId = (function () {
     var channelKey = null; // Uint8Array once decrypted
 
     function getStoredKey() {
-      var b64 = localStorage.getItem("aichat:key:" + channelId);
+      // Single device-level key — stored as the master key
+      var b64 = localStorage.getItem("aichat:device_master_key");
       if (b64 && naclReady) {
         try { return nacl.util.decodeBase64(b64); } catch (e) {}
       }
@@ -415,33 +416,12 @@ var __aichatChannelId = (function () {
 
     function storeKey(keyBytes) {
       if (naclReady) {
-        localStorage.setItem("aichat:key:" + channelId, nacl.util.encodeBase64(keyBytes));
+        localStorage.setItem("aichat:device_master_key", nacl.util.encodeBase64(keyBytes));
       }
     }
 
-    // Try to load channel key from localStorage
+    // Try to load encryption key from localStorage
     channelKey = getStoredKey();
-
-    // If we have an encrypted channel key from the server + a device master key, decrypt it
-    if (!channelKey && cryptoConfig.encryptedChannelKey && cryptoConfig.keyNonce && naclReady) {
-      var masterKeyB64 = localStorage.getItem("aichat:device_master_key");
-      if (masterKeyB64) {
-        try {
-          var masterKey = nacl.util.decodeBase64(masterKeyB64);
-          var ct = nacl.util.decodeBase64(cryptoConfig.encryptedChannelKey);
-          var nonce = nacl.util.decodeBase64(cryptoConfig.keyNonce);
-          var decrypted = nacl.secretbox.open(ct, nonce, masterKey);
-          if (decrypted) {
-            // decrypted is the channel_key_b64 as UTF-8 bytes
-            var channelKeyB64 = nacl.util.encodeUTF8(decrypted);
-            channelKey = nacl.util.decodeBase64(channelKeyB64);
-            storeKey(channelKey);
-          }
-        } catch (e) {
-          console.warn("E2E: failed to decrypt channel key", e);
-        }
-      }
-    }
 
     function decrypt(ciphertextB64, nonceB64) {
       if (!channelKey || !naclReady) return null;
@@ -717,32 +697,14 @@ var __aichatChannelId = (function () {
         })
         .then(function (derived) {
           var masterKey = new Uint8Array(derived);
-          var masterKeyB64 = nacl.util.encodeBase64(masterKey);
-          localStorage.setItem("aichat:device_master_key", masterKeyB64);
 
-          // If we already have an encrypted channel key from the server, try to decrypt it now
-          if (cryptoConfig.encryptedChannelKey && cryptoConfig.keyNonce) {
-            try {
-              var ct = nacl.util.decodeBase64(cryptoConfig.encryptedChannelKey);
-              var n = nacl.util.decodeBase64(cryptoConfig.keyNonce);
-              var decrypted = nacl.secretbox.open(ct, n, masterKey);
-              if (decrypted) {
-                var ckB64 = nacl.util.encodeUTF8(decrypted);
-                var keyBytes = nacl.util.decodeBase64(ckB64);
-                channelKey = keyBytes;
-                storeKey(keyBytes);
-                api.enabled = true;
-                console.log("E2E: decrypted channel key from server after rekey");
-                hideRekeyBanner();
-                onKeyReady();
-                return;
-              }
-            } catch (e) {
-              // Fall through to rekey POST
-            }
-          }
+          // The derived key IS the encryption key (no per-channel layer)
+          // Store locally but don't enable yet — wait for device ack
+          channelKey = masterKey;
+          storeKey(masterKey);
+          console.log("E2E: derived encryption key from ECDH");
 
-          // POST rekey request to get channel keys from device
+          // POST rekey request so device derives the same key
           var browserPubB64 = nacl.util.encodeBase64(browserKP.publicKey);
           fetch("/c/" + channelId + "/rekey", {
             method: "POST",
@@ -753,7 +715,7 @@ var __aichatChannelId = (function () {
             body: JSON.stringify({ browser_x25519_public: browserPubB64 }),
           }).then(function (resp) {
             if (resp.ok) {
-              console.log("E2E: rekey request sent — waiting for device response via SSE");
+              console.log("E2E: rekey request sent — waiting for device ack");
               if (rekeyStatus) rekeyStatus.textContent = "Waiting for device...";
             } else {
               console.warn("E2E: rekey request failed", resp.status);
@@ -789,8 +751,8 @@ var __aichatChannelId = (function () {
     // Manual rekey: clear this channel's cached key and request fresh keys
     // from device. Does NOT touch device_master_key (other channels need it).
     function manualRekey() {
-      console.log("E2E: manual rekey requested — clearing channel key");
-      localStorage.removeItem("aichat:key:" + channelId);
+      console.log("E2E: manual rekey requested — clearing encryption key");
+      localStorage.removeItem("aichat:device_master_key");
       channelKey = null;
       api.enabled = false;
       showRekeyBanner();
@@ -809,6 +771,8 @@ var __aichatChannelId = (function () {
       requestHistoryForEncrypted: requestHistoryForEncrypted,
       decryptMessageElement: decryptMessageElement,
       manualRekey: manualRekey,
+      hideRekeyBanner: hideRekeyBanner,
+      onKeyReady: onKeyReady,
     };
 
     // If key was loaded from localStorage at init, decrypt page-load messages
@@ -2233,29 +2197,11 @@ var __aichatChannelId = (function () {
         }
         break;
       case "aichat:rekey-response":
-        var keys = d.encrypted_keys || {};
-        var masterKeyB64 = localStorage.getItem("aichat:device_master_key");
-        if (masterKeyB64 && typeof nacl !== "undefined") {
-          var masterKey = nacl.util.decodeBase64(masterKeyB64);
-          Object.keys(keys).forEach(function (chId) {
-            var entry = keys[chId];
-            try {
-              var ct = nacl.util.decodeBase64(entry.encrypted_key);
-              var nonce = nacl.util.decodeBase64(entry.nonce);
-              var decrypted = nacl.secretbox.open(ct, nonce, masterKey);
-              if (decrypted) {
-                var channelKeyB64 = nacl.util.encodeUTF8(decrypted);
-                var channelKeyBytes = nacl.util.decodeBase64(channelKeyB64);
-                localStorage.setItem("aichat:key:" + chId, nacl.util.encodeBase64(channelKeyBytes));
-                if (chId === channelId) {
-                  e2e.setChannelKey(channelKeyBytes);
-                }
-              }
-            } catch (ex) {
-              console.warn("Failed to decrypt channel key for", chId, ex);
-            }
-          });
-        }
+        // Device acked the rekey — both sides now have the same key
+        console.log("E2E: device confirmed re-key");
+        e2e.enabled = true;
+        e2e.hideRekeyBanner();
+        e2e.onKeyReady();
         break;
     }
   });
