@@ -1199,7 +1199,9 @@ class AiChatController(Controller):
         if not browser_x25519_public:
             return Response(content={"error": "browser_x25519_public required"}, status_code=400)
 
-        request_id = secrets.token_urlsafe(8)
+        # Use browser-provided request_id if present (for response matching),
+        # otherwise generate one
+        request_id = body.get("request_id") or secrets.token_urlsafe(8)
 
         # Forward to device via notification
         await notify_user(
@@ -2192,11 +2194,14 @@ async def _dispatch_ws_message(
                    if k not in ("type", "channel_id")},
             )
         case "rekey_response":
+            rekey_kwargs = {"request_id": msg.get("request_id", "")}
+            if msg.get("encrypted_key"):
+                rekey_kwargs["encrypted_key"] = msg["encrypted_key"]
+                rekey_kwargs["nonce"] = msg.get("nonce", "")
             return await _do_relay_to_browser(
                 db_session, device_id,
                 "aichat:rekey-response",
-                request_id=msg.get("request_id", ""),
-                encrypted_keys=msg.get("encrypted_keys", {}),
+                **rekey_kwargs,
             )
         case "history_response":
             return await _do_relay_to_browser(

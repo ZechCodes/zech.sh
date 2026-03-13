@@ -697,11 +697,13 @@ var __aichatChannelId = (function () {
         })
         .then(function (derived) {
           var transportKey = new Uint8Array(derived);
+          var rekeyRequestId = "rk-" + Date.now() + "-" + Math.random().toString(36).substr(2, 6);
 
-          // Store transport key temporarily — the rekey response will tell us
-          // whether this IS the encryption key or if we need to unwrap the real one
-          window.__aichatTransportKey = transportKey;
-          console.log("E2E: derived transport key from ECDH");
+          // Store transport key keyed by request_id so the response handler
+          // can match it (other browsers' responses are ignored)
+          if (!window.__aichatPendingRekeys) window.__aichatPendingRekeys = {};
+          window.__aichatPendingRekeys[rekeyRequestId] = transportKey;
+          console.log("E2E: derived transport key from ECDH (request_id=" + rekeyRequestId + ")");
 
           // POST rekey request so device can derive the same transport key
           var browserPubB64 = nacl.util.encodeBase64(browserKP.publicKey);
@@ -711,7 +713,7 @@ var __aichatChannelId = (function () {
               "Content-Type": "application/json",
               "X-CSRF-Token": csrfToken,
             },
-            body: JSON.stringify({ browser_x25519_public: browserPubB64 }),
+            body: JSON.stringify({ browser_x25519_public: browserPubB64, request_id: rekeyRequestId }),
           }).then(function (resp) {
             if (resp.ok) {
               console.log("E2E: rekey request sent — waiting for device response");
@@ -720,11 +722,13 @@ var __aichatChannelId = (function () {
               console.warn("E2E: rekey request failed", resp.status);
               if (rekeyStatus) rekeyStatus.textContent = "Failed (" + resp.status + ")";
               if (rekeyBtn) rekeyBtn.disabled = false;
+              delete window.__aichatPendingRekeys[rekeyRequestId];
             }
           }).catch(function (err) {
             console.warn("E2E: rekey request error", err);
             if (rekeyStatus) rekeyStatus.textContent = "Error — try again";
             if (rekeyBtn) rekeyBtn.disabled = false;
+            delete window.__aichatPendingRekeys[rekeyRequestId];
           });
         })
         .catch(function (err) {
@@ -2197,9 +2201,12 @@ var __aichatChannelId = (function () {
         }
         break;
       case "aichat:rekey-response":
-        var transportKey = window.__aichatTransportKey;
-        delete window.__aichatTransportKey;
+        // Match response to our pending request by request_id
+        var rkId = d.request_id || "";
+        var pending = window.__aichatPendingRekeys || {};
+        var transportKey = pending[rkId];
         if (!transportKey || typeof nacl === "undefined") break;
+        delete pending[rkId];
 
         var encKey = null;
         if (d.encrypted_key && d.nonce) {
