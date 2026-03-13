@@ -103,6 +103,42 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.aichat-sidebar-device-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.aichat-sidebar-device:hover .aichat-sidebar-device-actions,
+.aichat-sidebar.is-home .aichat-sidebar-device-actions {
+  opacity: 1;
+}
+
+.aichat-sidebar-device-btn {
+  background: none;
+  border: 1px solid rgba(255, 85, 0, 0.15);
+  color: var(--zech-text-dim);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.4rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 0.15rem 0.35rem;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.aichat-sidebar-device-btn:hover {
+  color: var(--zech-primary);
+  border-color: var(--zech-primary);
 }
 
 .aichat-sidebar-channels {

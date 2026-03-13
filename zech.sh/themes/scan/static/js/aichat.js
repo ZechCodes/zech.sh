@@ -140,6 +140,36 @@ var __aichatChannelId = (function () {
       name.textContent = device.name;
       deviceHeader.appendChild(name);
 
+      // Device action buttons
+      var actions = document.createElement("span");
+      actions.className = "aichat-sidebar-device-actions";
+
+      var newBtn = document.createElement("button");
+      newBtn.className = "aichat-sidebar-device-btn";
+      newBtn.textContent = "+ NEW";
+      newBtn.title = "New task";
+      newBtn.setAttribute("data-device-id", device.id);
+      newBtn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        openNewTaskModal(ev.currentTarget.getAttribute("data-device-id"));
+      });
+      actions.appendChild(newBtn);
+
+      var editBtn = document.createElement("button");
+      editBtn.className = "aichat-sidebar-device-btn";
+      editBtn.innerHTML = "&#9998;";
+      editBtn.title = "Edit device";
+      editBtn.setAttribute("data-device-id", device.id);
+      editBtn.setAttribute("data-device-name", device.name);
+      editBtn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var btn = ev.currentTarget;
+        openEditDeviceModal(btn.getAttribute("data-device-id"), btn.getAttribute("data-device-name"));
+      });
+      actions.appendChild(editBtn);
+
+      deviceHeader.appendChild(actions);
+
       deviceEl.appendChild(deviceHeader);
 
       // Channels
@@ -189,6 +219,130 @@ var __aichatChannelId = (function () {
     }
 
     sidebar.appendChild(devicesContainer);
+  }
+
+  // --- New Task modal ---
+  var newTaskModal = document.getElementById("aichatNewTaskModal");
+  var newTaskInput = document.getElementById("aichatNewTaskInput");
+  var newTaskCreate = document.getElementById("aichatNewTaskCreate");
+  var newTaskCancel = document.getElementById("aichatNewTaskCancel");
+  var newTaskDeviceId = null;
+
+  function openNewTaskModal(deviceId) {
+    newTaskDeviceId = deviceId;
+    if (newTaskInput) newTaskInput.value = "";
+    if (newTaskModal) newTaskModal.classList.add("is-active");
+    if (newTaskInput) newTaskInput.focus();
+  }
+
+  if (newTaskCancel) {
+    newTaskCancel.addEventListener("click", function () {
+      newTaskModal.classList.remove("is-active");
+    });
+  }
+  if (newTaskInput) {
+    newTaskInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); newTaskCreate.click(); }
+      if (e.key === "Escape") { newTaskModal.classList.remove("is-active"); }
+    });
+  }
+  if (newTaskCreate) {
+    newTaskCreate.addEventListener("click", function () {
+      var name = newTaskInput.value.trim() || "New Task";
+      newTaskCreate.disabled = true;
+      fetch("/api/user-devices/" + newTaskDeviceId + "/workers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name }),
+      })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.ok && data.channel) {
+          window.location.href = "/c/" + data.channel.id;
+        } else {
+          alert("Error: " + (data.error || "unknown"));
+          newTaskCreate.disabled = false;
+        }
+      })
+      .catch(function () {
+        alert("Failed to create task");
+        newTaskCreate.disabled = false;
+      });
+    });
+  }
+
+  // --- Edit Device modal ---
+  var editDeviceModal = document.getElementById("aichatEditDeviceModal");
+  var deviceNameInput = document.getElementById("aichatDeviceNameInput");
+  var deviceSave = document.getElementById("aichatDeviceSave");
+  var deviceCancel = document.getElementById("aichatDeviceCancel");
+  var deviceDelete = document.getElementById("aichatDeviceDelete");
+  var editDeviceId = null;
+
+  function openEditDeviceModal(deviceId, deviceName) {
+    editDeviceId = deviceId;
+    if (deviceNameInput) deviceNameInput.value = deviceName;
+    if (editDeviceModal) editDeviceModal.classList.add("is-active");
+    if (deviceNameInput) deviceNameInput.focus();
+  }
+
+  if (deviceCancel) {
+    deviceCancel.addEventListener("click", function () {
+      editDeviceModal.classList.remove("is-active");
+    });
+  }
+  if (deviceNameInput) {
+    deviceNameInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); deviceSave.click(); }
+      if (e.key === "Escape") { editDeviceModal.classList.remove("is-active"); }
+    });
+  }
+  if (deviceSave) {
+    deviceSave.addEventListener("click", function () {
+      var name = deviceNameInput.value.trim();
+      if (!name) return;
+      deviceSave.disabled = true;
+      fetch("/api/user-devices/" + editDeviceId, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name }),
+      })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          window.location.reload();
+        } else {
+          alert("Error: " + (data.error || "unknown"));
+          deviceSave.disabled = false;
+        }
+      })
+      .catch(function () {
+        alert("Failed to update device");
+        deviceSave.disabled = false;
+      });
+    });
+  }
+  if (deviceDelete) {
+    deviceDelete.addEventListener("click", function () {
+      if (!confirm("Delete this device? Its channels will be unassigned.")) return;
+      deviceDelete.disabled = true;
+      fetch("/api/user-devices/" + editDeviceId, {
+        method: "DELETE",
+      })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          window.location.href = "/";
+        } else {
+          alert("Error: " + (data.error || "unknown"));
+          deviceDelete.disabled = false;
+        }
+      })
+      .catch(function () {
+        alert("Failed to delete device");
+        deviceDelete.disabled = false;
+      });
+    });
   }
 
   // Realtime updates for other channels

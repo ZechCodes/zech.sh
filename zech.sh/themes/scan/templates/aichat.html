@@ -162,6 +162,36 @@
 {% endif %}
     </section>
 
+    <!-- New Task modal -->
+    <div class="aichat-modal-overlay" id="aichatNewTaskModal">
+        <div class="aichat-modal">
+            <div class="aichat-modal-title">NEW TASK</div>
+            <label class="aichat-modal-label" for="aichatNewTaskInput">TASK NAME</label>
+            <input class="aichat-modal-input" id="aichatNewTaskInput" type="text" placeholder="e.g. frontend-refactor" maxlength="100">
+            <div class="aichat-modal-actions">
+                <button class="aichat-modal-btn aichat-modal-save" id="aichatNewTaskCreate" type="button">CREATE</button>
+                <button class="aichat-modal-btn aichat-modal-cancel" id="aichatNewTaskCancel" type="button">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Device modal -->
+    <div class="aichat-modal-overlay" id="aichatEditDeviceModal">
+        <div class="aichat-modal">
+            <div class="aichat-modal-title">EDIT DEVICE</div>
+            <label class="aichat-modal-label" for="aichatDeviceNameInput">DEVICE NAME</label>
+            <input class="aichat-modal-input" id="aichatDeviceNameInput" type="text" maxlength="100">
+            <div class="aichat-modal-actions">
+                <button class="aichat-modal-btn aichat-modal-save" id="aichatDeviceSave" type="button">SAVE</button>
+                <button class="aichat-modal-btn aichat-modal-cancel" id="aichatDeviceCancel" type="button">CANCEL</button>
+            </div>
+            <div class="aichat-modal-divider"></div>
+            <div class="aichat-modal-actions">
+                <button class="aichat-modal-btn aichat-modal-archive" id="aichatDeviceDelete" type="button">DELETE DEVICE</button>
+            </div>
+        </div>
+    </div>
+
 {% if channel %}
     <!-- Tool console -->
     <div class="aichat-tool-panel is-default" id="aichatToolPanel">

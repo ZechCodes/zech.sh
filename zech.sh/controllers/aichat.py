@@ -1562,6 +1562,100 @@ async def _do_list_device_channels(
     return {"channels": channels}
 
 
+async def _do_create_channel(
+    db_session: AsyncSession,
+    device_id: str,
+    name: str,
+    working_directory: str = "",
+) -> dict:
+    """Create a new channel for a device (called via WebSocket)."""
+    name = (name or "").strip() or "New Task"
+    if len(name) > 100:
+        name = name[:100]
+
+    # Look up device to get owner
+    result = await db_session.execute(
+        select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise ValueError("Device not found")
+
+    # Generate channel keypair
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    public_key_b64 = base64.b64encode(public_key.public_bytes_raw()).decode()
+
+    channel = AiChatChannel(
+        name=name,
+        public_key=public_key_b64,
+        created_by_user_id=device.owner_user_id,
+        device_id=device.id,
+        working_directory=working_directory or None,
+    )
+    db_session.add(channel)
+    await db_session.flush()
+
+    await db_session.commit()
+
+    return {
+        "channel": {
+            "id": str(channel.id),
+            "name": channel.name,
+            "working_directory": working_directory,
+        },
+    }
+
+
+async def _do_rename_device(
+    db_session: AsyncSession,
+    device_id: str,
+    name: str,
+) -> dict:
+    """Rename a device."""
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("name is required")
+    if len(name) > 100:
+        raise ValueError("name too long")
+
+    result = await db_session.execute(
+        select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise ValueError("device not found")
+
+    device.name = name
+    await db_session.commit()
+    return {"device": {"id": str(device.id), "name": device.name}}
+
+
+async def _do_delete_device(
+    db_session: AsyncSession,
+    device_id: str,
+) -> dict:
+    """Delete a device and disassociate its channels."""
+    result = await db_session.execute(
+        select(AiChatDevice).where(AiChatDevice.id == UUID(device_id))
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise ValueError("device not found")
+
+    # Disassociate channels from this device
+    channel_result = await db_session.execute(
+        select(AiChatChannel).where(AiChatChannel.device_id == device.id)
+    )
+    for channel in channel_result.scalars().all():
+        channel.device_id = None
+
+    _invalidate_device_cache(device_id)
+    await db_session.delete(device)
+    await db_session.commit()
+    return {}
+
+
 async def _do_report_device_status(
     db_session: AsyncSession,
     device_id: str,
@@ -2060,6 +2154,22 @@ async def _dispatch_ws_message(
             )
         case "list_channels":
             return await _do_list_device_channels(db_session, device_id)
+        case "create_channel":
+            result = await _do_create_channel(
+                db_session, device_id,
+                msg.get("name", ""),
+                msg.get("working_directory", ""),
+            )
+            # Add new channel to owned set so the device can use it immediately
+            new_id = result["channel"]["id"]
+            owned_channels.add(new_id)
+            return result
+        case "rename_device":
+            return await _do_rename_device(
+                db_session, device_id, msg.get("name", ""),
+            )
+        case "delete_device":
+            return await _do_delete_device(db_session, device_id)
         case "report_status":
             return await _do_report_device_status(db_session, device_id, msg)
         case "update_device_x25519":
