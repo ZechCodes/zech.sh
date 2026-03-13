@@ -402,57 +402,8 @@ var __aichatChannelId = (function () {
 
   var e2e = (function () {
     var cryptoConfig = window.__aichatCrypto || {};
-    var naclReady = typeof nacl !== "undefined" && typeof nacl.util !== "undefined";
-    var channelKey = null; // Uint8Array once decrypted
 
-    function getStoredKey() {
-      // Single device-level key — stored as the master key
-      var b64 = localStorage.getItem("aichat:device_master_key");
-      if (b64 && naclReady) {
-        try { return nacl.util.decodeBase64(b64); } catch (e) {}
-      }
-      return null;
-    }
-
-    function storeKey(keyBytes) {
-      if (naclReady) {
-        localStorage.setItem("aichat:device_master_key", nacl.util.encodeBase64(keyBytes));
-      }
-    }
-
-    // Try to load encryption key from localStorage
-    channelKey = getStoredKey();
-
-    function decrypt(ciphertextB64, nonceB64) {
-      if (!channelKey || !naclReady) return null;
-      try {
-        var ct = nacl.util.decodeBase64(ciphertextB64);
-        var nonce = nacl.util.decodeBase64(nonceB64);
-        var plain = nacl.secretbox.open(ct, nonce, channelKey);
-        if (!plain) return null;
-        return nacl.util.encodeUTF8(plain);
-      } catch (e) {
-        console.warn("E2E: decrypt failed", e);
-        return null;
-      }
-    }
-
-    function encrypt(plaintext) {
-      if (!channelKey || !naclReady) return null;
-      try {
-        var msg = nacl.util.decodeUTF8(plaintext);
-        var nonce = nacl.randomBytes(24);
-        var ct = nacl.secretbox(msg, nonce, channelKey);
-        return {
-          encrypted_payload: nacl.util.encodeBase64(ct),
-          nonce: nacl.util.encodeBase64(nonce),
-        };
-      } catch (e) {
-        console.warn("E2E: encrypt failed", e);
-        return null;
-      }
-    }
-
+    // --- Key mismatch UI ---
     var keyMismatchShown = false;
     var keyWarningOverlay = document.getElementById("aichatKeyWarningOverlay");
 
@@ -476,35 +427,10 @@ var __aichatChannelId = (function () {
       if (keyWarningOverlay) keyWarningOverlay.setAttribute("hidden", "");
     }
 
-    function decryptEvent(d) {
-      // Decrypt aichat:message events
-      if (d.encrypted_payload && d.nonce) {
-        var plain = decrypt(d.encrypted_payload, d.nonce);
-        if (plain) {
-          try {
-            var payload = JSON.parse(plain);
-            d.content = payload.content || "";
-            d.attachments = payload.attachments || [];
-          } catch (e) {
-            d.content = plain;
-          }
-          d._decrypted = true;
-        } else if (channelKey) {
-          // We have a key but decryption failed — key mismatch
-          d.content = "";
-          d._pendingDecrypt = true;
-          showKeyMismatchWarning();
-        } else {
-          d.content = "";
-          d._pendingDecrypt = true;
-        }
-      }
-      // Decrypt tool descriptions
-      if (d.encrypted_description && d.description_nonce) {
-        var desc = decrypt(d.encrypted_description, d.description_nonce);
-        if (!desc && channelKey) showKeyMismatchWarning();
-        d.description = desc || "[encrypted]";
-      }
+    // Wraps AichatCrypto.decryptEvent with key-mismatch UI
+    function decryptEventWithUI(d) {
+      AichatCrypto.decryptEvent(d);
+      if (d._keyMismatch) showKeyMismatchWarning();
       return d;
     }
 
@@ -527,10 +453,18 @@ var __aichatChannelId = (function () {
       }
     }
 
+    function onKeyEstablished(keyBytes) {
+      AichatCrypto.setKey(keyBytes);
+      api.enabled = true;
+      hideRekeyBanner();
+      dismissKeyMismatchWarning();
+      onKeyReady();
+    }
+
     function decryptMessageElement(el) {
-      var plain = decrypt(el.getAttribute("data-encrypted-payload"), el.getAttribute("data-nonce"));
+      var plain = AichatCrypto.decrypt(el.getAttribute("data-encrypted-payload"), el.getAttribute("data-nonce"));
       if (!plain) {
-        if (channelKey) showKeyMismatchWarning();
+        if (AichatCrypto.hasKey()) showKeyMismatchWarning();
         return false;
       }
       try {
@@ -560,7 +494,7 @@ var __aichatChannelId = (function () {
     }
 
     function requestHistoryForEncrypted() {
-      if (!channelKey) return;
+      if (!AichatCrypto.hasKey()) return;
       var encEls = document.querySelectorAll('.aichat-msg-content[data-raw="[encrypted]"]');
       var encToolMarkers = document.querySelectorAll(".aichat-encrypted-tools-marker");
       if (!encEls.length && !encToolMarkers.length) return;
@@ -583,7 +517,7 @@ var __aichatChannelId = (function () {
         for (var j = 0; j < messages.length; j++) {
           var m = messages[j];
           if (m.encrypted_payload && m.nonce) {
-            var plain = decrypt(m.encrypted_payload, m.nonce);
+            var plain = AichatCrypto.decrypt(m.encrypted_payload, m.nonce);
             if (plain) {
               var histContent, histAttachments;
               try {
@@ -629,7 +563,7 @@ var __aichatChannelId = (function () {
         for (var ec = 0; ec < messages.length; ec++) {
           if (messages[ec].encrypted_payload && messages[ec].nonce && messages[ec].sender !== "tools") encryptedCount++;
         }
-        if (encryptedCount > 0 && count === 0 && channelKey) {
+        if (encryptedCount > 0 && count === 0 && AichatCrypto.hasKey()) {
           showKeyMismatchWarning();
         }
 
@@ -640,7 +574,7 @@ var __aichatChannelId = (function () {
           if (tm.sender !== "tools") continue;
           var toolContent = null;
           if (tm.encrypted_payload && tm.nonce) {
-            var rawTool = decrypt(tm.encrypted_payload, tm.nonce);
+            var rawTool = AichatCrypto.decrypt(tm.encrypted_payload, tm.nonce);
             if (rawTool) {
               // Device wraps as {content, attachments} before encrypting
               try {
@@ -687,16 +621,7 @@ var __aichatChannelId = (function () {
       });
     }
 
-    function setChannelKey(keyBytes) {
-      channelKey = keyBytes;
-      storeKey(keyBytes);
-      api.enabled = true;
-      hideRekeyBanner();
-      dismissKeyMismatchWarning();
-      onKeyReady();
-    }
-
-    // Rekey banner UI
+    // --- Rekey banner UI ---
     var rekeyBanner = document.getElementById("aichatRekeyBanner");
     var rekeyBtn = document.getElementById("aichatRekeyBtn");
     var rekeyStatus = document.getElementById("aichatRekeyStatus");
@@ -711,7 +636,7 @@ var __aichatChannelId = (function () {
 
     // Request key exchange with device
     function doRekey() {
-      if (!naclReady) return;
+      if (!AichatCrypto.isReady()) return;
       var devicePubB64 = cryptoConfig.deviceX25519Public;
       if (!devicePubB64) return;
 
@@ -720,42 +645,16 @@ var __aichatChannelId = (function () {
 
       console.log("E2E: initiating key exchange with device");
 
-      // Generate browser's ephemeral X25519 keypair
-      var browserKP = nacl.box.keyPair();
-
-      // Compute shared secret: X25519(browserPrivate, devicePublic)
-      var devicePub = nacl.util.decodeBase64(devicePubB64);
-      var sharedSecret = nacl.scalarMult(browserKP.secretKey, devicePub);
-
-      // Derive device master key via HKDF-SHA256 (Web Crypto)
-      var salt = new TextEncoder().encode("aichat-device-key");
-      var info = new TextEncoder().encode("v1");
-      crypto.subtle.importKey("raw", sharedSecret, "HKDF", false, ["deriveBits"])
-        .then(function (keyMaterial) {
-          return crypto.subtle.deriveBits(
-            { name: "HKDF", hash: "SHA-256", salt: salt, info: info },
-            keyMaterial, 256
-          );
-        })
-        .then(function (derived) {
-          var transportKey = new Uint8Array(derived);
-          var rekeyRequestId = "rk-" + Date.now() + "-" + Math.random().toString(36).substr(2, 6);
-
-          // Store transport key keyed by request_id so the response handler
-          // can match it (other browsers' responses are ignored)
-          if (!window.__aichatPendingRekeys) window.__aichatPendingRekeys = {};
-          window.__aichatPendingRekeys[rekeyRequestId] = transportKey;
-          console.log("E2E: derived transport key from ECDH (request_id=" + rekeyRequestId + ")");
-
+      AichatCrypto.initiateRekey(devicePubB64)
+        .then(function (result) {
           // POST rekey request so device can derive the same transport key
-          var browserPubB64 = nacl.util.encodeBase64(browserKP.publicKey);
           fetch("/c/" + channelId + "/rekey", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-CSRF-Token": csrfToken,
             },
-            body: JSON.stringify({ browser_x25519_public: browserPubB64, request_id: rekeyRequestId }),
+            body: JSON.stringify({ browser_x25519_public: result.browserPublicB64, request_id: result.requestId }),
           }).then(function (resp) {
             if (resp.ok) {
               console.log("E2E: rekey request sent — waiting for device response");
@@ -764,17 +663,17 @@ var __aichatChannelId = (function () {
               console.warn("E2E: rekey request failed", resp.status);
               if (rekeyStatus) rekeyStatus.textContent = "Failed (" + resp.status + ")";
               if (rekeyBtn) rekeyBtn.disabled = false;
-              delete window.__aichatPendingRekeys[rekeyRequestId];
+              AichatCrypto.cancelRekey(result.requestId);
             }
           }).catch(function (err) {
             console.warn("E2E: rekey request error", err);
             if (rekeyStatus) rekeyStatus.textContent = "Error — try again";
             if (rekeyBtn) rekeyBtn.disabled = false;
-            delete window.__aichatPendingRekeys[rekeyRequestId];
+            AichatCrypto.cancelRekey(result.requestId);
           });
         })
         .catch(function (err) {
-          console.warn("E2E: HKDF derivation failed", err);
+          console.warn("E2E: key derivation failed", err);
           if (rekeyStatus) rekeyStatus.textContent = "Key derivation failed";
           if (rekeyBtn) rekeyBtn.disabled = false;
         });
@@ -786,7 +685,7 @@ var __aichatChannelId = (function () {
 
     // Auto-rekey if E2E is needed but we have no key
     function checkRekeyNeeded() {
-      if (channelKey || !naclReady) return;
+      if (AichatCrypto.hasKey() || !AichatCrypto.isReady()) return;
       var devicePubB64 = cryptoConfig.deviceX25519Public;
       if (!devicePubB64) return; // Device doesn't support E2E
       showRekeyBanner();
@@ -794,12 +693,10 @@ var __aichatChannelId = (function () {
     }
     setTimeout(checkRekeyNeeded, 0);
 
-    // Manual rekey: clear this channel's cached key and request fresh keys
-    // from device. Does NOT touch device_master_key (other channels need it).
+    // Manual rekey: clear cached key and request fresh keys from device
     function manualRekey() {
       console.log("E2E: manual rekey requested — clearing encryption key");
-      localStorage.removeItem("aichat:device_master_key");
-      channelKey = null;
+      AichatCrypto.clearKey();
       api.enabled = false;
       showRekeyBanner();
       var rekeyText = document.getElementById("aichatRekeyText");
@@ -809,11 +706,11 @@ var __aichatChannelId = (function () {
     }
 
     var api = {
-      enabled: !!channelKey,
-      decrypt: decrypt,
-      encrypt: encrypt,
-      decryptEvent: decryptEvent,
-      setChannelKey: setChannelKey,
+      enabled: AichatCrypto.hasKey(),
+      decrypt: AichatCrypto.decrypt,
+      encrypt: AichatCrypto.encrypt,
+      decryptEvent: decryptEventWithUI,
+      setChannelKey: onKeyEstablished,
       requestHistoryForEncrypted: requestHistoryForEncrypted,
       decryptMessageElement: decryptMessageElement,
       manualRekey: manualRekey,
@@ -822,7 +719,7 @@ var __aichatChannelId = (function () {
     };
 
     // If key was loaded from localStorage at init, decrypt page-load messages
-    if (channelKey) {
+    if (AichatCrypto.hasKey()) {
       setTimeout(onKeyReady, 0);
     }
 
@@ -2243,31 +2140,12 @@ var __aichatChannelId = (function () {
         }
         break;
       case "aichat:rekey-response":
-        var rkId = d.request_id || "";
-        var pending = window.__aichatPendingRekeys || {};
-        var transportKey = pending[rkId];
-        if (!transportKey || typeof nacl === "undefined") break;
-        delete pending[rkId];
-
-        if (!d.encrypted_key || !d.nonce) {
-          console.warn("E2E: rekey-response missing encrypted_key/nonce");
-          break;
-        }
-
-        try {
-          var ek_ct = nacl.util.decodeBase64(d.encrypted_key);
-          var ek_nonce = nacl.util.decodeBase64(d.nonce);
-          var unwrapped = nacl.secretbox.open(ek_ct, ek_nonce, transportKey);
-          if (unwrapped) {
-            var encKeyB64 = nacl.util.encodeUTF8(unwrapped);
-            var encKey = nacl.util.decodeBase64(encKeyB64);
-            e2e.setChannelKey(encKey);
-            console.log("E2E: unwrapped encryption key from device");
-          } else {
-            console.warn("E2E: unwrap returned null — transport key mismatch");
-          }
-        } catch (ex) {
-          console.warn("E2E: failed to unwrap encryption key", ex);
+        var result = AichatCrypto.completeRekey(d.request_id, d.encrypted_key, d.nonce);
+        if (result.success) {
+          e2e.setChannelKey(result.encryptionKey);
+          console.log("E2E: unwrapped encryption key from device");
+        } else {
+          console.warn("E2E: rekey failed —", result.error);
         }
         break;
     }
