@@ -355,7 +355,7 @@ var __aichatChannelId = (function () {
     var d = e.detail;
     if (!d || !d.channel_id) return;
 
-    if (d.type === "aichat:message" && d.sender === "claude" && d.channel_id !== channelId) {
+    if (d.type === "aichat:message" && (d.sender === "claude" || d.sender === "codex") && d.channel_id !== channelId) {
       var badge = document.querySelector('[data-sidebar-unread="' + d.channel_id + '"]');
       if (badge) {
         var count = parseInt(badge.textContent || "0", 10) + 1;
@@ -775,8 +775,8 @@ var __aichatChannelId = (function () {
         return;
       }
 
-      // Claude messages: finalize tool panel
-      if (d.sender === "claude") {
+      // Agent messages: finalize tool panel
+      if (d.sender === "claude" || d.sender === "codex") {
         finalizeToolPanel();
       }
 
@@ -1653,7 +1653,7 @@ var __aichatChannelId = (function () {
     }
 
     // Insert "New Messages" divider before first unseen message when scrolled up
-    if (!atBottom && sender === "claude" && !newMsgDividerInserted) {
+    if (!atBottom && (sender === "claude" || sender === "codex") && !newMsgDividerInserted) {
       var rtDivider = document.createElement("div");
       rtDivider.className = "aichat-event-divider aichat-new-messages-divider";
       rtDivider.id = "aichatNewMessagesDividerRT";
@@ -1667,7 +1667,7 @@ var __aichatChannelId = (function () {
 
     messagesEl.appendChild(div);
 
-    if (sender === "claude" && messageId && readObserver) {
+    if ((sender === "claude" || sender === "codex") && messageId && readObserver) {
       div.setAttribute("data-unread", "1");
       readObserver.observe(div);
     }
@@ -1677,7 +1677,7 @@ var __aichatChannelId = (function () {
       var msgTop = div.getBoundingClientRect().top + window.scrollY;
       var maxScroll = document.body.scrollHeight - window.innerHeight;
       window.scrollTo({ top: Math.min(msgTop - 8, maxScroll), behavior: "instant" });
-    } else if (sender === "claude") {
+    } else if (sender === "claude" || sender === "codex") {
       // User has scrolled up — show floating button
       newMsgCount++;
       showNewMsgBtn();

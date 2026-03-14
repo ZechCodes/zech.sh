@@ -509,7 +509,7 @@ async def _get_sidebar_data(user_id: UUID, db_session: AsyncSession) -> dict:
             AiChatMessage.channel_id,
             func.count(AiChatMessage.id),
         )
-        .where(AiChatMessage.sender == "claude")
+        .where(AiChatMessage.sender.in_(("claude", "codex")))
         .where(AiChatMessage.read_by_user_at.is_(None))
         .where(AiChatMessage.channel_id.is_not(None))
         .group_by(AiChatMessage.channel_id)
@@ -749,7 +749,7 @@ class AiChatController(Controller):
         # Find first unread Claude message (client marks as read via observer)
         first_unread_id = None
         for msg in messages:
-            if msg.sender == "claude" and msg.read_by_user_at is None:
+            if msg.sender in ("claude", "codex") and msg.read_by_user_at is None:
                 first_unread_id = str(msg.id)
                 break
 
@@ -945,7 +945,7 @@ class AiChatController(Controller):
             select(AiChatMessage)
             .where(AiChatMessage.id.in_([UUID(mid) for mid in message_ids]))
             .where(AiChatMessage.channel_id == UUID(channel_id))
-            .where(AiChatMessage.sender == "claude")
+            .where(AiChatMessage.sender.in_(("claude", "codex")))
             .where(AiChatMessage.read_by_user_at.is_(None))
         )
         for msg in result.scalars().all():
@@ -1229,8 +1229,9 @@ async def _do_send_message(
     attachments: list[dict] | None = None,
     encrypted_payload: str = "",
     nonce: str = "",
+    sender: str = "claude",
 ) -> dict:
-    """Create a claude message, notify the user, and send push."""
+    """Create an agent message, notify the user, and send push."""
     content = (content or "").strip()
     is_encrypted = bool(encrypted_payload and nonce)
 
@@ -1248,9 +1249,13 @@ async def _do_send_message(
     if not content and not clean_attachments and not is_encrypted:
         raise ValueError("empty message")
 
+    # Validate sender — only allow known agent types
+    if sender not in ("claude", "codex"):
+        sender = "claude"
+
     # Store message — content may be empty if encrypted
     msg = AiChatMessage(
-        sender="claude",
+        sender=sender,
         content=content if not is_encrypted else "[encrypted]",
         channel_id=channel_id,
         attachments=clean_attachments or None,
@@ -1266,7 +1271,7 @@ async def _do_send_message(
         channel_name = ch_result.scalar_one_or_none() or "Agent"
 
         notification_kwargs = {
-            "sender": "claude",
+            "sender": sender,
             "message_id": str(msg.id),
             "channel_id": str(channel_id),
         }
@@ -1401,7 +1406,7 @@ async def _do_tool_status(
             select(AiChatMessage.created_at)
             .where(
                 AiChatMessage.channel_id == channel_id,
-                AiChatMessage.sender == "claude",
+                AiChatMessage.sender.in_(("claude", "codex")),
             )
             .order_by(AiChatMessage.created_at.desc())
             .limit(1)
@@ -2122,6 +2127,7 @@ async def _dispatch_ws_message(
                 msg.get("attachments"),
                 encrypted_payload=msg.get("encrypted_payload", ""),
                 nonce=msg.get("nonce", ""),
+                sender=msg.get("sender", "claude"),
             )
         case "mark_read":
             return await _do_mark_read(
