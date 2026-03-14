@@ -2464,6 +2464,9 @@ class AiChatDeviceManagementController(Controller):
         name = body.get("name", "").strip() or "New Task"
         if len(name) > 100:
             name = name[:100]
+        agent_type = body.get("agent_type", "claude")
+        if agent_type not in ("claude", "codex"):
+            agent_type = "claude"
 
         # Generate channel keypair
         private_key = Ed25519PrivateKey.generate()
@@ -2492,6 +2495,7 @@ class AiChatDeviceManagementController(Controller):
             payload={
                 "channel_id": str(channel.id),
                 "channel_token": channel_token,
+                "agent_type": agent_type,
             },
             device_id=str(device.id),
         )

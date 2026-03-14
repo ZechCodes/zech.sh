@@ -224,6 +224,7 @@ var __aichatChannelId = (function () {
   // --- New Task modal ---
   var newTaskModal = document.getElementById("aichatNewTaskModal");
   var newTaskInput = document.getElementById("aichatNewTaskInput");
+  var newTaskAgent = document.getElementById("aichatNewTaskAgent");
   var newTaskCreate = document.getElementById("aichatNewTaskCreate");
   var newTaskCancel = document.getElementById("aichatNewTaskCancel");
   var newTaskDeviceId = null;
@@ -231,6 +232,7 @@ var __aichatChannelId = (function () {
   function openNewTaskModal(deviceId) {
     newTaskDeviceId = deviceId;
     if (newTaskInput) newTaskInput.value = "";
+    if (newTaskAgent) newTaskAgent.value = "claude";
     if (newTaskModal) newTaskModal.classList.add("is-active");
     if (newTaskInput) newTaskInput.focus();
   }
@@ -249,11 +251,12 @@ var __aichatChannelId = (function () {
   if (newTaskCreate) {
     newTaskCreate.addEventListener("click", function () {
       var name = newTaskInput.value.trim() || "New Task";
+      var agentType = newTaskAgent ? newTaskAgent.value : "claude";
       newTaskCreate.disabled = true;
       fetch("/api/user-devices/" + newTaskDeviceId + "/workers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name }),
+        body: JSON.stringify({ name: name, agent_type: agentType }),
       })
       .then(function (res) { return res.json(); })
       .then(function (data) {

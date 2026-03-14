@@ -1640,6 +1640,20 @@
   border-color: rgba(255, 85, 0, 0.4);
 }
 
+select.aichat-modal-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ff5500' opacity='0.4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+
+select.aichat-modal-input option {
+  background: #1a1a1a;
+  color: var(--zech-text);
+}
+
 .aichat-modal-actions {
   display: flex;
   gap: 0.5rem;
