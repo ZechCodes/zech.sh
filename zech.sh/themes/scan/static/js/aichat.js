@@ -185,6 +185,34 @@ var __aichatChannelId = (function () {
         deviceEl.appendChild(channelsEl);
       }
 
+      // New Task button
+      var newTaskBtn = document.createElement("button");
+      newTaskBtn.className = "aichat-sidebar-new-task";
+      newTaskBtn.textContent = "+ New Task";
+      newTaskBtn.setAttribute("data-device-id", device.id);
+      newTaskBtn.addEventListener("click", function () {
+        var deviceId = this.getAttribute("data-device-id");
+        var taskName = prompt("Task name:");
+        if (!taskName || !taskName.trim()) return;
+        var csrf = sidebar.getAttribute("data-csrf") || "";
+        fetch("/api/user-devices/" + deviceId + "/workers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+          body: JSON.stringify({ name: taskName.trim() }),
+        })
+          .then(function (res) {
+            if (!res.ok) throw new Error("Failed to create task");
+            return res.json();
+          })
+          .then(function (result) {
+            window.location.href = "/c/" + result.channel.id;
+          })
+          .catch(function (err) {
+            alert("Error creating task: " + err.message);
+          });
+      });
+      deviceEl.appendChild(newTaskBtn);
+
       devicesContainer.appendChild(deviceEl);
     }
 

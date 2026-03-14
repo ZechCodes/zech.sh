@@ -176,6 +176,27 @@
   display: none;
 }
 
+.aichat-sidebar-new-task {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  margin-top: 0.25rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.4);
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.aichat-sidebar-new-task:hover {
+  color: var(--zech-primary);
+  border-color: var(--zech-primary);
+}
+
 /* Sidebar toggle button (mobile/tablet) */
 .aichat-sidebar-toggle {
   display: none;

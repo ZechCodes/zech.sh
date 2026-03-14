@@ -33,7 +33,7 @@
 {% endblock %}
 
 {% block content %}
-<aside class="aichat-sidebar{% if not channel %} is-home{% endif %}" id="aichatSidebar"></aside>
+<aside class="aichat-sidebar{% if not channel %} is-home{% endif %}" id="aichatSidebar" data-csrf="{{ csrf_token }}"></aside>
 <div class="aichat-sidebar-backdrop" id="aichatSidebarBackdrop"></div>
 <div class="aichat-layout{% if not channel %} aichat-home-layout{% endif %}">
     <section class="aichat-section">
