@@ -612,11 +612,18 @@ var __aichatChannelId = (function () {
         }
       };
 
+      // Collect specific message IDs the browser needs decrypted
+      var messageIds = [];
+      for (var ei = 0; ei < encEls.length; ei++) {
+        var msgDiv = encEls[ei].closest("[data-message-id]");
+        if (msgDiv) messageIds.push(msgDiv.getAttribute("data-message-id"));
+      }
+
       var csrfTok = form ? (form.getAttribute("data-csrf") || "") : "";
       fetch("/c/" + channelId + "/request-history", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfTok },
-        body: JSON.stringify({ request_id: requestId, limit: 200 }),
+        body: JSON.stringify({ request_id: requestId, limit: 200, message_ids: messageIds }),
       }).catch(function (err) {
         clearTimeout(timeoutId);
         delete window.__aichatPendingHistory[requestId];

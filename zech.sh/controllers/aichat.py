@@ -1161,15 +1161,21 @@ class AiChatController(Controller):
         request_id = body.get("request_id", secrets.token_urlsafe(8))
 
         # Forward to device via notification
+        kwargs = {
+            "channel_id": channel_id,
+            "request_id": request_id,
+            "before": body.get("before"),
+            "limit": min(body.get("limit", 100), 500),
+        }
+        message_ids = body.get("message_ids")
+        if isinstance(message_ids, list) and message_ids:
+            kwargs["message_ids"] = message_ids[:200]  # Cap at 200 IDs
         await notify_user(
             user.id,
             "aichat:history-request",
             mode=NotificationMode.TIMESERIES,
             push_notify=False,
-            channel_id=channel_id,
-            request_id=request_id,
-            before=body.get("before"),
-            limit=min(body.get("limit", 100), 200),
+            **kwargs,
         )
 
         return Response(content={"ok": True, "request_id": request_id})
