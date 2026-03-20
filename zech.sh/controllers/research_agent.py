@@ -122,7 +122,7 @@ Do NOT rely on what you already "know." Your training data is stale and \
 unreliable for factual claims. Search for everything, even things you \
 think you know. The web is the source of truth, not your weights.
 
-### Phase 1 — Survey
+### Phase 1 — Survey the landscape
 
 Run 2-3 broad searches in parallel to map the territory. Include a \
 recency query (e.g. "[topic] 2026" or "[topic] latest").
@@ -130,13 +130,27 @@ recency query (e.g. "[topic] 2026" or "[topic] latest").
 Scan the search results. Identify which URLs are worth reading based on \
 the source quality hierarchy below.
 
-### Phase 2 — Read and go deeper
+### Phase 2 — Research deeply
 
-Read the best sources. After each batch, assess: what gaps remain? What \
-claims need verification? Run targeted follow-up searches and reads.
+Read the best sources. Follow threads — if a source references \
+important data you don't have yet, search for it. Run targeted \
+follow-up searches to cover angles your initial queries missed. Don't \
+stop at the first answer; look for specifics, numbers, and edge cases.
 
-Stop when you have strong evidence covering the key aspects of the \
-question, or when your budget is running low.
+### Phase 3 — Draft key points
+
+Now that you've gathered evidence, draft your key_points. Each point \
+should be a specific, concrete finding backed by what you read. Review \
+them: are there gaps? Vague claims without numbers? Important aspects \
+of the question you haven't addressed?
+
+### Phase 4 — Fill gaps
+
+For each weak or missing key point, do one more targeted search or \
+read. For example, if you have pricing for 3 of 4 models but not the \
+last one, search for it. If you know "X is cheaper" but don't have \
+the exact total, find it. Only stop when each key point has concrete \
+evidence behind it, or you've exhausted your budget.
 
 ## Source quality hierarchy (strict)
 
@@ -165,6 +179,12 @@ contribute to a comprehensive answer. Leave out tangential reads, \
 low-quality sources, or sources that didn't contain useful information. \
 This is your editorial judgment — the synthesis system will ONLY see \
 the sources you select here.
+- **key_points**: The significant points the answer must cover. Each \
+point should be a specific finding, comparison, number, or insight you \
+discovered — not a generic topic or section heading. For example: \
+"Mint Mobile 4-line unlimited is $120/mo vs Google Fi at $160/mo" not \
+"Pricing comparison". Think: what are the facts and conclusions a \
+reader absolutely needs to walk away with?
 - **research_notes**: Brief notes on what you found, key gaps, and why \
 you selected these sources over others you read."""
 
@@ -265,9 +285,12 @@ research_agent = Agent(
 # ---------------------------------------------------------------------------
 
 class ResearchCuration(BaseModel):
-    """Nano's final output: curated list of sources for the synthesis step."""
+    """Nano's final output: curated sources and key points for the synthesis step."""
     selected_urls: list[str]
     """URLs of the most important sources for answering the query, in priority order."""
+    key_points: list[str]
+    """Significant points the answer must cover, based on what the research revealed.
+    Each point is a specific finding, comparison, or insight — not a section heading."""
     research_notes: str
     """Brief notes on what was found, gaps, and why these sources were selected."""
 
@@ -1124,9 +1147,20 @@ class AgentResearchPipeline:
                 source_list = self.knowledge.format_source_list()
                 knowledge_dump = self.knowledge.format_for_prompt()
 
+                # Build key points section if Nano provided them
+                key_points_section = ""
+                if isinstance(curation, ResearchCuration) and curation.key_points:
+                    points_lines = "\n".join(
+                        f"- {point}" for point in curation.key_points
+                    )
+                    key_points_section = (
+                        f"KEY POINTS TO COVER:\n{points_lines}\n\n"
+                    )
+
                 synthesis_prompt = (
                     f"{articulation}\n\n"
                     f"QUESTION: {self.query}\n\n"
+                    f"{key_points_section}"
                     f"ACCUMULATED RESEARCH:\n{knowledge_dump}\n\n"
                     f"AVAILABLE SOURCES:\n{source_list}\n\n"
                     f"Write your answer now. Cite sources as [n] inline. "
