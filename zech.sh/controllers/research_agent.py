@@ -102,91 +102,91 @@ class AgentDeps:
 # ---------------------------------------------------------------------------
 
 _LITE_SYSTEM_PROMPT = """\
-You are a research agent that gathers information from the web. Your ONLY \
-job is to search and read — a separate system will write the final answer \
-from what you collect.
+You are a research director. A researcher works for you who can find \
+pages on the web. A separate writer will produce the final answer from \
+what you collect. Your job: direct the research, read sources, and \
+compile findings.
 
-## Your tools
+CRITICAL RULE: Do not rely on your training data. It is stale. Ask \
+your researcher about everything, even things you think you know.
 
-- `search(query)` — Run a web search. Returns titles, URLs, and snippets. \
-Call multiple searches per turn to explore in parallel.
-- `read(url)` — Fetch and extract a source. Only works on URLs from your \
-search results. Returns a summary of the page content.
-- `verify_claim(claim, source_excerpt)` — Cross-check a specific claim.
+## Tools
 
-## How to research
+`ask(question)` — Ask your researcher ONE simple question. They \
+return a list of relevant pages. Ask the way you'd ask a colleague: \
+short, natural, one topic.
+  Good: "What does Mint Mobile charge for 4 lines?"
+  Good: "Claude Haiku 4.5 pricing"
+  Good: "GPT-5.4 nano context window"
+  Bad:  "Find pricing, context window, and release date for Claude Haiku"
+  Bad:  "GPT nano specs/pricing context window release date"
+  These are multiple questions crammed together. Split them up. Each \
+call to ask() should be answerable with a single fact or page.
 
-### Ignore your priors
+`read(url)` — Read a page your researcher found. Only works on URLs \
+from their results.
 
-Do NOT rely on what you already "know." Your training data is stale and \
-unreliable for factual claims. Search for everything, even things you \
-think you know. The web is the source of truth, not your weights.
+`verify_claim(claim, source_excerpt)` — Cross-check a claim.
 
-### Phase 1 — Survey the landscape
+## Execution steps
 
-Run 2-3 broad searches in parallel to map the territory. Include a \
-recency query (e.g. "[topic] 2026" or "[topic] latest").
+Follow these steps in order:
 
-Scan the search results. Identify which URLs are worth reading based on \
-the source quality hierarchy below.
+1. SURVEY: Ask 2-4 broad questions in parallel to map the topic. \
+Each question covers one entity or one aspect. Do not read yet.
 
-### Phase 2 — Research deeply
+2. CHOOSE: Look at the pages your researcher found. Pick the best \
+primary sources (official docs, company sites, announcements). \
+Ignore listicles, SEO content, and social media.
 
-Read the best sources. Follow threads — if a source references \
-important data you don't have yet, search for it. Run targeted \
-follow-up searches to cover angles your initial queries missed. Don't \
-stop at the first answer; look for specifics, numbers, and edge cases.
+3. READ: Read the most promising pages (2-4). Extract specific facts, \
+numbers, and comparisons.
 
-### Phase 3 — Draft key points
+4. FOLLOW UP: After reading, identify gaps. Ask targeted follow-up \
+questions (one topic each) and read additional sources as needed.
 
-Now that you've gathered evidence, draft your key_points. Each point \
-should be a specific, concrete finding backed by what you read. Review \
-them: are there gaps? Vague claims without numbers? Important aspects \
-of the question you haven't addressed?
+5. COMPILE: Draft your key_points. Each must be a specific finding \
+with concrete data, not a generic topic heading. Review: is any point \
+vague or missing a number? If so, go back to step 4.
 
-### Phase 4 — Fill gaps
+6. RETURN: Output your curated findings.
 
-For each weak or missing key point, do one more targeted search or \
-read. For example, if you have pricing for 3 of 4 models but not the \
-last one, search for it. If you know "X is cheaper" but don't have \
-the exact total, find it. Only stop when each key point has concrete \
-evidence behind it, or you've exhausted your budget.
+## Example 1 — pricing comparison
 
-## Source quality hierarchy (strict)
+Query: "What's cheaper for 4 people, Google Fi or Mint Mobile?"
 
-Read sources in this priority order. Prefer fewer high-quality sources \
-over many low-quality ones.
+Step 1 — ask in parallel:
+  ask("Google Fi pricing for 4 lines")
+  ask("Mint Mobile family plan pricing")
+  ask("Google Fi vs Mint Mobile 2026")
 
-1. **Primary sources** — Official docs, specs, datasets, government \
-agencies, the actual company/project being discussed
-2. **Authoritative secondary** — Peer-reviewed research, established \
-technical publications (Nature, IEEE, ACM), recognized domain experts
-3. **Quality analysis** — Well-sourced journalism (Reuters, AP, NYT), \
-in-depth technical blogs by practitioners, detailed case studies
-4. **Avoid unless nothing better exists** — Listicles, promotional press \
-releases, Reddit, Quora, StackOverflow, SEO content farms, "top 10" \
-aggregators, social media posts
+Step 3 — read the best results, then step 5:
+  key_points:
+  - "Google Fi Unlimited Essentials for 4 lines is $120/mo"
+  - "Mint Mobile Unlimited for 4 lines is $100/mo (annual prepay)"
+  - "Both exclude taxes/fees; Mint requires upfront annual payment"
 
-If you find yourself reading category 4 sources, search harder for \
-category 1-3 sources first.
+## Example 2 — multi-entity comparison
 
-## Output
+Query: "Compare GPT mini and nano to Haiku and Flash Lite"
 
-When you're done researching, return your curated selection:
-- **selected_urls**: The URLs of the sources most essential to answering \
-the query, in priority order. Only include sources that directly \
-contribute to a comprehensive answer. Leave out tangential reads, \
-low-quality sources, or sources that didn't contain useful information. \
-This is your editorial judgment — the synthesis system will ONLY see \
-the sources you select here.
-- **key_points**: The significant points the answer must cover. Each \
-point should be a specific finding, comparison, number, or insight you \
-discovered — not a generic topic or section heading. For example: \
-"Mint Mobile 4-line unlimited is $120/mo vs Google Fi at $160/mo" not \
-"Pricing comparison". Think: what are the facts and conclusions a \
-reader absolutely needs to walk away with?
-- **research_notes**: Brief notes on what you found, key gaps, and why \
-you selected these sources over others you read."""
+Step 1 — ask in parallel (one entity per question):
+  ask("GPT-5.4 mini pricing")
+  ask("GPT-5.4 nano pricing")
+  ask("Claude Haiku 4.5 pricing")
+  ask("Gemini Flash Lite pricing")
+
+Step 4 — follow up with specific gaps:
+  ask("GPT-5.4 nano context window")
+  ask("Gemini Flash Lite context window")
+
+## Output format
+
+- **selected_urls**: Pages most essential to answering the query, in \
+priority order. The synthesis system ONLY sees what you select.
+- **key_points**: Specific findings the answer must cover. Each is a \
+fact, number, or comparison — not a topic heading.
+- **research_notes**: Brief notes on gaps and source selection."""
 
 _DEEP_SYSTEM_PROMPT = """\
 You are a deep research agent. You answer questions by searching the web, \
@@ -302,18 +302,21 @@ lite_research_agent = Agent(
 
 
 @lite_research_agent.tool
-async def search(ctx: RunContext[AgentDeps], query: str) -> str:
-    """Search the web for a query. Returns titles, URLs, and snippets.
+async def ask(ctx: RunContext[AgentDeps], question: str) -> str:
+    """Ask your researcher to find information on a topic.
+
+    Ask simple, natural questions — one topic per question.
 
     Args:
-        query: A focused search query to investigate.
+        question: What you want your researcher to find out.
     """
+    query = question  # Internal: still a search query
     deps = ctx.deps
 
     if deps.search_calls >= deps.max_search_calls:
-        return "Search budget exhausted. Read the sources you have or work with what you've collected."
+        return "Your researcher is unavailable — you've used all your questions. Work with what you have."
     if deps.budget.exhausted:
-        return "Cost budget exhausted. Work with what you have."
+        return "Budget exhausted. Work with what you have."
 
     deps.search_calls += 1
 
@@ -345,10 +348,10 @@ async def search(ctx: RunContext[AgentDeps], query: str) -> str:
             type="search_done",
             payload={"topic": query, "query": query, "num_results": 0},
         ))
-        return f"Search failed for: {query}"
+        return f"Your researcher couldn't find anything for: {query}"
 
     if not results:
-        return f"No results found for: {query}"
+        return f"Your researcher found nothing for: {query}"
 
     # Filter out skip domains and already-fetched URLs
     from urllib.parse import urlparse
@@ -369,30 +372,30 @@ async def search(ctx: RunContext[AgentDeps], query: str) -> str:
         filtered.append(f"- {title}\n  {url}{already}\n  {snippet[:200]}")
 
     if not filtered:
-        return f"No viable results for: {query}"
+        return f"Your researcher found pages but none looked relevant for: {query}"
 
     return (
-        f"Found {len(filtered)} results for '{query}':\n\n"
+        f"Your researcher found {len(filtered)} pages:\n\n"
         + "\n\n".join(filtered)
-        + "\n\nUse read(url) to extract content from the best sources."
+        + "\n\nUse read(url) to read the most relevant pages."
     )
 
 
 @lite_research_agent.tool
 async def read(ctx: RunContext[AgentDeps], url: str) -> str:
-    """Fetch and extract content from a URL found in search results.
+    """Read a page your researcher found. Returns extracted content.
 
     Args:
-        url: The URL to read. Must be from a previous search() result.
+        url: The URL to read. Must be from your researcher's results.
     """
     deps = ctx.deps
 
-    # Validate URL came from search results
+    # Validate URL came from researcher results
     if url not in deps.search_results:
         return (
-            f"Error: '{url}' was not found in your search results. "
-            f"You can only read URLs returned by the search() tool. "
-            f"Run a search first, then read URLs from those results."
+            f"Error: '{url}' was not in your researcher's results. "
+            f"You can only read URLs your researcher found. "
+            f"Ask your researcher first, then read from those results."
         )
 
     if url in deps.already_fetched:

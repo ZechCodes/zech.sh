@@ -1,4 +1,4 @@
-"""Quick one-off: run just the Nano research step and print its curation output."""
+"""Run the Nano research step with real search/reads and show full output."""
 
 import asyncio
 import os
@@ -25,17 +25,18 @@ from controllers.deep_research_agent import (
 from controllers.llm import gpt_nano
 
 QUERIES = [
+    "what's cheaper for 4 people, google fi or mint mobile?",
     "compare the latest GPT mini and nano to the latest haiku and Flash/Flash Lite",
 ]
 
 
 async def noop_dispatch(event):
     if isinstance(event, DetailEvent):
-        if event.type == "tool_call":
-            print(f"  🔧 {event.payload['name']}({event.payload.get('args', {})})")
+        if event.type == "search":
+            print(f"  🔍 ask: \"{event.payload.get('query', '?')}\"")
         elif event.type == "search_done":
-            n = len(event.payload.get("results", []))
-            print(f"  📋 search returned {n} results")
+            n = event.payload.get("num_results", 0)
+            print(f"     → {n} results")
         elif event.type == "fetch_done":
             print(f"  📄 read: {event.payload.get('url', '?')[:80]}")
 
@@ -66,7 +67,6 @@ async def run_query(query: str):
     print(f"\n{'='*60}")
     print(f"Query: {query}")
     print(f"{'='*60}\n")
-    print("Running Nano research step...\n")
 
     result = await lite_research_agent.run(
         query,
