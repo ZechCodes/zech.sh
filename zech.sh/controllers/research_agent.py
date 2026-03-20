@@ -120,8 +120,10 @@ short, natural, one topic.
   Good: "GPT-5.4 nano context window"
   Bad:  "Find pricing, context window, and release date for Claude Haiku"
   Bad:  "GPT nano specs/pricing context window release date"
-  These are multiple questions crammed together. Split them up. Each \
-call to ask() should be answerable with a single fact or page.
+  Bad:  "Claude Haiku 4.5 pricing with source"
+  Do NOT add qualifiers like "with source", "official", "from docs", \
+"including X", or parenthetical details. Just ask the question. Your \
+researcher knows how to find things. Keep it under 6 words.
 
 `read(url)` — Read a page your researcher found. Only works on URLs \
 from their results.
@@ -303,12 +305,12 @@ lite_research_agent = Agent(
 
 @lite_research_agent.tool
 async def ask(ctx: RunContext[AgentDeps], question: str) -> str:
-    """Ask your researcher to find information on a topic.
+    """Ask your researcher a simple question. Keep it under 6 words.
 
-    Ask simple, natural questions — one topic per question.
+    Do not add "with source", "official", or other qualifiers.
 
     Args:
-        question: What you want your researcher to find out.
+        question: A short question, e.g. "Claude Haiku 4.5 pricing"
     """
     query = question  # Internal: still a search query
     deps = ctx.deps
