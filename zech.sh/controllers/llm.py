@@ -14,7 +14,9 @@ from google import genai
 from genai_prices import calc_price
 from genai_prices import Usage as GenAIUsage
 from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.google import GoogleProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 
 
 FLASH_LITE_THINKING_SETTINGS = {
@@ -49,6 +51,17 @@ def gemini_flash() -> GoogleModel:
 def gemini_flash_lite() -> GoogleModel:
     """Gemini 3.1 Flash Lite — fast classification."""
     return GoogleModel("gemini-3.1-flash-lite-preview", provider=google_provider())
+
+
+@lru_cache(maxsize=1)
+def openai_provider() -> OpenAIProvider:
+    return OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"])
+
+
+@lru_cache(maxsize=1)
+def gpt_nano() -> OpenAIChatModel:
+    """GPT 5.4 Nano — fast, cheap research agent."""
+    return OpenAIChatModel("gpt-5.4-nano", provider=openai_provider())
 
 
 def calc_usage_cost(input_tokens: int, output_tokens: int, model_name: str) -> dict:

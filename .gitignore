@@ -21,5 +21,8 @@ wheels/
 # Backups
 *.backup.*
 
+# Eval outputs
+tests/eval_outputs/
+
 # OS
 .DS_Store

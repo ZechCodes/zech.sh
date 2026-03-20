@@ -36,6 +36,8 @@ from pydantic_ai.messages import (
 
 from controllers.deep_research_agent import (
     EXTRACTION_PROMPT,
+    LIGHT_ARTICULATION_PROMPT,
+    ARTICULATION_PROMPT,
     CostBudget,
     DetailEvent,
     Dispatch,
@@ -51,7 +53,7 @@ from controllers.deep_research_agent import (
     _filter_results,
     _jina_fetch,
 )
-from controllers.llm import calc_usage_cost, gemini_flash, gemini_flash_lite, genai_client
+from controllers.llm import calc_usage_cost, gemini_flash, gemini_flash_lite, genai_client, gpt_nano
 from controllers.robots import check_url_allowed
 
 logger = logging.getLogger(__name__)
@@ -559,7 +561,8 @@ async def verify_claim(
 
 _MODE_CONFIG = {
     "lite": {
-        "agent_model_fn": gemini_flash,
+        "agent_model_fn": gpt_nano,
+        "synthesis_model_fn": gemini_flash,  # Hybrid: Nano researches, Flash synthesizes
         "system_prompt": _LITE_SYSTEM_PROMPT,
         "max_research_calls": 8,
         "max_verify_calls": 3,
@@ -766,12 +769,46 @@ class AgentResearchPipeline:
 
                 result = agent_run.result
 
-            # --- Emit the agent's answer as text ---
-            answer = result.output
+            # --- Synthesis phase ---
+            agent_usage = result.usage()
+            synthesis_model_fn = cfg.get("synthesis_model_fn")
+
+            if synthesis_model_fn and self.knowledge.entries:
+                # Hybrid mode: discard the research agent's answer,
+                # synthesize from accumulated knowledge with a better model.
+                await self.dispatch(StageEvent(stage="responding"))
+
+                articulation = (
+                    LIGHT_ARTICULATION_PROMPT if self.mode == "lite"
+                    else ARTICULATION_PROMPT
+                )
+                source_list = self.knowledge.format_source_list()
+                knowledge_dump = self.knowledge.format_for_prompt()
+
+                synthesis_prompt = (
+                    f"{articulation}\n\n"
+                    f"QUESTION: {self.query}\n\n"
+                    f"ACCUMULATED RESEARCH:\n{knowledge_dump}\n\n"
+                    f"AVAILABLE SOURCES:\n{source_list}\n\n"
+                    f"Write your answer now. Cite sources as [n] inline. "
+                    f"End with ## Sources as [n] Title — URL."
+                )
+
+                synth_agent = Agent(
+                    model=synthesis_model_fn(),
+                    system_prompt="You are a research synthesizer.",
+                )
+                synth_result = await synth_agent.run(synthesis_prompt)
+                answer = synth_result.output
+                synth_usage = synth_result.usage()
+            else:
+                # Single-model mode: use the agent's own answer.
+                answer = result.output
+                synth_usage = None
+
             await self.dispatch(TextEvent(text=answer))
 
             # --- Emit agent message history for replay on follow-ups ---
-            agent_usage = result.usage()
             all_messages = result.all_messages()
             request_tokens = agent_usage.request_tokens or 0
             compacted = _compact_history(all_messages, request_tokens)
@@ -782,7 +819,9 @@ class AgentResearchPipeline:
             ))
 
             # --- Usage reporting ---
-            agent_model_name = "gemini-3-flash-preview"
+            research_model_name = cfg["agent_model_fn"].__name__.replace("_fn", "")
+            # Best-effort model name from the factory function
+            agent_model_name = "gpt-5.4-nano" if "nano" in research_model_name else "gemini-3-flash-preview"
             self.budget.add(
                 agent_usage.request_tokens or 0,
                 agent_usage.response_tokens or 0,
@@ -799,42 +838,62 @@ class AgentResearchPipeline:
             agent_out = agent_usage.response_tokens or 0
             agent_cost = calc_usage_cost(agent_in, agent_out, agent_model_name)
 
-            total_in = extraction_in + agent_in
-            total_out = extraction_out + agent_out
+            # Add synthesis cost if hybrid mode
+            if synth_usage:
+                synth_in = synth_usage.request_tokens or 0
+                synth_out = synth_usage.response_tokens or 0
+                synth_model_name = "gemini-3-flash-preview"
+                synth_cost = calc_usage_cost(synth_in, synth_out, synth_model_name)
+            else:
+                synth_in = synth_out = 0
+                synth_cost = {"input_cost": "0.0000", "output_cost": "0.0000"}
+
+            total_in = extraction_in + agent_in + synth_in
+            total_out = extraction_out + agent_out + synth_out
             total_input_cost = (
-                float(extraction_cost["input_cost"]) + float(agent_cost["input_cost"])
+                float(extraction_cost["input_cost"])
+                + float(agent_cost["input_cost"])
+                + float(synth_cost["input_cost"])
             )
             total_output_cost = (
-                float(extraction_cost["output_cost"]) + float(agent_cost["output_cost"])
+                float(extraction_cost["output_cost"])
+                + float(agent_cost["output_cost"])
+                + float(synth_cost["output_cost"])
             )
 
-            await self.dispatch(DetailEvent(
-                type="usage",
-                payload={
-                    "research": {
-                        "input_tokens": extraction_in,
-                        "output_tokens": extraction_out,
-                        "input_cost": extraction_cost["input_cost"],
-                        "output_cost": extraction_cost["output_cost"],
-                    },
-                    "agent": {
-                        "input_tokens": agent_in,
-                        "output_tokens": agent_out,
-                        "input_cost": agent_cost["input_cost"],
-                        "output_cost": agent_cost["output_cost"],
-                    },
-                    "total": {
-                        "input_tokens": total_in,
-                        "output_tokens": total_out,
-                        "input_cost": f"{total_input_cost:.4f}",
-                        "output_cost": f"{total_output_cost:.4f}",
-                    },
-                    "budget": {
-                        "limit": self.budget.limit,
-                        "spent": round(self.budget.spent, 4),
-                    },
+            usage_payload: dict = {
+                "research": {
+                    "input_tokens": extraction_in,
+                    "output_tokens": extraction_out,
+                    "input_cost": extraction_cost["input_cost"],
+                    "output_cost": extraction_cost["output_cost"],
                 },
-            ))
+                "agent": {
+                    "input_tokens": agent_in,
+                    "output_tokens": agent_out,
+                    "input_cost": agent_cost["input_cost"],
+                    "output_cost": agent_cost["output_cost"],
+                },
+                "total": {
+                    "input_tokens": total_in,
+                    "output_tokens": total_out,
+                    "input_cost": f"{total_input_cost:.4f}",
+                    "output_cost": f"{total_output_cost:.4f}",
+                },
+                "budget": {
+                    "limit": self.budget.limit,
+                    "spent": round(self.budget.spent, 4),
+                },
+            }
+            if synth_usage:
+                usage_payload["synthesis"] = {
+                    "input_tokens": synth_in,
+                    "output_tokens": synth_out,
+                    "input_cost": synth_cost["input_cost"],
+                    "output_cost": synth_cost["output_cost"],
+                }
+
+            await self.dispatch(DetailEvent(type="usage", payload=usage_payload))
 
             await self.dispatch(DoneEvent())
 

@@ -66,6 +66,11 @@ spec:
                 secretKeyRef:
                   name: zech-sh-secrets
                   key: brave-api-key
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zech-sh-secrets
+                  key: openai-api-key
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
