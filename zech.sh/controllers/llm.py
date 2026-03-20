@@ -10,13 +10,64 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 
+from decimal import Decimal
+
 from google import genai
 from genai_prices import calc_price
 from genai_prices import Usage as GenAIUsage
+from genai_prices.data import providers as _pricing_providers
+from genai_prices.types import ClauseStartsWith, ModelInfo, ModelPrice
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.openai import OpenAIProvider
+
+
+# ---------------------------------------------------------------------------
+# Patch genai_prices with models it doesn't know about yet
+# ---------------------------------------------------------------------------
+
+_EXTRA_MODELS: dict[str, list[ModelInfo]] = {
+    "google": [
+        ModelInfo(
+            id="gemini-3.1-flash-lite-preview",
+            match=ClauseStartsWith(starts_with="gemini-3.1-flash-lite"),
+            name="gemini 3.1 flash lite",
+            prices=ModelPrice(
+                input_mtok=Decimal("0.075"),
+                output_mtok=Decimal("0.3"),
+            ),
+        ),
+    ],
+    "openai": [
+        ModelInfo(
+            id="gpt-5.4-nano",
+            match=ClauseStartsWith(starts_with="gpt-5.4-nano"),
+            name="gpt 5.4 nano",
+            prices=ModelPrice(
+                input_mtok=Decimal("0.05"),
+                output_mtok=Decimal("0.4"),
+            ),
+        ),
+        ModelInfo(
+            id="gpt-5.4-mini",
+            match=ClauseStartsWith(starts_with="gpt-5.4-mini"),
+            name="gpt 5.4 mini",
+            prices=ModelPrice(
+                input_mtok=Decimal("0.25"),
+                output_mtok=Decimal("2"),
+            ),
+        ),
+    ],
+}
+
+for _provider in _pricing_providers:
+    _extras = _EXTRA_MODELS.get(_provider.id)
+    if _extras:
+        _existing_ids = {m.id for m in _provider.models}
+        for _model in _extras:
+            if _model.id not in _existing_ids:
+                _provider.models.append(_model)
 
 
 FLASH_LITE_THINKING_SETTINGS = {

@@ -299,6 +299,12 @@ async def search(ctx: RunContext[AgentDeps], query: str) -> str:
         deps.emitted_researching = True
         await deps.dispatch(StageEvent(stage="researching"))
 
+    # Emit research group start (frontend uses this to create tool group)
+    await deps.dispatch(DetailEvent(
+        type="research",
+        payload={"topic": query},
+    ))
+
     await deps.dispatch(DetailEvent(
         type="search",
         payload={"topic": query, "query": query},
@@ -334,8 +340,8 @@ async def search(ctx: RunContext[AgentDeps], query: str) -> str:
         host = urlparse(url).hostname or ""
         if host in _SKIP:
             continue
-        # Store in search_results for read() validation
-        deps.search_results[url] = {"title": title, "snippet": snippet}
+        # Store in search_results for read() validation (include search query for event grouping)
+        deps.search_results[url] = {"title": title, "snippet": snippet, "search_query": query}
         already = " [ALREADY READ]" if url in deps.already_fetched else ""
         filtered.append(f"- {title}\n  {url}{already}\n  {snippet[:200]}")
 
@@ -380,10 +386,12 @@ async def read(ctx: RunContext[AgentDeps], url: str) -> str:
 
     deps.read_calls += 1
     title = deps.search_results[url].get("title", url)
+    # Use the search query that found this URL as topic (for frontend event grouping)
+    topic = deps.search_results[url].get("search_query", title)
 
     await deps.dispatch(DetailEvent(
         type="fetch",
-        payload={"topic": title, "url": url},
+        payload={"topic": topic, "url": url},
     ))
 
     # Robots.txt check
@@ -396,7 +404,7 @@ async def read(ctx: RunContext[AgentDeps], url: str) -> str:
             logger.info("Blocked by robots.txt: %s", url)
             await deps.dispatch(DetailEvent(
                 type="fetch_done",
-                payload={"topic": title, "url": url, "failed": True},
+                payload={"topic": topic, "url": url, "failed": True},
             ))
             return f"Blocked by robots.txt: {url}. Try a different source."
 
@@ -410,7 +418,7 @@ async def read(ctx: RunContext[AgentDeps], url: str) -> str:
     if not content:
         await deps.dispatch(DetailEvent(
             type="fetch_done",
-            payload={"topic": title, "url": url, "failed": True},
+            payload={"topic": topic, "url": url, "failed": True},
         ))
         return f"Could not fetch: {url}. Try a different source."
 
@@ -453,7 +461,7 @@ async def read(ctx: RunContext[AgentDeps], url: str) -> str:
         if not extracted or "no relevant content" in extracted.lower():
             await deps.dispatch(DetailEvent(
                 type="fetch_done",
-                payload={"topic": title, "url": url, "content": "(no relevant content)"},
+                payload={"topic": topic, "url": url, "content": "(no relevant content)"},
             ))
             return f"No relevant content found at: {url}"
 
@@ -481,7 +489,7 @@ async def read(ctx: RunContext[AgentDeps], url: str) -> str:
         await deps.dispatch(DetailEvent(
             type="fetch_done",
             payload={
-                "topic": title,
+                "topic": topic,
                 "url": url,
                 "content": extracted[:3000],
                 **({"usage": usage_dict} if usage_dict else {}),
@@ -496,7 +504,7 @@ async def read(ctx: RunContext[AgentDeps], url: str) -> str:
         logger.exception("Extraction failed for %s", url)
         await deps.dispatch(DetailEvent(
             type="fetch_done",
-            payload={"topic": title, "url": url, "failed": True},
+            payload={"topic": topic, "url": url, "failed": True},
         ))
         return f"Extraction failed for: {url}. Try a different source."
 
