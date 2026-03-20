@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -77,8 +77,12 @@ class AgentDeps:
     # Counters + limits
     research_calls: int = 0
     verify_calls: int = 0
+    search_calls: int = 0
+    read_calls: int = 0
     max_research_calls: int = 15
     max_verify_calls: int = 5
+    max_search_calls: int = 10
+    max_read_calls: int = 8
     # Stage tracking for event emission
     emitted_researching: bool = False
     # Config for sub-operations
@@ -87,6 +91,10 @@ class AgentDeps:
     extract_max_chars: int = 1200
     fetch_max_chars: int = 20_000
     extraction_model: str = "gemini-3.1-flash-lite-preview"
+    # Lite hybrid: accumulated search results for URL validation
+    search_results: dict[str, dict] = field(default_factory=dict)  # url -> {title, snippet}
+    # Lite hybrid: staged extractions (not yet in knowledge — Nano curates at the end)
+    staged_entries: dict[str, KnowledgeEntry] = field(default_factory=dict)  # url -> KnowledgeEntry
 
 
 # ---------------------------------------------------------------------------
@@ -94,57 +102,71 @@ class AgentDeps:
 # ---------------------------------------------------------------------------
 
 _LITE_SYSTEM_PROMPT = """\
-You are a research agent. You answer questions by searching the web, \
-understanding the topic, and writing a clear response the user can \
-immediately act on.
+You are a research agent that gathers information from the web. Your ONLY \
+job is to search and read — a separate system will write the final answer \
+from what you collect.
+
+## Your tools
+
+- `search(query)` — Run a web search. Returns titles, URLs, and snippets. \
+Call multiple searches per turn to explore in parallel.
+- `read(url)` — Fetch and extract a source. Only works on URLs from your \
+search results. Returns a summary of the page content.
+- `verify_claim(claim, source_excerpt)` — Cross-check a specific claim.
 
 ## How to research
 
-You have two tools: `research` (web search + source extraction) and \
-`verify_claim` (cross-check a specific claim). You can call `research` \
-multiple times per turn and they run in parallel.
+### Ignore your priors
 
-### Phase 1 — Survey and orient
+Do NOT rely on what you already "know." Your training data is stale and \
+unreliable for factual claims. Search for everything, even things you \
+think you know. The web is the source of truth, not your weights.
 
-Start with 2-3 broad parallel queries (max_sources 1-2) to get the lay \
-of the land. Always include a recency query — if something has recently \
-changed that affects the answer, the user needs to know immediately.
+### Phase 1 — Survey
 
-After the survey, identify the real question the user is trying to answer. \
-It may not be exactly what they asked — understand what they actually need.
+Run 2-3 broad searches in parallel to map the territory. Include a \
+recency query (e.g. "[topic] 2026" or "[topic] latest").
 
-### Phase 2 — Research the answer
+Scan the search results. Identify which URLs are worth reading based on \
+the source quality hierarchy below.
 
-Research the question you identified and anything necessary to support a \
-complete answer. Use focused queries with higher max_sources (2-4). \
-Prioritize practical, actionable information over background context.
+### Phase 2 — Read and go deeper
 
-Stop when you have enough to give the user a clear, confident answer, or \
-when your budget is running low (the tool will tell you).
+Read the best sources. After each batch, assess: what gaps remain? What \
+claims need verification? Run targeted follow-up searches and reads.
 
-## How to write the answer
+Stop when you have strong evidence covering the key aspects of the \
+question, or when your budget is running low.
 
-Your answer IS the final output — there is no post-processing. Use \
-markdown formatting.
+## Source quality hierarchy (strict)
 
-Before writing, plan the piece. Decide:
-1. **The lead** — what directly answers the user's question? Open with it.
-2. **The close** — the actionable conclusion of it all.
-3. **The support** — what evidence and context connect the lead to the \
-close? Only include what earns its space.
+Read sources in this priority order. Prefer fewer high-quality sources \
+over many low-quality ones.
 
-Then write. Don't summarize what you found — pull out the most important \
-details and supporting information, and build a compelling, original \
-narrative that informs the user and answers their query. Natural prose, \
-not a listicle. Cite every factual claim with [n]. Use tables when \
-comparing parallel items. Keep it tight — say what needs saying and stop.
+1. **Primary sources** — Official docs, specs, datasets, government \
+agencies, the actual company/project being discussed
+2. **Authoritative secondary** — Peer-reviewed research, established \
+technical publications (Nature, IEEE, ACM), recognized domain experts
+3. **Quality analysis** — Well-sourced journalism (Reuters, AP, NYT), \
+in-depth technical blogs by practitioners, detailed case studies
+4. **Avoid unless nothing better exists** — Listicles, promotional press \
+releases, Reddit, Quora, StackOverflow, SEO content farms, "top 10" \
+aggregators, social media posts
 
-## Citations
+If you find yourself reading category 4 sources, search harder for \
+category 1-3 sources first.
 
-Renumber sources sequentially as [1], [2], [3]. Every [n] in the text \
-must appear in ## Sources, and every source must be cited at least once.
+## Output
 
-End with ## Sources as [n] Title — URL"""
+When you're done researching, return your curated selection:
+- **selected_urls**: The URLs of the sources most essential to answering \
+the query, in priority order. Only include sources that directly \
+contribute to a comprehensive answer. Leave out tangential reads, \
+low-quality sources, or sources that didn't contain useful information. \
+This is your editorial judgment — the synthesis system will ONLY see \
+the sources you select here.
+- **research_notes**: Brief notes on what you found, key gaps, and why \
+you selected these sources over others you read."""
 
 _DEEP_SYSTEM_PROMPT = """\
 You are a deep research agent. You answer questions by searching the web, \
@@ -238,9 +260,296 @@ research_agent = Agent(
     output_type=str,
 )
 
+# ---------------------------------------------------------------------------
+# Lite hybrid agent (separate agent with search/read tools)
+# ---------------------------------------------------------------------------
+
+class ResearchCuration(BaseModel):
+    """Nano's final output: curated list of sources for the synthesis step."""
+    selected_urls: list[str]
+    """URLs of the most important sources for answering the query, in priority order."""
+    research_notes: str
+    """Brief notes on what was found, gaps, and why these sources were selected."""
+
+
+lite_research_agent = Agent(
+    deps_type=AgentDeps,
+    output_type=ResearchCuration,
+)
+
+
+@lite_research_agent.tool
+async def search(ctx: RunContext[AgentDeps], query: str) -> str:
+    """Search the web for a query. Returns titles, URLs, and snippets.
+
+    Args:
+        query: A focused search query to investigate.
+    """
+    deps = ctx.deps
+
+    if deps.search_calls >= deps.max_search_calls:
+        return "Search budget exhausted. Read the sources you have or work with what you've collected."
+    if deps.budget.exhausted:
+        return "Cost budget exhausted. Work with what you have."
+
+    deps.search_calls += 1
+
+    # Emit researching stage on first call
+    if not deps.emitted_researching:
+        deps.emitted_researching = True
+        await deps.dispatch(StageEvent(stage="researching"))
+
+    await deps.dispatch(DetailEvent(
+        type="search",
+        payload={"topic": query, "query": query},
+    ))
+
+    try:
+        results = await _brave_search(query, deps.brave_api_key, count=deps.brave_results)
+        await deps.dispatch(DetailEvent(
+            type="search_done",
+            payload={"topic": query, "query": query, "num_results": len(results)},
+        ))
+    except Exception:
+        logger.exception("Brave search failed for %r", query)
+        await deps.dispatch(DetailEvent(
+            type="search_done",
+            payload={"topic": query, "query": query, "num_results": 0},
+        ))
+        return f"Search failed for: {query}"
+
+    if not results:
+        return f"No results found for: {query}"
+
+    # Filter out skip domains and already-fetched URLs
+    from urllib.parse import urlparse
+    _SKIP = {"youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com"}
+    filtered = []
+    for r in results:
+        url = r.get("url", "")
+        title = r.get("title", "")
+        snippet = r.get("description", "")
+        if not url:
+            continue
+        host = urlparse(url).hostname or ""
+        if host in _SKIP:
+            continue
+        # Store in search_results for read() validation
+        deps.search_results[url] = {"title": title, "snippet": snippet}
+        already = " [ALREADY READ]" if url in deps.already_fetched else ""
+        filtered.append(f"- {title}\n  {url}{already}\n  {snippet[:200]}")
+
+    if not filtered:
+        return f"No viable results for: {query}"
+
+    return (
+        f"Found {len(filtered)} results for '{query}':\n\n"
+        + "\n\n".join(filtered)
+        + "\n\nUse read(url) to extract content from the best sources."
+    )
+
+
+@lite_research_agent.tool
+async def read(ctx: RunContext[AgentDeps], url: str) -> str:
+    """Fetch and extract content from a URL found in search results.
+
+    Args:
+        url: The URL to read. Must be from a previous search() result.
+    """
+    deps = ctx.deps
+
+    # Validate URL came from search results
+    if url not in deps.search_results:
+        return (
+            f"Error: '{url}' was not found in your search results. "
+            f"You can only read URLs returned by the search() tool. "
+            f"Run a search first, then read URLs from those results."
+        )
+
+    if url in deps.already_fetched:
+        # Find existing entry and return it
+        staged = deps.staged_entries.get(url)
+        if staged:
+            return f"Already read. Content from {staged.title}:\n{staged.key_points}"
+        return f"Already read: {url}"
+
+    if deps.read_calls >= deps.max_read_calls:
+        return "Read budget exhausted. Work with the sources you have."
+    if deps.budget.exhausted:
+        return "Cost budget exhausted. Work with what you have."
+
+    deps.read_calls += 1
+    title = deps.search_results[url].get("title", url)
+
+    await deps.dispatch(DetailEvent(
+        type="fetch",
+        payload={"topic": title, "url": url},
+    ))
+
+    # Robots.txt check
+    if deps.db_session is not None:
+        try:
+            allowed, _ = await check_url_allowed(url, deps.db_session)
+        except Exception:
+            allowed = True
+        if not allowed:
+            logger.info("Blocked by robots.txt: %s", url)
+            await deps.dispatch(DetailEvent(
+                type="fetch_done",
+                payload={"topic": title, "url": url, "failed": True},
+            ))
+            return f"Blocked by robots.txt: {url}. Try a different source."
+
+    # Fetch via Jina
+    try:
+        content = await _jina_fetch(url, redis_url=deps.redis_url)
+    except Exception:
+        logger.exception("Jina fetch failed for %s", url)
+        content = None
+
+    if not content:
+        await deps.dispatch(DetailEvent(
+            type="fetch_done",
+            payload={"topic": title, "url": url, "failed": True},
+        ))
+        return f"Could not fetch: {url}. Try a different source."
+
+    deps.already_fetched.add(url)
+    truncated = content[:deps.fetch_max_chars]
+
+    # Extract via Flash Lite
+    client = genai_client()
+    extraction_prompt = (
+        f"Query: {title}\n\n"
+        f"Document from {title} ({url}):\n{truncated}"
+    )
+
+    try:
+        extract_cfg = GenerateContentConfig(
+            system_instruction=EXTRACTION_PROMPT,
+        )
+        extract_cfg.thinking_config = ThinkingConfig(
+            thinking_level=ThinkingLevel.MINIMAL,
+        )
+        extract_resp = await client.aio.models.generate_content(
+            model=deps.extraction_model,
+            contents=extraction_prompt,
+            config=extract_cfg,
+        )
+        deps.extraction_counter.add_from_response(extract_resp)
+
+        ext_meta = getattr(extract_resp, "usage_metadata", None)
+        if ext_meta:
+            deps.budget.add(
+                ext_meta.prompt_token_count or 0,
+                ext_meta.candidates_token_count or 0,
+                deps.extraction_model,
+            )
+
+        extracted = extract_resp.text or ""
+        if len(extracted) > deps.extract_max_chars:
+            extracted = extracted[:deps.extract_max_chars]
+
+        if not extracted or "no relevant content" in extracted.lower():
+            await deps.dispatch(DetailEvent(
+                type="fetch_done",
+                payload={"topic": title, "url": url, "content": "(no relevant content)"},
+            ))
+            return f"No relevant content found at: {url}"
+
+        entry = KnowledgeEntry(
+            source_id=str(uuid4())[:8],
+            url=url,
+            title=title,
+            query=title,  # Use title as query context
+            key_points=extracted,
+            char_count=len(extracted),
+            topic=title,
+        )
+        # Stage the entry — Nano will curate which ones make it to synthesis
+        deps.staged_entries[url] = entry
+        source_num = len(deps.staged_entries)
+
+        usage_dict = None
+        if ext_meta:
+            usage_dict = calc_usage_cost(
+                ext_meta.prompt_token_count or 0,
+                ext_meta.candidates_token_count or 0,
+                deps.extraction_model,
+            )
+
+        await deps.dispatch(DetailEvent(
+            type="fetch_done",
+            payload={
+                "topic": title,
+                "url": url,
+                "content": extracted[:3000],
+                **({"usage": usage_dict} if usage_dict else {}),
+            },
+        ))
+
+        return (
+            f"[{source_num}] {title} ({url}):\n{extracted}"
+        )
+
+    except Exception:
+        logger.exception("Extraction failed for %s", url)
+        await deps.dispatch(DetailEvent(
+            type="fetch_done",
+            payload={"topic": title, "url": url, "failed": True},
+        ))
+        return f"Extraction failed for: {url}. Try a different source."
+
+
+@lite_research_agent.tool
+async def lite_verify_claim(
+    ctx: RunContext[AgentDeps], claim: str, source_excerpt: str,
+) -> str:
+    """Verify a specific factual claim against a source excerpt.
+
+    Args:
+        claim: The factual claim to verify.
+        source_excerpt: The source text to check the claim against.
+    """
+    # Delegate to the shared verify logic
+    deps = ctx.deps
+
+    if deps.verify_calls >= deps.max_verify_calls:
+        return "Verification budget exhausted. Proceed with available evidence."
+    if deps.budget.exhausted:
+        return "Cost budget exhausted."
+
+    deps.verify_calls += 1
+
+    await deps.dispatch(DetailEvent(
+        type="verify",
+        payload={"claim": claim[:200]},
+    ))
+
+    try:
+        prompt = f"Claim: {claim}\n\nSource excerpt:\n{source_excerpt}"
+        result = await _verify_agent.run(prompt, model=gemini_flash_lite())
+        usage = result.usage()
+        deps.extraction_counter.input_tokens += usage.request_tokens or 0
+        deps.extraction_counter.output_tokens += usage.response_tokens or 0
+        verdict = result.output.verdict
+        evidence = result.output.evidence
+        await deps.dispatch(DetailEvent(
+            type="verify_done",
+            payload={"claim": claim[:200], "verdict": verdict, "evidence": evidence},
+        ))
+        return f"Verdict: {verdict}\nEvidence: {evidence}"
+    except Exception:
+        logger.exception("Verification failed for claim: %s", claim[:100])
+        await deps.dispatch(DetailEvent(
+            type="verify_done",
+            payload={"claim": claim[:200], "verdict": "error", "evidence": "Verification call failed."},
+        ))
+        return "Verification failed — proceed with caution on this claim."
+
 
 # ---------------------------------------------------------------------------
-# Tool 1: research
+# Tool 1: research (deep mode)
 # ---------------------------------------------------------------------------
 
 
@@ -561,11 +870,14 @@ async def verify_claim(
 
 _MODE_CONFIG = {
     "lite": {
+        "agent": lite_research_agent,
         "agent_model_fn": gpt_nano,
-        "synthesis_model_fn": gemini_flash,  # Hybrid: Nano researches, Flash synthesizes
+        "synthesis_model_fn": gemini_flash_lite,  # Hybrid: Nano researches, Flash Lite synthesizes
         "system_prompt": _LITE_SYSTEM_PROMPT,
         "max_research_calls": 8,
         "max_verify_calls": 3,
+        "max_search_calls": 10,
+        "max_read_calls": 8,
         "budget_limit": 0.15,
         "brave_results": 8,
         "jina_reads": 2,
@@ -722,6 +1034,8 @@ class AgentResearchPipeline:
                 extraction_counter=self.extraction_counter,
                 max_research_calls=cfg["max_research_calls"],
                 max_verify_calls=cfg["max_verify_calls"],
+                max_search_calls=cfg.get("max_search_calls", 10),
+                max_read_calls=cfg.get("max_read_calls", 8),
                 brave_results=cfg["brave_results"],
                 jina_reads=cfg["jina_reads"],
                 extract_max_chars=cfg["extract_max_chars"],
@@ -731,8 +1045,9 @@ class AgentResearchPipeline:
 
             # --- Run the agent with streaming ---
             agent_model = cfg["agent_model_fn"]()
+            agent_to_use = cfg.get("agent", research_agent)
             system_prompt = self._build_system_prompt(cfg["system_prompt"])
-            async with research_agent.iter(
+            async with agent_to_use.iter(
                 full_query,
                 model=agent_model,
                 deps=deps,
@@ -773,9 +1088,25 @@ class AgentResearchPipeline:
             agent_usage = result.usage()
             synthesis_model_fn = cfg.get("synthesis_model_fn")
 
+            # Hybrid mode: build curated knowledge from Nano's selection
+            if synthesis_model_fn and deps.staged_entries:
+                curation = result.output  # ResearchCuration
+                selected_urls = curation.selected_urls if isinstance(curation, ResearchCuration) else []
+
+                # Build knowledge from curated URLs in priority order
+                for url in selected_urls:
+                    entry = deps.staged_entries.get(url)
+                    if entry:
+                        self.knowledge.add(entry)
+
+                # Fallback: if Nano selected nothing valid, use all staged entries
+                if not self.knowledge.entries:
+                    logger.warning("Nano selected no valid URLs, using all staged entries")
+                    for entry in deps.staged_entries.values():
+                        self.knowledge.add(entry)
+
             if synthesis_model_fn and self.knowledge.entries:
-                # Hybrid mode: discard the research agent's answer,
-                # synthesize from accumulated knowledge with a better model.
+                # Hybrid mode: synthesize from curated knowledge.
                 await self.dispatch(StageEvent(stage="responding"))
 
                 articulation = (
@@ -842,7 +1173,7 @@ class AgentResearchPipeline:
             if synth_usage:
                 synth_in = synth_usage.request_tokens or 0
                 synth_out = synth_usage.response_tokens or 0
-                synth_model_name = "gemini-3-flash-preview"
+                synth_model_name = "gemini-3.1-flash-lite-preview" if synthesis_model_fn == gemini_flash_lite else "gemini-3-flash-preview"
                 synth_cost = calc_usage_cost(synth_in, synth_out, synth_model_name)
             else:
                 synth_in = synth_out = 0
