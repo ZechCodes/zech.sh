@@ -1,39 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}DUMP.ZECH.SH — Code-heavy posts from the trenches{% endblock %}
+{% block title %}dump.zech.sh — brain dumps & code-heavy posts{% endblock %}
 
 {% block content %}
-<section class="zech-section">
-    <div class="zech-section-inner">
-        <div class="zech-section-label">TRANSMISSIONS</div>
-        <h1 class="zech-section-title"><span class="a">DATA</span> <span class="b">DUMP</span></h1>
+<div class="town-banner-wrap"><canvas id="town-banner" aria-hidden="true"></canvas></div>
 
-        {% if pages %}
-        <div class="dump-posts">
-            {% for page in pages %}
-            <a href="/{{ page.slug }}" class="dump-post-card">
-                <div class="dump-post-card-inner">
-                    {% if not page.is_published %}
-                    <span class="dump-draft-badge">DRAFT</span>
-                    {% endif %}
-                    <h2 class="dump-post-title">{{ page.title }}</h2>
-                    {% if page.published_at %}
-                    <time class="dump-post-date" datetime="{{ page.published_at.isoformat() }}">
-                        {{ page.published_at.strftime('%Y.%m.%d') }}
-                    </time>
-                    {% endif %}
-                    <p class="dump-post-excerpt">{{ page.content | striptags | truncate(200) }}</p>
-                    <span class="dump-post-read">READ &raquo;</span>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="dump-empty">
-            <p>NO TRANSMISSIONS FOUND</p>
-            <span class="dump-empty-sub">Check back later for new data dumps.</span>
-        </div>
-        {% endif %}
+<section class="page-wrap">
+    <div class="page-eyebrow">dump.zech.sh</div>
+    <h1 class="page-title">The Dump.</h1>
+    <div class="page-content" style="margin-bottom:2.5rem;">
+        <p>Brain dumps and code dumps &mdash; deep dives on async, metaclasses, dependency injection, and whatever I'm building at the time.</p>
     </div>
+
+    {% if pages %}
+    <div class="post-list">
+        {% for page in pages %}
+        <a href="/{{ page.slug }}" class="post-card">
+            <div class="pt">{{ page.title }}{% if not page.is_published %} <span style="font-family:var(--pixel);font-size:0.7rem;color:#ffc107;">DRAFT</span>{% endif %}</div>
+            {% if page.published_at %}
+            <div class="pm"><time datetime="{{ page.published_at.isoformat() }}">{{ page.published_at.strftime('%B %-d, %Y') }}</time></div>
+            {% endif %}
+            <div class="pe">{{ page.content | striptags | truncate(180) }}</div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-note">No posts yet. Check back soon.</p>
+    {% endif %}
 </section>
+
+<script src="{{ static_url('town/js/world.js') }}" defer></script>
 {% endblock %}

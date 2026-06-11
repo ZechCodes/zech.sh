@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Zech Zimmerman — I build software.{% endblock %}
+{% block body_class %}home{% endblock %}
+
+{% block body %}
+<canvas id="game" aria-hidden="true"></canvas>
+<div id="scrim"></div>
+<div class="hud">
+  <span class="brand">zech<b>.</b>sh</span>
+  <span class="clock"><svg id="todIcon" viewBox="0 0 16 16"></svg><span>DAY <b id="dayNum">1</b> · <span id="todName">MORNING</span></span></span>
+</div>
+<div class="wlabel" id="lblHome">Home</div>
+<div class="wlabel" id="lblStore">Store</div>
+<div class="wlabel player-tag" id="lblYou">Zech &#9662;</div>
+<div class="wlabel mara-tag" id="lblMara">Mara</div>
+
+<main>
+  <section class="sec" data-routine="A"><div class="panel">
+    <div class="eyebrow scroll-rev">zech.sh — a working life</div>
+    <h1 class="scroll-rev">I'm Zech.<br>I build <span class="em">software</span>.</h1>
+    <p class="lead scroll-rev">Twenty years of it. Most of it built in the margins of an ordinary day, the one playing out to your right.</p>
+  </div></section>
+  <section class="sec" data-routine="A"><div class="panel">
+    <div class="eyebrow scroll-rev">01 — The Long Way Here</div>
+    <h2 class="scroll-rev">For nine years, the days belonged to <span class="em">something else.</span></h2>
+    <p class="scroll-rev">I led a team at a grocery store in upstate New York: scheduling, logistics, and holding it together when three things broke at once. It taught me more about systems than any classroom did, and I've got the CS degree to compare it against.</p>
+  </div></section>
+  <section class="sec" data-routine="A"><div class="panel">
+    <div class="eyebrow scroll-rev">02 — In The Margins</div>
+    <h2 class="scroll-rev">Everything I built, I built <span class="em">after hours.</span></h2>
+    <p class="scroll-rev">More than 800 daily challenges, plus the bots and the frameworks. I wrote them one weekday at a time, in the hours after my shift, when the floor was finally someone else's problem. <strong>Before anyone was watching.</strong></p>
+  </div></section>
+  <section class="sec" data-routine="B"><div class="panel">
+    <div class="eyebrow scroll-rev">03 — The Turn</div>
+    <h2 class="scroll-rev"><span class="em">Not anymore.</span></h2>
+    <p class="scroll-rev">The commute stops. The store closes behind me. The hours I used to steal at night are the whole day now.</p>
+  </div></section>
+  <section class="sec" data-routine="C"><div class="panel">
+    <div class="eyebrow scroll-rev">04 — Smarter Dev</div>
+    <h2 class="scroll-rev">A community that runs on what I built.</h2>
+    <p class="scroll-rev"><a href="https://smarter.dev">Smarter Dev</a> is where I do it: I write the daily challenges, run the bots, keep the lights on. More than <strong>13,000 developers</strong> now, and growing. It isn't loud. It's people getting unstuck.</p>
+  </div></section>
+  <section class="sec" data-routine="D"><div class="panel">
+    <div class="eyebrow scroll-rev">05 — The Work</div>
+    <h2 class="scroll-rev">Judgment, not keystrokes.</h2>
+    <p class="scroll-rev">Frameworks like <a href="https://github.com/ZechCodes/Bevy">Bevy</a>, rebuilt a dozen times until they were right. And lately, AI tools that handle the dull, repetitive work the way I once ran a floor, so what's left for you is the judgment.</p>
+  </div></section>
+  <section class="sec" data-routine="E"><div class="panel">
+    <div class="eyebrow scroll-rev">What I'm doing now</div>
+    <h2 class="scroll-rev">Come <span class="em">find me.</span></h2>
+    <p class="scroll-rev">It's the whole job now: building, and writing it down on the <strong>blog</strong> as I go. And I'm in <strong>Smarter Dev</strong> every day, with thirteen thousand other developers. If you want to talk shop, that's where I am.</p>
+    <div class="cta-block scroll-rev">
+      <a class="btn btn-primary" href="https://smarter.dev">Join Smarter Dev <span class="arr">&rarr;</span></a>
+      <a class="btn btn-ghost" href="https://dump.zech.sh">Read the blog <span class="arr">&rarr;</span></a>
+    </div>
+  </div></section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ theme_url('js/world.js') }}" defer></script>
+{% endblock %}

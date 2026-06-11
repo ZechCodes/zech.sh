@@ -1,48 +1,28 @@
 {% extends "base.html" %}
 
-{% block title %}{{ page.title }} — DUMP.ZECH.SH{% endblock %}
-
-{% block scripts %}
-<script src="{{ theme_url('js/highlight.min.js') }}"></script>
-<script src="{{ theme_url('js/highlight-init.js') }}"></script>
-<script src="{{ theme_url('js/toc.js') }}"></script>
-{% endblock %}
+{% block title %}{{ page.title }} — dump.zech.sh{% endblock %}
 
 {% block content %}
-<article class="zech-section dump-article">
-    <div class="zech-section-inner">
-        <a href="/" class="dump-back-link">&laquo; ALL POSTS</a>
+<div class="town-banner-wrap"><canvas id="town-banner" aria-hidden="true"></canvas></div>
 
-        {% if not page.is_published %}
-        <div class="dump-draft-notice">
-            <span class="dump-draft-badge">DRAFT</span>
-            <span>This post is not yet published.</span>
-        </div>
-        {% endif %}
+<article class="page-wrap">
+    <a href="/" class="page-eyebrow" style="display:inline-block;text-decoration:none;">&larr; All posts</a>
 
-        <header class="dump-article-header">
-            <h1 class="dump-article-title">{{ page.title }}</h1>
-            {% if page.published_at %}
-            <time class="dump-post-date" datetime="{{ page.published_at.isoformat() }}">
-                {{ page.published_at.strftime('%Y.%m.%d') }}
-            </time>
-            {% endif %}
-        </header>
+    {% if not page.is_published %}
+    <div class="draft-banner"><strong>DRAFT</strong> This post isn't published yet.</div>
+    {% endif %}
 
-        <div class="dump-article-body">
-            <div class="dump-article-content">
-                {{ page.content | markdown | safe }}
-            </div>
-            <aside class="dump-toc-sidebar" aria-label="Table of contents">
-                <nav class="dump-toc">
-                    <button class="dump-toc-toggle" type="button" aria-expanded="false">
-                        <span class="dump-toc-label">// CONTENTS</span>
-                        <span class="dump-toc-chevron" aria-hidden="true"></span>
-                    </button>
-                    <ol class="dump-toc-list"></ol>
-                </nav>
-            </aside>
-        </div>
+    <h1 class="page-title" style="margin-top:1rem;">{{ page.title }}</h1>
+    {% if page.published_at %}
+    <div class="page-meta"><time datetime="{{ page.published_at.isoformat() }}">{{ page.published_at.strftime('%B %-d, %Y') }}</time></div>
+    {% endif %}
+
+    <div class="page-content">
+        {{ page.content | markdown | safe }}
     </div>
 </article>
+
+<script src="{{ static_url('town/js/world.js') }}" defer></script>
+<script src="{{ theme_url('js/highlight.min.js') }}"></script>
+<script src="{{ theme_url('js/highlight-init.js') }}"></script>
 {% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} — Zech Zimmerman{% endblock %}
+{% block body_class %}page{% endblock %}
+
+{% block body %}
+<header class="site-nav">
+  <a class="brand" href="/">zech<b>.</b>sh</a>
+  <nav>
+    <a href="/about"{% if page.slug == 'about' %} class="active"{% endif %}>About</a>
+    <a href="/work"{% if page.slug == 'work' %} class="active"{% endif %}>Work</a>
+    <a href="/community" class="opt{% if page.slug == 'community' %} active{% endif %}">Community</a>
+    <a href="https://dump.zech.sh">Blog</a>
+  </nav>
+</header>
+
+<div class="town-banner-wrap"><canvas id="town-banner" aria-hidden="true"></canvas></div>
+
+<article class="page-wrap">
+  <div class="page-eyebrow">{{ page.slug }}</div>
+  <h1 class="page-title">{{ page.title }}</h1>
+  <div class="page-content">
+    {{ page.content | markdown | safe }}
+  </div>
+  {% if not page.is_published %}
+  <div class="draft-banner"><strong>DRAFT</strong> This page isn't published &mdash; only you can see it.</div>
+  {% endif %}
+</article>
+
+<footer class="site-footer">
+  <span class="foot-brand">zech<b>.</b>sh</span>
+  <span>&copy; {{ now().year }} Zech Zimmerman</span>
+  <span><a href="https://dump.zech.sh">Blog</a> &middot; <a href="https://smarter.dev">Smarter Dev</a> &middot; <a href="https://github.com/ZechCodes">GitHub</a></span>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ theme_url('js/world.js') }}" defer></script>
+{% endblock %}
