@@ -29,6 +29,7 @@
   var walker={ x:0, y:trailRow(0), facing:"right", walk:0, state:"walk", t:0 };
   var SPEED=2.3;                                   // tiles / second
   var bed={ x:0, y:0, shown:false };
+  var camp={ x:0, y:0, type:"house", shown:false };   // nightly shelter beside the path (house or tent)
 
   // ---- animals ----
   var ATYPE=["rabbit","fox","deer","squirrel","rabbit","fox","deer"];
@@ -103,6 +104,27 @@
   function sleeper(wx,wy){ var x=Math.round(wx-7), y=Math.round(wy-15);
     R(x+4,y+1,6,6,C.skin); R(x+4,y+1,6,2,C.hair); R(x+4,y+6,6,1,C.skinSh);   // head on pillow
     R(x+2,y+11,10,2,C.bedRHi); }                                              // blanket bump over body
+  function shelter(wx,wy,type,night){ var lit=night>0.24, bx=Math.round(wx), gy=Math.round(wy);
+    if(type==="tent"){
+      var top=gy-20;
+      R(bx-13,gy-1,26,3,"rgba(0,0,0,0.22)");
+      for(var i=0;i<20;i++){ var hw=2+Math.floor(i*0.6); R(bx-hw,top+i,hw*2,1,(i&1)?"#c2673a":"#b35c30"); }
+      R(bx-1,top,2,20,"#8f4a26"); R(bx-1,top-3,2,3,"#5a3620");                // ridge pole + tip
+      R(bx-4,gy-10,8,10,"#241710");                                          // dark doorway
+      R(bx-5,gy-11,2,11,"#8f4a26"); R(bx+3,gy-11,2,11,"#8f4a26");            // flap edges
+      R(bx-5,gy-12,3,2,"#d98a55"); R(bx+2,gy-12,3,2,"#d98a55");              // rolled-back flaps
+      if(lit) R(bx-3,gy-8,6,7,"rgba(255,184,96,0.4)");                        // warm glow inside
+    } else {
+      var x=bx-14, y=gy-22, w=28, h=22, win=lit?"#ffd683":"#2a3850";
+      R(x+1,gy-1,w,3,"rgba(0,0,0,0.22)");
+      R(x,y+9,w,h-9,"#b0875a"); R(x,y+h-4,w,4,"#947148");                     // log wall + base shade
+      R(x+2,y+13,w-4,1,"#9c7a52"); R(x+2,y+18,w-4,1,"#9c7a52");              // log seams
+      R(x-3,y,w+6,10,"#7c3b2a"); R(x-3,y,w+6,2,"#9c5238"); R(x-3,y+8,w+6,2,"#5e2c20"); // roof
+      R(bx-4,y+h-11,8,11,"#5a3a26");                                          // door
+      R(x+4,y+12,6,6,"#3a2c1a"); R(x+5,y+13,4,4,win);                         // window L
+      R(x+w-10,y+12,6,6,"#3a2c1a"); R(x+w-9,y+13,4,4,win);                    // window R
+      if(lit){ R(x+5,y+13,4,1,"#fff2c8"); R(x+w-9,y+13,4,1,"#fff2c8"); }
+    } }
   function critter(cx,cy,type,frame,dir){
     cx=Math.round(cx); cy=Math.round(cy); var leg=frame?1:0;
     function px(ox,oy,w,h,col){ var X=dir>0?cx+ox:cx-ox-w; R(X,cy+oy,w,h,col); }
@@ -119,9 +141,11 @@
       px(9,-4,1,1,"#15110d"); px(11,-3,1,1,"#15110d");
     } else if(type==="deer"){ var db="#9a6b43",dd="#7c5230",ds="#caa074";
       px(-4,2,2,5+leg,dd); px(0,2,2,5-leg,dd); px(3,2,2,5-leg,dd); px(7,2,2,5+leg,dd);
-      px(-5,-6,14,8,db); px(-5,-6,14,1,ds); px(-6,-4,2,3,ds);
-      px(9,-12,4,7,db); px(11,-15,5,4,db);
-      px(12,-19,1,4,dd); px(15,-19,1,4,dd); px(14,-13,1,1,"#15110d");
+      px(-5,-5,13,7,db); px(-5,-5,13,1,ds); px(-6,-3,2,3,ds);       // body + tail
+      px(8,-8,4,5,db);                                              // short neck, angled forward
+      px(10,-11,6,4,db); px(15,-10,2,2,db);                        // head + snout
+      px(11,-14,1,3,dd); px(14,-14,1,3,dd);                        // small antlers
+      px(13,-10,1,1,"#15110d");
     } else { var sb="#a85b2e",sd="#7c431f",be="#dba463";       // squirrel
       px(-5,-13,6,15,sb); px(-4,-14,4,5,sd); px(-3,-11,2,11,be);
       px(2,-8,5,10,sb); px(3,-3,3,5,be);
@@ -137,14 +161,15 @@
   function updateWalker(dt,hour){
     var sleepWindow = hour>=20.4 || hour<6.3;
     if(walker.state==="walk"){
-      if(sleepWindow){ walker.state="settle"; walker.t=0; bed.x=walker.x; bed.y=walker.y; bed.shown=true; walker.facing="down"; }
+      if(sleepWindow){ walker.state="settle"; walker.t=0; bed.x=walker.x; bed.y=walker.y; bed.shown=true; walker.facing="down";
+        camp.x=walker.x-1.1; camp.y=walker.y-1.5; camp.type=hash(Math.floor(simT/DAYSEC),7)<0.4?"tent":"house"; camp.shown=true; }   // pitch camp just off the path, bed in front
       else { walker.x+=SPEED*dt; walker.y=trailRow(walker.x); walker.walk+=SPEED*dt; walker.facing="right"; }
     } else if(walker.state==="settle"){
       walker.t+=dt; if(walker.t>1.3) walker.state="sleep";
     } else if(walker.state==="sleep"){
       if(!sleepWindow){ walker.state="wake"; walker.t=0; walker.facing="down"; }
     } else if(walker.state==="wake"){
-      walker.t+=dt; if(walker.t>1.0){ bed.shown=false; walker.state="walk"; }
+      walker.t+=dt; if(walker.t>1.0){ bed.shown=false; camp.shown=false; walker.state="walk"; }   // pack up camp, move on
     }
   }
   function updateAnimals(dt,hour,now){
@@ -179,6 +204,7 @@
     if(dayActive) birds.forEach(function(b){ bird(b.x*TILE,b.y*TILE,(Math.floor(performance.now()/240+b.ph)%2)===0); });
     if(dayActive) animals.forEach(function(a){ if(a.init) critter(a.x*TILE,a.y*TILE,a.type,a.moving?(Math.floor(performance.now()/170)%2):0,a.dir); });
     // bed + traveller
+    if(camp.shown) shelter(camp.x*TILE,camp.y*TILE,camp.type,night);
     if(bed.shown) minecraftBed(bed.x*TILE,bed.y*TILE);
     if(walker.state==="sleep"){ sleeper(bed.x*TILE,bed.y*TILE); }
     else { var pf=walker.state==="walk"?(Math.floor(walker.walk*1.4)%2===0?1:2):0; person(walker.x*TILE,walker.y*TILE,walker.facing,pf); }
