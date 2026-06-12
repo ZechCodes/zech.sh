@@ -15,7 +15,7 @@
 
     {% block og_meta %}
     {% set og_img = (og_meta.image if og_meta else none) or "https://zech.sh/static/town/og-default.png" %}
-    {% set og_desc = (og_meta.description if og_meta else none) or "Notes from Zech Zimmerman — software, building, and Smarter Dev." %}
+    {% set og_desc = (og_meta.description if og_meta else none) or "Notes from Zech Zimmerman on software, building, and Smarter Dev." %}
     <meta property="og:title" content="{{ og_meta.title if og_meta else self.title() }}">
     <meta property="og:description" content="{{ og_desc }}">
     <meta property="og:image" content="{{ og_img }}">
@@ -28,7 +28,7 @@
 
     {% block twitter_meta %}
     {% set og_img = (og_meta.image if og_meta else none) or "https://zech.sh/static/town/og-default.png" %}
-    {% set og_desc = (og_meta.description if og_meta else none) or "Notes from Zech Zimmerman — software, building, and Smarter Dev." %}
+    {% set og_desc = (og_meta.description if og_meta else none) or "Notes from Zech Zimmerman on software, building, and Smarter Dev." %}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ og_meta.title if og_meta else self.title() }}">
     <meta name="twitter:description" content="{{ og_desc }}">

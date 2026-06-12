@@ -49,7 +49,7 @@
   // is entering/inside them (matched by zone); NPC houses are always solid (sims
   // only ever reach their door, never walk the interior).
   var BUILDINGS=[{r:HOME,zone:"home"},{r:STORE,zone:"store"}].concat(NPC_HOUSES.map(function(h){return {r:h,zone:null};}));
-  // interior obstacles (tile rects) the sims must walk around — shared by collision AND drawing
+  // interior obstacles (tile rects) the sims must walk around, shared by collision AND drawing
   // so the two never drift. Only solid for whoever's inside that building (matched by zone).
   var STORE_FRIDGES=[{x:31,y:10,w:1,h:4},{x:40,y:10,w:1,h:4}];                          // dairy (left), meat (right)
   var STORE_AISLES=[{x:34,y:10,w:1,h:4},{x:36,y:10,w:1,h:4},{x:38,y:10,w:1,h:4}];       // centre gondolas
@@ -70,7 +70,7 @@
   // ---- grid pathfinding (BFS) so sims walk AROUND buildings to the doorway ----
   function tileBlocked(tx,ty,goalZone,curZone){
     if(tx<0||ty<0||tx>=Wt||ty>=Ht) return true;
-    if(tx>=POND.x&&tx<POND.x+POND.w&&ty>=POND.y&&ty<POND.y+POND.h) return true; // pond is water — walk around it
+    if(tx>=POND.x&&tx<POND.x+POND.w&&ty>=POND.y&&ty<POND.y+POND.h) return true; // pond is water, walk around it
     for(var i=0;i<BUILDINGS.length;i++){ var b=BUILDINGS[i],r=b.r;
       if(tx>=r.x&&tx<r.x+r.w&&ty>=r.y&&ty<r.y+r.h){
         var dcx=Math.floor(r.x+r.w/2);
@@ -85,7 +85,7 @@
   }
   function findPath(sx,sy,gx,gy,goalZone,curZone){
     var s={x:Math.round(sx),y:Math.round(sy)}, g={x:Math.round(gx),y:Math.round(gy)};
-    if(tileBlocked(s.x,s.y,goalZone,curZone)){   // rounding landed us on a wall — step toward our real position, never path THROUGH the wall
+    if(tileBlocked(s.x,s.y,goalZone,curZone)){   // rounding landed us on a wall, step toward our real position, never path THROUGH the wall
       var nb=[]; if(sx<s.x)nb.push([-1,0]); else if(sx>s.x)nb.push([1,0]);
       if(sy<s.y)nb.push([0,-1]); else if(sy>s.y)nb.push([0,1]);
       nb.push([0,1],[0,-1],[1,0],[-1,0]);
@@ -120,7 +120,7 @@
     var key=goal.zone+":"+goal.act+":"+Math.round(goal.x*10)+","+Math.round(goal.y*10);
     if(a.goalKey!==key){ a.goalKey=key; a.path=findPath(a.x,a.y,goal.x,goal.y,goal.zone,zoneOf(a.x,a.y)); a.goal=goal; }
     if(a.path&&a.path.length){
-      // NOTE: no `|| 1` fallback on d — a step can land exactly on a waypoint (dx==dy==0),
+      // NOTE: no `|| 1` fallback on d, a step can land exactly on a waypoint (dx==dy==0),
       // and hypot(0,0)||1 would read as d=1: too far to advance, zero vector to move, so the
       // actor freezes on the waypoint until its goal changes. Let d=0 fall into the shift branch.
       var p=a.path[0], dx=p.x-a.x, dy=p.y-a.y, d=Math.hypot(dx,dy);
@@ -139,7 +139,7 @@
       if(h<22) return OFFICE;
       return ZECH_BED;
     }
-    // B..E : building full-time, no commute — to bed WITH Mara (~20), not after.
+    // B..E : building full-time, no commute, to bed WITH Mara (~20), not after.
     // The margins became the whole day, so the late nights aren't needed anymore.
     if(h<8) return ZECH_BED;
     if(h>=20) return ZECH_BED;
@@ -151,14 +151,14 @@
   function drawFrame(){ lastT=-1e7; render(); }   // force one repaint outside the loop (reduced-motion, or after a resize clears the canvas)
   function resize(){ dpr=Math.min(window.devicePixelRatio||1,2);
     // use the ACTUAL rendered box (getBoundingClientRect) so backing-store aspect always
-    // matches the displayed box — prevents the canvas from stretching on mobile.
+    // matches the displayed box, prevents the canvas from stretching on mobile.
     var rect=canvas.getBoundingClientRect();
     var cw=Math.round(rect.width)||window.innerWidth, ch=Math.round(rect.height)||window.innerHeight;
     canvas.width=Math.max(1,Math.floor(cw*dpr)); canvas.height=Math.max(1,Math.floor(ch*dpr));
     var tilesTall = MODE==="banner" ? 11 : (cw<560 ? 16 : 26);   // zoom in a bit on narrow screens
     PX=Math.max(2, Math.round(canvas.height/(tilesTall*TILE)));
     vW=canvas.width/PX; vH=canvas.height/PX; ctx.imageSmoothingEnabled=false;
-    if(!running) drawFrame(); }   // resizing clears the canvas — repaint the static frame when the loop isn't running
+    if(!running) drawFrame(); }   // resizing clears the canvas, repaint the static frame when the loop isn't running
   addEventListener("resize",resize);
   addEventListener("orientationchange",resize);
   // re-resize whenever the canvas box actually changes (handles mobile toolbar show/hide)
@@ -196,7 +196,7 @@
     for(var fy=0;fy<b.h;fy++)for(var fx=0;fx<b.w;fx++)R(x+fx*TILE,y+fy*TILE,TILE,TILE,((fx+fy)&1)?C.floorW:C.floorW2);
     // outer wall outline + divider between bedroom(left) and office(right)
     R(x,y,w,3,C.iwall); R(x,y,3,h,C.iwall); R(x+w-3,y,3,h,C.iwall); R(x,y+h-3,w,3,C.iwall);
-    // divider (bedroom | office) drawn from HOME_WALL — stops short of the bottom row for a doorway
+    // divider (bedroom | office) drawn from HOME_WALL, stops short of the bottom row for a doorway
     var dwX=HOME_WALL.x*TILE+6; R(dwX,y,4,(HOME_WALL.y+HOME_WALL.h)*TILE-y,C.iwall); R(dwX,y,4,2,C.iwallSh);
     // bedroom: double bed (Mara's side + Zech's side)
     var bdx=BEDROOM.bx*TILE,bdy=BEDROOM.by*TILE,bdw=BEDROOM.bw*TILE,bdh=BEDROOM.bh*TILE;
@@ -207,7 +207,7 @@
     R(ox,y+26,32,9,C.deskW); R(ox,y+26,32,3,C.deskTop);
     R(ox+2,y+15,16,12,"#2a2a30"); R(ox+4,y+17,12,9,coding?C.screenOn:C.screen); if(coding)R(ox+5,y+18,10,1,"#ffd9b0");
     R(ox+6,y+35,8,6,"#3a3a44");
-    // desk lamp — warm light source when coding
+    // desk lamp, warm light source when coding
     R(LAMP.x-1,LAMP.y+9,6,3,"#23262d"); R(LAMP.x+1,LAMP.y+2,2,8,"#3a3e46");
     R(LAMP.x-2,LAMP.y-2,8,5,coding?"#e8a64a":"#474b54");
     if(coding){ R(LAMP.x,LAMP.y,4,2,"#ffe6b0"); R(LAMP.x,LAMP.y-1,4,1,"#fff3d6"); }
@@ -246,12 +246,12 @@
     var bx2=ix+iw/2+3;
     R(bx2,iy+3,iw/2-7,13,"#caa15a"); R(bx2,iy+3,iw/2-7,3,"#d8b06a");
     for(var i=0;i<5;i++) R(bx2+4+i*9,iy+7,5,6,(i%2?"#b9783a":"#ecc888"));
-    // ---- side-wall refrigerated cases (dairy left, meat right) — drawn from the barrier rects ----
+    // ---- side-wall refrigerated cases (dairy left, meat right), drawn from the barrier rects ----
     [[STORE_FRIDGES[0],"#6fa8bf","#9fd0e0","#e2f2f8"],[STORE_FRIDGES[1],"#b25749","#cf6f5c","#e08a72"]].forEach(function(F){
       var r=F[0], fx=r.x*TILE+1, fy=r.y*TILE+1, fw=r.w*TILE-2, fh=r.h*TILE-2;
       R(fx,fy,fw,fh,F[1]); R(fx,fy,fw,2,F[2]);
       for(var j=0;j*12<fh-4;j++) R(fx+1,fy+4+j*12,fw-2,7,F[3]); });
-    // ---- center aisles: gondola shelving, front to back — drawn from the barrier rects ----
+    // ---- center aisles: gondola shelving, front to back, drawn from the barrier rects ----
     STORE_AISLES.forEach(function(r){ var gx=r.x*TILE+4, gy=r.y*TILE+1, gw=r.w*TILE-8, gh=r.h*TILE-2;
       R(gx,gy,gw,gh,"#6a5a44"); R(gx,gy,gw,2,"#897456"); R(gx+3,gy,2,gh,"#50432e");
       for(var j=0; j*8<gh-3; j++){ R(gx-3,gy+3+j*8,3,6,prod[(r.x*3+j)%8]); R(gx+gw,gy+3+j*8,3,6,prod[(r.x*5+j+2)%8]); } });
@@ -294,7 +294,7 @@
       px(-6,-7,2,6,cb); px(-7,-9,2,3,cb);                                 // long curved tail
       px(7,-7,5,5,cb); px(7,-10,2,3,cb); px(10,-10,2,3,cb);               // head + pointy ears
       px(10,-5,1,1,"#3a5a3a"); px(12,-4,1,1,"#e090a0");                   // eye + nose
-    } else { // squirrel — upright, big bushy tail
+    } else { // squirrel, upright, big bushy tail
       var sb="#a85b2e",sd="#7c431f",be="#dba463";
       px(-5,-13,6,15,sb); px(-4,-14,4,5,sd); px(-3,-11,2,11,be);          // bushy tail
       px(2,-8,5,10,sb); px(3,-3,3,5,be);                                  // upright body + belly
@@ -327,9 +327,9 @@
 
   // ----- task-aware bubbles -----
   var bubbles=[],lastBub=0;
-  // fireflies — world-anchored, drift with the map, only in the deep of night
+  // fireflies, world-anchored, drift with the map, only in the deep of night
   var fireflies=[]; for(var ff=0;ff<26;ff++) fireflies.push({sp:0.5+((ff*7)%10)/10, ph:ff*1.3, vx:((ff%2)?1:-1)*(2+(ff%3)), vy:((ff%3)-1)*2});
-  // wildlife — ground critters wander, birds fly over
+  // wildlife, ground critters wander, birds fly over
   var critters=[ {type:"dog",x:30,y:28,tx:30,ty:28,sp:2.6,dir:1,moving:false,paused:false,pauseUntil:0},
                  {type:"cat",x:16,y:13,tx:16,ty:13,sp:1.9,dir:1,moving:false,paused:false,pauseUntil:0},
                  {type:"squirrel",x:35,y:19,tx:35,ty:19,sp:4.5,dir:1,moving:false,paused:false,pauseUntil:0},
@@ -379,7 +379,7 @@
     if(Math.random()<0.6) stops.push({type:"pond",s:PONDSPOTS[(Math.random()*PONDSPOTS.length)|0],d:3+Math.random()*2});
     if(Math.random()<0.5){ var h2=NPC_HOUSES[(Math.random()*NPC_HOUSES.length)|0]; stops.push({type:"house",house:h2,door:houseDoor(h2),d:3+Math.random()*3}); }
     shuffle(stops);
-    if(visitsStore){   // browse an aisle, then the checkout — kept contiguous
+    if(visitsStore){   // browse an aisle, then the checkout, kept contiguous
       var aisle={type:"store",s:STORE_SPOTS[(Math.random()*STORE_SPOTS.length)|0],d:4+Math.random()*3};
       var pay={type:"store",s:CHECKOUTS[(Math.random()*CHECKOUTS.length)|0],d:2.5+Math.random()*2};
       stops.splice((Math.random()*(stops.length+1))|0, 0, aisle, pay);
@@ -393,7 +393,7 @@
              wake:6.4+Math.random()*1.3, homeH:17.6+Math.random()*1.3, inside:true };
   });
   var lastDay=0;
-  // Mara — partner; randomized errands by day (pond / store / popping home),
+  // Mara, partner; randomized errands by day (pond / store / popping home),
   // home in the evening, in bed at night. Re-rolled daily like everyone else.
   NPCH.push(["#e57ca0","#c25a80"]); var MARA_PAL=NPCH.length;
   function maraRoute(){
@@ -410,8 +410,8 @@
 
   // ----- loop -----
   var DAY=46, simClock=7/24*DAY, SPEED=6.6, running=true, lastT=-1e7;  // -1e7 => first render always clears the throttle
-  var FPS=30, FRAME_MS=1000/FPS;   // cap the sim to ~30fps — plenty for pixel art, roughly halves CPU
-  // night = 1 at midnight (h=0/24), 0 at noon (h=12) — tracks the sim clock
+  var FPS=30, FRAME_MS=1000/FPS;   // cap the sim to ~30fps, plenty for pixel art, roughly halves CPU
+  // night = 1 at midnight (h=0/24), 0 at noon (h=12), tracks the sim clock
   function nightLevel(h){ return 0.5 + 0.5*Math.cos(h/24*Math.PI*2); }
 
   function render(){
@@ -423,7 +423,7 @@
     if(!reduce) simClock+=dt;
     var hour=((simClock%DAY)/DAY)*24, night=nightLevel(hour), townAsleep=hour>=21||hour<6;
 
-    // update player + town — skipped under reduced-motion (we draw one posed frame instead)
+    // update player + town, skipped under reduced-motion (we draw one posed frame instead)
     if(!reduce){
     stepActor(player, MODE==="banner"?OFFICE:playerGoal(hour), dt, SPEED);  // banner: always at the desk coding
     // re-roll everyone's route at the start of each new day so the town isn't on repeat
@@ -431,12 +431,12 @@
     if(dN!==lastDay){ lastDay=dN; var order=shuffle(npcs.map(function(_,i){return i;}));
       npcs.forEach(function(n,i){ n.route=makeRoute(order.indexOf(i)<GROCERY_VISITORS); n.routeIdx=0; n.dwellUntil=0; n.inHouse=false; n.curHouse=null; n.wake=6.4+Math.random()*1.3; n.homeH=17.6+Math.random()*1.3; });
       mara.route=maraRoute(); mara.routeIdx=0; mara.dwellUntil=0; mara.wake=6.6+Math.random()*0.8; mara.homeH=17+Math.random()*1.5; }
-    // update npcs — each follows a daily ROUTE of stops (dwelling at each),
+    // update npcs, each follows a daily ROUTE of stops (dwelling at each),
     // then heads home for the night; asleep inside after dark
     var now0=Date.now();
     npcs.forEach(function(n){
       if(hour<n.wake||hour>=21){ n.inside=true; n.inHouse=false; n.curHouse=null; n.x=n.homeGoal.x; n.y=n.homeGoal.y; n.routeIdx=0; n.dwellUntil=0; return; }
-      if(hour>=n.homeH){    // dusk — head home and settle inside for the night
+      if(hour>=n.homeH){    // dusk, head home and settle inside for the night
         n.inHouse=false; n.inside=false; stepActor(n,n.homeGoal,dt,SPEED*0.8);
         if(Math.hypot(n.homeGoal.x-n.x,n.homeGoal.y-n.y)<0.4) n.inside=true;
         return;
@@ -452,7 +452,7 @@
       n.inside=false; var g=stop.s; stepActor(n,g,dt,SPEED*0.8);
       if(Math.hypot(g.x-n.x,g.y-n.y)<0.35){ if(n.dwellUntil===0){ n.dwellUntil=now0+stop.d*1000; } else if(now0>=n.dwellUntil){ n.routeIdx=(n.routeIdx+1)%n.route.length; n.dwellUntil=0; } }
     });
-    // update Mara — errand route by day, home in the evening, in bed at night
+    // update Mara, errand route by day, home in the evening, in bed at night
     mara.inside=false;
     var mg;
     if(hour<mara.wake || hour>=mara.bedH){ mg=MARA_BED; }
@@ -485,18 +485,18 @@
     // open building interior FIRST, so actors inside it draw on top of the floor
     if(open==="home") homeOpen(player.doing==="code", player.doing==="sleep");
     else if(open==="store") storeOpen();
-    // closed buildings (skip whichever is open) — a house lights up while occupied
+    // closed buildings (skip whichever is open), a house lights up while occupied
     function houseLit(h){ if(lit) return true; for(var k=0;k<npcs.length;k++){ if(npcs[k].inHouse&&npcs[k].curHouse===h) return true; } return false; }
     NPC_HOUSES.forEach(function(h){ npcHouse(h, houseLit(h)); });
     if(open!=="home") homeClosed(night>0.4);
     if(open!=="store") storeClosed(storeClosedNow);
 
-    // actors on top — only if outside, or inside the same open building as the player
+    // actors on top, only if outside, or inside the same open building as the player
     function drawActor(a,pal,hairc){ if(a.inside) return; var nz=zoneOf(a.x,a.y); if(nz!=="out"&&nz!==open) return;
       var f=a.doing==="walk"?(Math.floor(a.walk*1.3)%2===0?1:2):0; person(a.x*TILE,a.y*TILE,a.facing,f,pal,a.doing,hairc); }
     npcs.forEach(function(n){ drawActor(n,n.pal+1); });
     drawActor(mara, MARA_PAL, "#7a4a30");
-    // wildlife — critters roam the grass by day only (asleep at night); never over water/buildings
+    // wildlife, critters roam the grass by day only (asleep at night); never over water/buildings
     if(!reduce && hour>=6 && hour<20) critters.forEach(function(c){
       if(c.paused){ c.moving=false;
         if(now0>=c.pauseUntil){ c.paused=false;
@@ -513,7 +513,7 @@
           else { c.x=nx; c.y=ny; c.dir=dx>=0?1:-1; c.moving=true; } } }
       critter(c.x*TILE,c.y*TILE,c.type, c.moving?(Math.floor(now0/(c.type==="squirrel"?130:220))%2):0, c.dir); });
 
-    // player — always drawn (it's the camera focus)
+    // player, always drawn (it's the camera focus)
     var pf=player.doing==="walk"?(Math.floor(player.walk*1.4)%2===0?1:2):0;
     person(player.x*TILE,player.y*TILE,player.facing,pf,0,player.doing);
     TREES.forEach(function(t){ if(t[1]>=player.y) tree(t[0],t[1]); });
@@ -529,7 +529,7 @@
       if(player.doing==="code"){ light(LAMP.x+2,LAMP.y,56,"rgba(255,168,82,0.55)",0.46); light(LAMP.x+2,LAMP.y-1,20,"rgba(255,212,150,0.85)",0.5); }
       light((HOME.x+HOME.w/2)*TILE,(HOME.y+1)*TILE,60,"rgba(255,200,120,0.5)",night*0.4);
       if(!townAsleep) NPC_HOUSES.forEach(function(h){ if(hour>=18&&hour<21) light((h.x+h.w/2)*TILE,(h.y+1)*TILE,44,"rgba(255,210,140,0.5)",0.5); });
-      // fireflies — world-anchored (drift with the map), only deep in the night
+      // fireflies, world-anchored (drift with the map), only deep in the night
       if(night>0.65){ var tff=performance.now()/1000, camCx=camX+vW/2, camCy=camY+vH/2, mgx=vW*0.65, mgy=vH*0.65, fAmt=Math.min(1,(night-0.65)/0.3);
         for(var fk=0;fk<fireflies.length;fk++){ var f=fireflies[fk];
           if(f.wx===undefined||Math.abs(f.wx-camCx)>mgx||Math.abs(f.wy-camCy)>mgy){ f.wx=camX+Math.random()*vW; f.wy=camY+Math.random()*vH; f.ph=Math.random()*6.28; }
@@ -573,7 +573,7 @@
   }
   resize();
   if(reduce){                                              // reduced-motion: one deliberately posed dusk frame
-    simClock=18.6/24*DAY;                                  // dusk — warm lit windows + lamplight, town still readable
+    simClock=18.6/24*DAY;                                  // dusk, warm lit windows + lamplight, town still readable
     player.x=OFFICE.x; player.y=OFFICE.y; player.doing="code"; player.facing="up"; player.walk=0;
     mara.x=MARA_BED.x; mara.y=MARA_BED.y; mara.doing="sleep"; mara.facing="up"; mara.inside=false; mara.walk=0;
     npcs.forEach(function(n){ n.inside=true; });           // clear the streets for a calm, composed still

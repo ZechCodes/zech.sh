@@ -1,8 +1,8 @@
 /* ==========================================================================
-   dump.zech.sh — blog-specific styles (shares town.css design system)
+   dump.zech.sh, blog-specific styles (shares town.css design system)
    ========================================================================== */
 
-/* highlight.js — dark theme matching the town palette */
+/* highlight.js, dark theme matching the town palette */
 .page-content pre code.hljs { display:block; padding:0; background:transparent; }
 .hljs { color:#d4cec3; background:transparent; }
 .hljs-comment, .hljs-quote { color:#6f7b6f; font-style:italic; }

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ page.title }} — Zech Zimmerman{% endblock %}
+{% block title %}{{ page.title }} · Zech Zimmerman{% endblock %}
 {% block body_class %}page{% endblock %}
 
 {% block body %}
@@ -23,7 +23,7 @@
     {{ page.content | markdown | safe }}
   </div>
   {% if not page.is_published %}
-  <div class="draft-banner"><strong>DRAFT</strong> This page isn't published &mdash; only you can see it.</div>
+  <div class="draft-banner"><strong>DRAFT</strong> This page isn't published. Only you can see it.</div>
   {% endif %}
 </article>
 

@@ -10,7 +10,7 @@ Dependency injection for Python. Clean, typed, zero boilerplate. Bevy lets you w
 
 ### Skrift
 
-An async Python CMS built on Litestar with WordPress-style conventions — themes, hooks, multi-site support. It powers zech.sh and dump.zech.sh right now.
+An async Python CMS built on Litestar with WordPress-style conventions: themes, hooks, multi-site support. It powers zech.sh and dump.zech.sh right now.
 
 [GitHub](https://github.com/ZechCodes/Skrift)
 
@@ -18,7 +18,7 @@ An async Python CMS built on Litestar with WordPress-style conventions — theme
 
 ### Schism
 
-Write one codebase. Deploy as a monolith or microservices. Schism handles the split at runtime — same code, different topologies. Getting close.
+Write one codebase. Deploy as a monolith or microservices. Schism handles the split at runtime. Same code, different topologies. Getting close.
 
 [GitHub](https://github.com/ZechCodes/Schism)
 
@@ -38,13 +38,13 @@ Started as Beginner.Codes. Grew into something bigger.
 
 ## AI Products
 
-The current chapter. Three tools, one ecosystem — all built around the same idea: the best software acts before you ask it to.
+The current chapter. Three tools, one ecosystem, all built around the same idea: the best software acts before you ask it to.
 
-**AI Budget App** — Your budget, one step ahead. Proactive alerts, intelligent planning, goal-oriented decisions. Open source — you own your data.
+**AI Budget App:** Your budget, one step ahead. Proactive alerts, intelligent planning, goal-oriented decisions. Open source, so you own your data.
 
-**Automated Work SaaS** — Your AI-powered chief of staff. Daily agendas built automatically. Research, follow-ups, and scheduling handled before you think to ask.
+**Automated Work SaaS:** Your AI-powered chief of staff. Daily agendas built automatically. Research, follow-ups, and scheduling handled before you think to ask.
 
-**AI Writing App** — Documents informed by everything you've been working on. Start typing. It already knows what comes next.
+**AI Writing App:** Documents informed by everything you've been working on. Start typing. It already knows what comes next.
 
 ## dump.zech.sh
 

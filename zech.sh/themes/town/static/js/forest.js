@@ -1,6 +1,6 @@
-/* 404 / error background — an endless top-down forest. A traveller walks through it
-   by day with animals roaming, then at nightfall builds a camp — lights a fire and
-   sleeps inside a cabin or tent — and at dawn moves on, leaving the cold camp behind.
+/* 404 / error background, an endless top-down forest. A traveller walks through it
+   by day with animals roaming, then at nightfall builds a camp, lights a fire and
+   sleeps inside a cabin or tent, and at dawn moves on, leaving the cold camp behind.
    Same pixel-art language as the town (world.js). */
 (function(){
   "use strict";
@@ -180,7 +180,7 @@
     } else if(walker.state==="enter"){
       if(moveToward(camp.dx,camp.dy,SPEED*0.75,dt)) walker.state="sleep";                      // step into the shelter
     } else if(walker.state==="sleep"){
-      if(!sleepWindow) walker.state="exit";                                                    // morning — come back out
+      if(!sleepWindow) walker.state="exit";                                                    // morning, come back out
     } else if(walker.state==="exit"){
       if(moveToward(camp.stopX,trailRow(camp.stopX),SPEED*0.75,dt)){ camp.fireLit=false; walker.state="leave"; }  // out, put the fire out
     } else if(walker.state==="leave"){
@@ -215,7 +215,7 @@
     ctx.fillStyle=C.canBody; ctx.fillRect(0,0,canvas.width,canvas.height);    // base so no gaps
     ground();
     var dayActive = hour>=6 && hour<20;
-    // depth layer — trees, animals, shelter, campfire and traveller drawn back-to-front by their
+    // depth layer, trees, animals, shelter, campfire and traveller drawn back-to-front by their
     // ground-contact Y, so an animal above a tree falls behind it and one below sits in front
     var ents=[];
     visibleTrees().forEach(function(t){ ents.push({y:t.baseY, d:function(){ tree(t); }}); });
@@ -233,7 +233,7 @@
 
     // night + atmosphere
     if(night>0.04){ ctx.fillStyle="rgba(14,18,42,"+(night*0.6).toFixed(3)+")"; ctx.fillRect(0,0,canvas.width,canvas.height);
-      // (no moon — this is a top-down view, there's no sky)
+      // (no moon, this is a top-down view, there's no sky)
       // warm flickering glow from the campfire while it's lit
       if(camp.fireLit){ var fl=0.5+0.5*Math.abs(Math.sin(performance.now()/170));
         light(camp.fx*TILE, camp.fy*TILE-2, 50, "rgba(255,160,70,0.7)", (0.4+0.16*fl)*Math.min(1,night/0.4)); }

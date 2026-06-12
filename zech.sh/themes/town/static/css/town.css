@@ -50,7 +50,7 @@
     .sec { align-items:flex-end; padding:0 6vw 9vh; }
     .panel { max-width:none; }
     .hud .clock { display:none; }
-    .hud { grid-template-columns:auto 1fr; }   /* clock hidden — brand left, full nav right */
+    .hud { grid-template-columns:auto 1fr; }   /* clock hidden, brand left, full nav right */
     .hud-nav { justify-self:end; }
   }
   @media (max-width:480px){ .hud-nav{ gap:11px; } .hud-nav a{ font-size:0.82rem; } .hud .brand{ font-size:1.08rem; } .hud{ padding:14px 16px; } }
@@ -59,7 +59,7 @@
   body.fallback #scrim { background:#0c1018; }
 
 /* ============================================================
-   CONTENT PAGES (about / work / community / blog) — clean editorial
+   CONTENT PAGES (about / work / community / blog), clean editorial
    ============================================================ */
 body.page { overflow-x:hidden; }
 .site-nav { position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between;
@@ -125,7 +125,7 @@ body.page { overflow-x:hidden; }
 .site-footer a { color:#b9b3a8; text-decoration:none; } .site-footer a:hover { color:var(--ember); }
 .site-footer .foot-brand { font-family:var(--pixel); color:var(--cream); } .site-footer .foot-brand b { color:var(--ember); }
 
-/* utility (CSP-safe; replaces inline styles — dump subdomain blocks inline style attrs) */
+/* utility (CSP-safe; replaces inline styles, dump subdomain blocks inline style attrs) */
 .error-wrap { text-align:center; padding-top:14vh; min-height:55vh; }
 .error-wrap .page-content { display:inline-block; }
 .post-back { display:inline-block; text-decoration:none; }
