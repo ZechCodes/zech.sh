@@ -35,8 +35,8 @@
   var ZECH_BED=spot(BEDROOM.bx+1.35, BEDROOM.by+0.85,"home","sleep","up");
   var MARA_BED=spot(BEDROOM.bx+0.55, BEDROOM.by+0.85,"home","sleep","up");
   var MARA_HOME=spot(HOME.x+3.2, HOME.y+3.4,"home","idle","down");
-  var OFFICE=spot(HOME.x+4.4, HOME.y+2.4,"home","code","up");  // centered under the monitor (not between it and the lamp)
-  var LAMP={ x:(HOME.x+HOME.w)*TILE-42, y:HOME.y*TILE+18 };   // desk lamp (light source while coding)
+  var OFFICE=spot(HOME.x+4.9, HOME.y+2.4,"home","code","up");  // centered under the monitor, clear of the divider wall
+  var LAMP={ x:(HOME.x+HOME.w)*TILE-34, y:HOME.y*TILE+18 };   // desk lamp (light source while coding)
   var WORK=[ spot(STORE.x+3,STORE.y+3,"store","work","right"), spot(STORE.x+7,STORE.y+4,"store","work","left"), spot(STORE.x+5,STORE.y+5,"store","work","up") ];  // in the aisle walkways
   var TOWN=[ {x:24,y:24},{x:33,y:24},{x:16,y:26},{x:43,y:23},{x:11,y:14} ];
 
@@ -198,8 +198,8 @@
     R(bdx-2,bdy-1,bdw+4,bdh+4,"#5a3f28");
     R(bdx,bdy+1,bdw,bdh,C.bed); R(bdx,bdy+1,bdw,6,C.bedP); R(bdx+bdw/2-1,bdy+1,2,6,"#d8d2c4");
     // office: desk + monitor + chair
-    var ox=x+w-44;
-    R(ox,y+26,34,9,C.deskW); R(ox,y+26,34,3,C.deskTop);
+    var ox=x+w-36;
+    R(ox,y+26,32,9,C.deskW); R(ox,y+26,32,3,C.deskTop);
     R(ox+10,y+15,16,12,"#2a2a30"); R(ox+12,y+17,12,9,coding?C.screenOn:C.screen); if(coding)R(ox+13,y+18,10,1,"#ffd9b0");
     R(ox+14,y+35,8,6,"#3a3a44");
     // desk lamp — warm light source when coding
