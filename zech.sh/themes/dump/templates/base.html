@@ -14,25 +14,33 @@
     {% endblock %}
 
     {% block og_meta %}
-    {% set og_img = (og_meta.image if og_meta else none) or "https://zech.sh/static/town/og-default.png" %}
+    {% set has_img = og_meta and og_meta.image %}
+    {% set og_img = (og_meta.image if og_meta else none) or "https://zech.sh/static/town/og-default.png?v=2" %}
     {% set og_desc = (og_meta.description if og_meta else none) or "Notes from Zech Zimmerman on software, building, and Smarter Dev." %}
     <meta property="og:title" content="{{ og_meta.title if og_meta else self.title() }}">
     <meta property="og:description" content="{{ og_desc }}">
     <meta property="og:image" content="{{ og_img }}">
+    <meta property="og:image:secure_url" content="{{ og_img }}">
+    {% if not has_img %}
+    <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="A pixel-art map of Zech's town with his character walking through it">
+    {% endif %}
     <meta property="og:url" content="{{ og_meta.url if og_meta else 'https://dump.zech.sh/' }}">
     <meta property="og:site_name" content="{{ og_meta.site_name if og_meta else site_name() }}">
     <meta property="og:type" content="{{ 'article' if og_meta else 'website' }}">
     {% endblock %}
 
     {% block twitter_meta %}
-    {% set og_img = (og_meta.image if og_meta else none) or "https://zech.sh/static/town/og-default.png" %}
+    {% set has_img = og_meta and og_meta.image %}
+    {% set og_img = (og_meta.image if og_meta else none) or "https://zech.sh/static/town/og-default.png?v=2" %}
     {% set og_desc = (og_meta.description if og_meta else none) or "Notes from Zech Zimmerman on software, building, and Smarter Dev." %}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ og_meta.title if og_meta else self.title() }}">
     <meta name="twitter:description" content="{{ og_desc }}">
     <meta name="twitter:image" content="{{ og_img }}">
+    {% if not has_img %}<meta name="twitter:image:alt" content="A pixel-art map of Zech's town with his character walking through it">{% endif %}
     {% endblock %}
 
     <link rel="icon" href="{{ static_url('town/favicon.ico') }}" sizes="32x32">
