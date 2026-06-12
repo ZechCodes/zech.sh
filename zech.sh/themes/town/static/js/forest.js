@@ -21,7 +21,7 @@
   function hash(x,y){ var n=Math.imul(x|0,73856093) ^ Math.imul(y|0,19349663); n^=n>>>13; n=Math.imul(n,1274126177); return ((n^(n>>>16))>>>0)/4294967296; }
 
   var running=true, lastT=-1e7, FPS=30, FRAME_MS=1000/FPS;
-  var DAYSEC=42, simT=8/24*DAYSEC;                 // one day = 42s; start mid-morning
+  var DAYSEC=42, simT=14/24*DAYSEC;                // one day = 42s; start early afternoon so dusk/camp comes soon
   function nightLevel(h){ return 0.5+0.5*Math.cos(h/24*Math.PI*2); }
   function trailRow(x){ return 1.4*Math.sin(x*0.09) + 0.6*Math.sin(x*0.031); }   // gently winding trail (tile units)
 
@@ -29,7 +29,7 @@
   var walker={ x:0, y:trailRow(0), facing:"right", walk:0, state:"walk", t:0 };
   var SPEED=2.3;                                   // tiles / second
   var bed={ x:0, y:0, shown:false };
-  var camp={ x:0, y:0, type:"house", shown:false };   // nightly shelter beside the path (house or tent)
+  var camp={ x:0, y:0, type:"house", shown:false, armed:false, stopX:0 };   // nightly shelter beside the path (house or tent)
 
   // ---- animals ----
   var ATYPE=["rabbit","fox","deer","squirrel","rabbit","fox","deer"];
@@ -71,7 +71,7 @@
         if(hv>0.93&&hv<0.945){ var fc=FLOWER[(tx*3+ty)&3]; R(wx+6,wy+8,2,2,fc); R(wx+7,wy+9,1,3,"#2e5740"); }
         if(hv>0.7&&hv<0.74){ R(wx+4,wy+8,8,5,C.bushA); R(wx+5,wy+7,6,4,C.bushB); R(wx+6,wy+7,2,2,C.canHi); } } }
   }
-  function tree(tx,ty){ var x=tx*TILE+(hash(tx,ty+101)-0.5)*9, y=ty*TILE+(hash(tx+101,ty)-0.5)*7, big=hash(tx,ty*3)>0.5?1:0;
+  function tree(t){ var x=t.x, y=t.y, big=t.big;
     R(x+2,y+13,12,4,"rgba(0,0,0,0.22)");
     R(x+6,y+9,4,9,C.trunk);
     R(x-1-big,y-8-big,18+big*2,17+big*2,C.canOut);
@@ -79,7 +79,9 @@
     R(x+3,y-7-big,9,9,C.canTop);
     R(x+4,y-6,4,4,C.canHi); }
   function visibleTrees(){ var out=[], x0=Math.floor(camX/TILE)-2,x1=Math.ceil((camX+vW)/TILE)+2,y0=Math.floor(camY/TILE)-2,y1=Math.ceil((camY+vH)/TILE)+3;
-    for(var ty=y0;ty<=y1;ty++)for(var tx=x0;tx<=x1;tx++) if(isTree(tx,ty)) out.push({tx:tx,ty:ty});
+    for(var ty=y0;ty<=y1;ty++)for(var tx=x0;tx<=x1;tx++) if(isTree(tx,ty)){
+      var x=tx*TILE+(hash(tx,ty+101)-0.5)*9, y=ty*TILE+(hash(tx+101,ty)-0.5)*7;
+      out.push({x:x, y:y, big:hash(tx,ty*3)>0.5?1:0, baseY:y+18}); }   // baseY = trunk foot, for depth sorting
     return out; }
 
   // ---- sprites ----
@@ -161,15 +163,21 @@
   function updateWalker(dt,hour){
     var sleepWindow = hour>=20.4 || hour<6.3;
     if(walker.state==="walk"){
-      if(sleepWindow){ walker.state="settle"; walker.t=0; bed.x=walker.x; bed.y=walker.y; bed.shown=true; walker.facing="down";
-        camp.x=walker.x-1.1; camp.y=walker.y-1.5; camp.type=hash(Math.floor(simT/DAYSEC),7)<0.4?"tent":"house"; camp.shown=true; }   // pitch camp just off the path, bed in front
-      else { walker.x+=SPEED*dt; walker.y=trailRow(walker.x); walker.walk+=SPEED*dt; walker.facing="right"; }
+      // at dusk, pitch a shelter further up the path (just off the right edge) and keep walking toward it
+      if(!camp.armed && hour>=18.4 && hour<20.4){
+        camp.stopX = walker.x + (vW/TILE)*0.65 + 5;
+        camp.x = camp.stopX-1.1; camp.y = trailRow(camp.stopX)-1.5;
+        camp.type = hash(Math.floor(simT/DAYSEC),7)<0.4?"tent":"house"; camp.shown=true; camp.armed=true;
+      }
+      if(camp.armed && walker.x>=camp.stopX){               // reached camp — settle in for the night
+        walker.state="settle"; walker.t=0; bed.x=camp.stopX; bed.y=trailRow(camp.stopX); bed.shown=true; walker.facing="down";
+      } else { walker.x+=SPEED*dt; walker.y=trailRow(walker.x); walker.walk+=SPEED*dt; walker.facing="right"; }
     } else if(walker.state==="settle"){
-      walker.t+=dt; if(walker.t>1.3) walker.state="sleep";
+      walker.t+=dt; if(walker.t>1.0) walker.state="sleep";
     } else if(walker.state==="sleep"){
       if(!sleepWindow){ walker.state="wake"; walker.t=0; walker.facing="down"; }
     } else if(walker.state==="wake"){
-      walker.t+=dt; if(walker.t>1.0){ bed.shown=false; camp.shown=false; walker.state="walk"; }   // pack up camp, move on
+      walker.t+=dt; if(walker.t>1.0){ bed.shown=false; camp.shown=false; camp.armed=false; walker.state="walk"; }   // pack up camp, move on
     }
   }
   function updateAnimals(dt,hour,now){
@@ -199,16 +207,20 @@
     ctx.fillStyle=C.canBody; ctx.fillRect(0,0,canvas.width,canvas.height);    // base so no gaps
     ground();
     var dayActive = hour>=6 && hour<20;
-    var trees=visibleTrees();
-    trees.forEach(function(t){ if(t.ty < walker.y) tree(t.tx,t.ty); });        // behind the walker
-    if(dayActive) birds.forEach(function(b){ bird(b.x*TILE,b.y*TILE,(Math.floor(performance.now()/240+b.ph)%2)===0); });
-    if(dayActive) animals.forEach(function(a){ if(a.init) critter(a.x*TILE,a.y*TILE,a.type,a.moving?(Math.floor(performance.now()/170)%2):0,a.dir); });
-    // bed + traveller
-    if(camp.shown) shelter(camp.x*TILE,camp.y*TILE,camp.type,night);
-    if(bed.shown) minecraftBed(bed.x*TILE,bed.y*TILE);
-    if(walker.state==="sleep"){ sleeper(bed.x*TILE,bed.y*TILE); }
-    else { var pf=walker.state==="walk"?(Math.floor(walker.walk*1.4)%2===0?1:2):0; person(walker.x*TILE,walker.y*TILE,walker.facing,pf); }
-    trees.forEach(function(t){ if(t.ty >= walker.y) tree(t.tx,t.ty); });        // in front of the walker
+    // depth layer — trees, animals, shelter, bed and traveller drawn back-to-front by their
+    // ground-contact Y, so an animal above a tree falls behind it and one below sits in front
+    var ents=[];
+    visibleTrees().forEach(function(t){ ents.push({y:t.baseY, d:function(){ tree(t); }}); });
+    if(dayActive) animals.forEach(function(a){ if(a.init){ var fr=a.moving?(Math.floor(performance.now()/170)%2):0;
+      ents.push({y:a.y*TILE+6, d:function(){ critter(a.x*TILE,a.y*TILE,a.type,fr,a.dir); }}); } });
+    if(camp.shown) ents.push({y:camp.y*TILE+1, d:function(){ shelter(camp.x*TILE,camp.y*TILE,camp.type,night); }});
+    if(bed.shown) ents.push({y:bed.y*TILE+3, d:function(){ minecraftBed(bed.x*TILE,bed.y*TILE); }});
+    if(walker.state==="sleep") ents.push({y:bed.y*TILE+4, d:function(){ sleeper(bed.x*TILE,bed.y*TILE); }});
+    else { var pf=walker.state==="walk"?(Math.floor(walker.walk*1.4)%2===0?1:2):0;
+      ents.push({y:walker.y*TILE+1, d:function(){ person(walker.x*TILE,walker.y*TILE,walker.facing,pf); }}); }
+    ents.sort(function(a,b){ return a.y-b.y; });
+    ents.forEach(function(e){ e.d(); });
+    if(dayActive) birds.forEach(function(b){ bird(b.x*TILE,b.y*TILE,(Math.floor(performance.now()/240+b.ph)%2)===0); });  // birds fly above everything
 
     // night + atmosphere
     if(night>0.04){ ctx.fillStyle="rgba(14,18,42,"+(night*0.6).toFixed(3)+")"; ctx.fillRect(0,0,canvas.width,canvas.height);
