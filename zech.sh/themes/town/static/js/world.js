@@ -36,6 +36,7 @@
   var MARA_BED=spot(BEDROOM.bx+0.55, BEDROOM.by+0.85,"home","sleep","up");
   var MARA_HOME=spot(HOME.x+3.2, HOME.y+3.4,"home","idle","down");
   var OFFICE=spot(HOME.x+4, HOME.y+2.4,"home","code","up");  // interior tile (10,14) — NOT the wall
+  var LAMP={ x:(HOME.x+HOME.w)*TILE-42, y:HOME.y*TILE+18 };   // desk lamp (light source while coding)
   var WORK=[ spot(STORE.x+3.5,STORE.y+5,"store","work","up"), spot(STORE.x+7.5,STORE.y+4,"store","work","up"), spot(STORE.x+5.5,STORE.y+6.5,"store","work","down") ];
   var TOWN=[ {x:24,y:24},{x:33,y:24},{x:16,y:26},{x:43,y:23},{x:11,y:14} ];
 
@@ -186,6 +187,10 @@
     R(ox,y+26,34,9,C.deskW); R(ox,y+26,34,3,C.deskTop);
     R(ox+10,y+15,16,12,"#2a2a30"); R(ox+12,y+17,12,9,coding?C.screenOn:C.screen); if(coding)R(ox+13,y+18,10,1,"#ffd9b0");
     R(ox+14,y+35,8,6,"#3a3a44");
+    // desk lamp — warm light source when coding
+    R(LAMP.x-1,LAMP.y+9,6,3,"#23262d"); R(LAMP.x+1,LAMP.y+2,2,8,"#3a3e46");
+    R(LAMP.x-2,LAMP.y-2,8,5,coding?"#e8a64a":"#474b54");
+    if(coding){ R(LAMP.x,LAMP.y,4,2,"#ffe6b0"); R(LAMP.x,LAMP.y-1,4,1,"#fff3d6"); }
     // door gap (bottom)
     R(x+w/2-6,y+h-3,12,3,C.floorW);
   }
@@ -498,7 +503,7 @@
 
     // night + lights
     if(night>0.05){ ctx.fillStyle="rgba(12,16,42,"+(night*0.68).toFixed(3)+")"; ctx.fillRect(0,0,canvas.width,canvas.height);
-      if(player.doing==="code"){ light(OFFICE.x*TILE+2,OFFICE.y*TILE-4,80,"rgba(255,150,70,0.95)",0.95); light(player.x*TILE,player.y*TILE-8,44,"rgba(255,140,70,0.5)",0.6); }
+      if(player.doing==="code"){ light(LAMP.x+2,LAMP.y,56,"rgba(255,168,82,0.55)",0.46); light(LAMP.x+2,LAMP.y-1,20,"rgba(255,212,150,0.85)",0.5); }
       light((HOME.x+HOME.w/2)*TILE,(HOME.y+1)*TILE,60,"rgba(255,200,120,0.5)",night*0.4);
       if(!townAsleep) NPC_HOUSES.forEach(function(h){ if(hour>=18&&hour<21) light((h.x+h.w/2)*TILE,(h.y+1)*TILE,44,"rgba(255,210,140,0.5)",0.5); });
       // fireflies — world-anchored (drift with the map), only deep in the night
