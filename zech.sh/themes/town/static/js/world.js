@@ -37,7 +37,7 @@
   var MARA_HOME=spot(HOME.x+3.2, HOME.y+3.4,"home","idle","down");
   var OFFICE=spot(HOME.x+4.4, HOME.y+2.4,"home","code","up");  // centered under the monitor (not between it and the lamp)
   var LAMP={ x:(HOME.x+HOME.w)*TILE-42, y:HOME.y*TILE+18 };   // desk lamp (light source while coding)
-  var WORK=[ spot(STORE.x+3.5,STORE.y+5,"store","work","up"), spot(STORE.x+7.5,STORE.y+4,"store","work","up"), spot(STORE.x+5.5,STORE.y+6.5,"store","work","down") ];
+  var WORK=[ spot(STORE.x+3,STORE.y+3,"store","work","right"), spot(STORE.x+7,STORE.y+4,"store","work","left"), spot(STORE.x+5,STORE.y+5,"store","work","up") ];  // in the aisle walkways
   var TOWN=[ {x:24,y:24},{x:33,y:24},{x:16,y:26},{x:43,y:23},{x:11,y:14} ];
 
   function zoneOf(x,y){
@@ -49,6 +49,15 @@
   // is entering/inside them (matched by zone); NPC houses are always solid (sims
   // only ever reach their door, never walk the interior).
   var BUILDINGS=[{r:HOME,zone:"home"},{r:STORE,zone:"store"}].concat(NPC_HOUSES.map(function(h){return {r:h,zone:null};}));
+  // interior obstacles (tile rects) the sims must walk around — shared by collision AND drawing
+  // so the two never drift. Only solid for whoever's inside that building (matched by zone).
+  var STORE_FRIDGES=[{x:31,y:10,w:1,h:4},{x:40,y:10,w:1,h:4}];                          // dairy (left), meat (right)
+  var STORE_AISLES=[{x:34,y:10,w:1,h:4},{x:36,y:10,w:1,h:4},{x:38,y:10,w:1,h:4}];       // centre gondolas
+  var HOME_WALL={x:9,y:13,w:1,h:2};                                                      // divider, doorway gap at row 15
+  var INNER_WALLS=STORE_FRIDGES.concat(STORE_AISLES).map(function(r){ return {x:r.x,y:r.y,w:r.w,h:r.h,zone:"store"}; })
+    .concat([{x:HOME_WALL.x,y:HOME_WALL.y,w:HOME_WALL.w,h:HOME_WALL.h,zone:"home"}]);
+  function innerWall(tx,ty,zone){ for(var i=0;i<INNER_WALLS.length;i++){ var w=INNER_WALLS[i];
+    if(w.zone===zone && tx>=w.x && tx<w.x+w.w && ty>=w.y && ty<w.y+w.h) return true; } return false; }
   function solid(x,y,goalZone,curZone){
     for(var i=0;i<BUILDINGS.length;i++){ var b=BUILDINGS[i],r=b.r;
       if(x>=r.x-0.1&&x<r.x+r.w+0.1&&y>=r.y-0.1&&y<r.y+r.h+0.1){
@@ -68,7 +77,7 @@
         if(ty===r.y+r.h-1&&(tx===dcx||tx===dcx-1)) return false;            // doorway is the only way in/out
         var onEdge=(tx===r.x||tx===r.x+r.w-1||ty===r.y||ty===r.y+r.h-1);
         if(onEdge) return true;                                             // perimeter walls are solid
-        if(b.zone&&(b.zone===goalZone||b.zone===curZone)) return false;     // interior walkable only for whoever's entering
+        if(b.zone&&(b.zone===goalZone||b.zone===curZone)) return innerWall(tx,ty,b.zone);  // interior walkable for whoever's entering, minus the aisles/divider
         return true;
       }
     }
@@ -182,7 +191,8 @@
     for(var fy=0;fy<b.h;fy++)for(var fx=0;fx<b.w;fx++)R(x+fx*TILE,y+fy*TILE,TILE,TILE,((fx+fy)&1)?C.floorW:C.floorW2);
     // outer wall outline + divider between bedroom(left) and office(right)
     R(x,y,w,3,C.iwall); R(x,y,3,h,C.iwall); R(x+w-3,y,3,h,C.iwall); R(x,y+h-3,w,3,C.iwall);
-    var divX=x+w*0.52; R(divX-1,y,3,h-12,C.iwall);
+    // divider (bedroom | office) drawn from HOME_WALL — stops short of the bottom row for a doorway
+    var dwX=HOME_WALL.x*TILE+6; R(dwX,y,4,(HOME_WALL.y+HOME_WALL.h)*TILE-y,C.iwall); R(dwX,y,4,2,C.iwallSh);
     // bedroom: double bed (Mara's side + Zech's side)
     var bdx=BEDROOM.bx*TILE,bdy=BEDROOM.by*TILE,bdw=BEDROOM.bw*TILE,bdh=BEDROOM.bh*TILE;
     R(bdx-2,bdy-1,bdw+4,bdh+4,"#5a3f28");
@@ -231,19 +241,15 @@
     var bx2=ix+iw/2+3;
     R(bx2,iy+3,iw/2-7,13,"#caa15a"); R(bx2,iy+3,iw/2-7,3,"#d8b06a");
     for(var i=0;i<5;i++) R(bx2+4+i*9,iy+7,5,6,(i%2?"#b9783a":"#ecc888"));
-    // ---- side-wall refrigerated cases: dairy (left), meat (right) ----
-    var sy=iy+20, sh=ih-64;
-    R(ix,sy,9,sh,"#6fa8bf"); R(ix,sy,9,2,"#9fd0e0");
-    for(var j=0;j*13<sh-4;j++) R(ix+2,sy+4+j*13,5,8,"#e2f2f8");
-    R(ix+iw-9,sy,9,sh,"#b25749"); R(ix+iw-9,sy,9,2,"#cf6f5c");
-    for(var j=0;j*13<sh-4;j++) R(ix+iw-7,sy+4+j*13,5,8,"#e08a72");
-    // ---- center aisles: vertical gondola shelving, front to back ----
-    var AISLES=3, az0=iy+20, az1=iy+ih-46, a0=ix+15, aspan=iw-30;
-    for(var a=0;a<AISLES;a++){
-      var ax=a0 + Math.round((a+0.5)*aspan/AISLES) - 4;
-      R(ax,az0,8,az1-az0,"#6a5a44"); R(ax,az0,8,2,"#897456"); R(ax+3,az0,2,az1-az0,"#50432e");
-      for(var j=0; j*8 < az1-az0-3; j++){ R(ax-3,az0+3+j*8,3,6,prod[(a*3+j)%8]); R(ax+8,az0+3+j*8,3,6,prod[(a*5+j+2)%8]); }
-    }
+    // ---- side-wall refrigerated cases (dairy left, meat right) — drawn from the barrier rects ----
+    [[STORE_FRIDGES[0],"#6fa8bf","#9fd0e0","#e2f2f8"],[STORE_FRIDGES[1],"#b25749","#cf6f5c","#e08a72"]].forEach(function(F){
+      var r=F[0], fx=r.x*TILE+1, fy=r.y*TILE+1, fw=r.w*TILE-2, fh=r.h*TILE-2;
+      R(fx,fy,fw,fh,F[1]); R(fx,fy,fw,2,F[2]);
+      for(var j=0;j*12<fh-4;j++) R(fx+1,fy+4+j*12,fw-2,7,F[3]); });
+    // ---- center aisles: gondola shelving, front to back — drawn from the barrier rects ----
+    STORE_AISLES.forEach(function(r){ var gx=r.x*TILE+4, gy=r.y*TILE+1, gw=r.w*TILE-8, gh=r.h*TILE-2;
+      R(gx,gy,gw,gh,"#6a5a44"); R(gx,gy,gw,2,"#897456"); R(gx+3,gy,2,gh,"#50432e");
+      for(var j=0; j*8<gh-3; j++){ R(gx-3,gy+3+j*8,3,6,prod[(r.x*3+j)%8]); R(gx+gw,gy+3+j*8,3,6,prod[(r.x*5+j+2)%8]); } });
     // ---- checkout lanes near the entrance (dark counters + ember register; high-contrast) ----
     [-1,1].forEach(function(side){
       var cxc=x+w/2+side*42, coY=y+h-34;
@@ -352,7 +358,7 @@
 
   // ----- actors -----
   var player={x:ZECH_BED.x,y:ZECH_BED.y,facing:"down",doing:"sleep",walk:0};
-  var STORE_SPOTS=[spot(STORE.x+2,STORE.y+3.6,"store","up"),spot(STORE.x+4.5,STORE.y+4.4,"store","up"),spot(STORE.x+7,STORE.y+3.6,"store","up"),spot(STORE.x+9.3,STORE.y+4.4,"store","up"),spot(STORE.x+5.6,STORE.y+5,"store","up")];
+  var STORE_SPOTS=[spot(STORE.x+2,STORE.y+3,"store","up"),spot(STORE.x+3,STORE.y+4,"store","up"),spot(STORE.x+5,STORE.y+3.5,"store","up"),spot(STORE.x+7,STORE.y+4,"store","up"),spot(STORE.x+9,STORE.y+3,"store","up")];  // browsing, in the walkways
   var CHECKOUTS=[spot(STORE.x+3.4,STORE.y+6,"store","down"),spot(STORE.x+8.6,STORE.y+6,"store","down")];
   var TOWN_SPOTS=TOWN.map(function(t){return spot(t.x,t.y,"out","idle");});
   // perimeter spots around the pond (on grass, not in the water)
