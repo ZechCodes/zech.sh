@@ -131,12 +131,18 @@
   // ----- canvas -----
   var PX=4,camX=0,camY=0,vW=0,vH=0,dpr=1,camTX=0,camTY=0,camInit=false;
   function resize(){ dpr=Math.min(window.devicePixelRatio||1,2);
-    var cw=canvas.clientWidth||window.innerWidth, ch=canvas.clientHeight||window.innerHeight;
-    canvas.width=Math.floor(cw*dpr); canvas.height=Math.floor(ch*dpr);
-    var tilesTall = MODE==="banner" ? 11 : 26;            // banner is a closer, zoomed slice
+    // use the ACTUAL rendered box (getBoundingClientRect) so backing-store aspect always
+    // matches the displayed box — prevents the canvas from stretching on mobile.
+    var rect=canvas.getBoundingClientRect();
+    var cw=Math.round(rect.width)||window.innerWidth, ch=Math.round(rect.height)||window.innerHeight;
+    canvas.width=Math.max(1,Math.floor(cw*dpr)); canvas.height=Math.max(1,Math.floor(ch*dpr));
+    var tilesTall = MODE==="banner" ? 11 : (cw<560 ? 16 : 26);   // zoom in a bit on narrow screens
     PX=Math.max(2, Math.round(canvas.height/(tilesTall*TILE)));
     vW=canvas.width/PX; vH=canvas.height/PX; ctx.imageSmoothingEnabled=false; }
   addEventListener("resize",resize);
+  addEventListener("orientationchange",resize);
+  // re-resize whenever the canvas box actually changes (handles mobile toolbar show/hide)
+  if(window.ResizeObserver){ try{ new ResizeObserver(function(){ resize(); if(MODE==="banner") render(); }).observe(canvas); }catch(e){} }
   function R(wx,wy,w,h,col){ ctx.fillStyle=col; ctx.fillRect(Math.round((wx-camX)*PX),Math.round((wy-camY)*PX),Math.ceil(w*PX),Math.ceil(h*PX)); }
   function Sp(wx,wy){ return {x:(wx-camX)*PX,y:(wy-camY)*PX}; }
 
