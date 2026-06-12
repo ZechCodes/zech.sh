@@ -1,11 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Not found — zech.sh{% endblock %}
-{% block body_class %}page{% endblock %}
+{% block body_class %}errpage{% endblock %}
 {% block body %}
-<header class="site-nav"><a class="brand" href="/">zech<b>.</b>sh</a><nav><a href="/about">About</a><a href="/work">Work</a><a href="https://dump.zech.sh">Blog</a></nav></header>
-<article class="page-wrap error-wrap">
-  <div class="page-eyebrow">Error 404</div>
-  <h1 class="page-title">This page wandered off.</h1>
-  <div class="page-content"><p>Nothing lives at that address. <a href="/">Head back home &rarr;</a></p></div>
-</article>
+<canvas id="forest" aria-hidden="true"></canvas>
+<div class="err-scrim"></div>
+<a class="err-brand" href="/">zech<b>.</b>sh</a>
+<main class="err-overlay">
+  <div class="err-code">404</div>
+  <h1 class="err-title">This page wandered off.</h1>
+  <p class="err-lead">Nothing lives at that address &mdash; but the woods go on a while. Follow the trail back home.</p>
+  <a class="btn" href="/">Head home <span class="arr">&rarr;</span></a>
+</main>
+{% endblock %}
+{% block scripts %}
+<script src="{{ theme_url('js/forest.js') }}" defer></script>
 {% endblock %}
