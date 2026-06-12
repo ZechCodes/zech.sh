@@ -106,7 +106,10 @@
     var key=goal.zone+":"+goal.act+":"+Math.round(goal.x*10)+","+Math.round(goal.y*10);
     if(a.goalKey!==key){ a.goalKey=key; a.path=findPath(a.x,a.y,goal.x,goal.y,goal.zone,zoneOf(a.x,a.y)); a.goal=goal; }
     if(a.path&&a.path.length){
-      var p=a.path[0], dx=p.x-a.x, dy=p.y-a.y, d=Math.hypot(dx,dy)||1;
+      // NOTE: no `|| 1` fallback on d — a step can land exactly on a waypoint (dx==dy==0),
+      // and hypot(0,0)||1 would read as d=1: too far to advance, zero vector to move, so the
+      // actor freezes on the waypoint until its goal changes. Let d=0 fall into the shift branch.
+      var p=a.path[0], dx=p.x-a.x, dy=p.y-a.y, d=Math.hypot(dx,dy);
       if(d<0.2){ a.path.shift(); if(!a.path.length){ a.doing=goal.act; a.facing=goal.face; } }
       else { var st=Math.min(d,speed*dt); a.x+=dx/d*st; a.y+=dy/d*st; a.doing="walk"; a.walk+=st;
         a.facing=Math.abs(dx)>Math.abs(dy)?(dx>0?"right":"left"):(dy>0?"down":"up"); }
