@@ -29,15 +29,17 @@
 
   // spots (x,y tile, zone, act, face)
   function spot(x,y,zone,act,face){ return {x:x,y:y,zone:zone,act:act,face:face||"down"}; }
-  var homeDoorOut=spot(HOME.x+HOME.w/2, HOME.y+HOME.h+0.9,"out","go");
-  var storeDoorOut=spot(STORE.x+STORE.w/2, STORE.y+STORE.h+0.9,"out","go");
   var BEDROOM={bx:HOME.x+0.7, by:HOME.y+1.5, bw:2.1, bh:1.5};
   var ZECH_BED=spot(BEDROOM.bx+1.35, BEDROOM.by+0.85,"home","sleep","up");
   var MARA_BED=spot(BEDROOM.bx+0.55, BEDROOM.by+0.85,"home","sleep","up");
   var MARA_HOME=spot(HOME.x+3.2, HOME.y+3.4,"home","idle","down");
   var OFFICE=spot(HOME.x+4.4, HOME.y+2.4,"home","code","up");  // interior tile (rounds to col 10, NOT the wall), under the monitor
   var LAMP={ x:(HOME.x+HOME.w)*TILE-12, y:HOME.y*TILE+18 };   // desk lamp, right end of the desk (away from the divider)
-  var WORK=[ spot(STORE.x+3,STORE.y+3,"store","work","right"), spot(STORE.x+7,STORE.y+4,"store","work","left"), spot(STORE.x+5,STORE.y+5,"store","work","up") ];  // in the aisle walkways
+  var WORK=[                                                  // worker spots, in the aisle walkways
+    spot(STORE.x+3,STORE.y+3,"store","work","right"),
+    spot(STORE.x+7,STORE.y+4,"store","work","left"),
+    spot(STORE.x+5,STORE.y+5,"store","work","up"),
+  ];
   var TOWN=[ {x:24,y:24},{x:33,y:24},{x:16,y:26},{x:43,y:23},{x:11,y:14} ];
 
   function zoneOf(x,y){
@@ -58,15 +60,6 @@
     .concat([{x:HOME_WALL.x,y:HOME_WALL.y,w:HOME_WALL.w,h:HOME_WALL.h,zone:"home"}]);
   function innerWall(tx,ty,zone){ for(var i=0;i<INNER_WALLS.length;i++){ var w=INNER_WALLS[i];
     if(w.zone===zone && tx>=w.x && tx<w.x+w.w && ty>=w.y && ty<w.y+w.h) return true; } return false; }
-  function solid(x,y,goalZone,curZone){
-    for(var i=0;i<BUILDINGS.length;i++){ var b=BUILDINGS[i],r=b.r;
-      if(x>=r.x-0.1&&x<r.x+r.w+0.1&&y>=r.y-0.1&&y<r.y+r.h+0.1){
-        if(b.zone&&(b.zone===goalZone||b.zone===curZone)) continue;
-        return true;
-      }
-    }
-    return false;
-  }
   // ---- grid pathfinding (BFS) so sims walk AROUND buildings to the doorway ----
   function tileBlocked(tx,ty,goalZone,curZone){
     if(tx<0||ty<0||tx>=Wt||ty>=Ht) return true;
@@ -105,16 +98,6 @@
     var path=keys.map(function(k){ var p=k.split(","); return {x:(+p[0])+0.5,y:(+p[1])+0.5}; });
     if(path.length) path[path.length-1]={x:gx,y:gy}; else path=[{x:gx,y:gy}];
     return path;
-  }
-  function planPath(a,goal){
-    var cur=zoneOf(a.x,a.y), pts=[];
-    if(cur!==goal.zone){
-      if(cur==="home")pts.push(homeDoorOut); else if(cur==="store")pts.push(storeDoorOut);
-      if(goal.zone==="home"){pts.push(homeDoorOut);pts.push(goal);}
-      else if(goal.zone==="store"){pts.push(storeDoorOut);pts.push(goal);}
-      else pts.push(goal);
-    } else pts.push(goal);
-    return pts;
   }
   function stepActor(a,goal,dt,speed){
     var key=goal.zone+":"+goal.act+":"+Math.round(goal.x*10)+","+Math.round(goal.y*10);
@@ -166,11 +149,18 @@
   function R(wx,wy,w,h,col){ ctx.fillStyle=col; ctx.fillRect(Math.round((wx-camX)*PX),Math.round((wy-camY)*PX),Math.ceil(w*PX),Math.ceil(h*PX)); }
   function Sp(wx,wy){ return {x:(wx-camX)*PX,y:(wy-camY)*PX}; }
 
+  // the main road (two rows at pathY) plus the short connectors from each door up to it
+  function onTownPath(tx,ty){
+    if(ty===pathY||ty===pathY+1) return true;
+    var homeCx=HOME.x+HOME.w/2, storeCx=STORE.x+STORE.w/2;
+    var toHome =tx>=homeCx -1&&tx<=homeCx +1&&ty>HOME.y +HOME.h &&ty<=pathY;
+    var toStore=tx>=storeCx-1&&tx<=storeCx+1&&ty>STORE.y+STORE.h&&ty<=pathY;
+    return toHome||toStore;
+  }
   function ground(){
     var x0=Math.floor(camX/TILE)-1,x1=Math.ceil((camX+vW)/TILE)+1,y0=Math.floor(camY/TILE)-1,y1=Math.ceil((camY+vH)/TILE)+1;
     for(var ty=y0;ty<=y1;ty++)for(var tx=x0;tx<=x1;tx++){ var wx=tx*TILE,wy=ty*TILE;
-      var onPath=(ty===pathY||ty===pathY+1)||(tx>=HOME.x+HOME.w/2-1&&tx<=HOME.x+HOME.w/2+1&&ty>HOME.y+HOME.h&&ty<=pathY)||(tx>=STORE.x+STORE.w/2-1&&tx<=STORE.x+STORE.w/2+1&&ty>STORE.y+STORE.h&&ty<=pathY);
-      if(onPath){ R(wx,wy,TILE,TILE,C.path); if(hash(tx,ty)>0.7)R(wx+4,wy+5,3,3,C.path2); R(wx,wy,TILE,1,C.pathEdge); }
+      if(onTownPath(tx,ty)){ R(wx,wy,TILE,TILE,C.path); if(hash(tx,ty)>0.7)R(wx+4,wy+5,3,3,C.path2); R(wx,wy,TILE,1,C.pathEdge); }
       else{ R(wx,wy,TILE,TILE,((tx+ty)&1)?C.grassA:C.grassB); var hv=hash(tx,ty);
         if(hv>0.84)R(wx+3,wy+9,2,2,C.grassDot); if(hv>0.6&&hv<0.66)R(wx+10,wy+4,2,2,C.grassHi);
         if(hv<0.07){R(wx+6,wy+7,1,4,C.grassHi);R(wx+8,wy+6,1,5,C.grassHi);} } }
@@ -215,7 +205,11 @@
     R(x+w/2-6,y+h-3,12,3,C.floorW);
   }
   // tiny 3x5 pixel font for signage
-  var FONT={S:["111","100","111","001","111"],T:["111","010","010","010","010"],O:["111","101","101","101","111"],R:["110","101","110","101","101"],E:["111","100","110","100","111"]," ":["000","000","000","000","000"]};
+  var FONT={                                                  // 3x5 bitmap glyphs for the STORE sign
+    S:["111","100","111","001","111"], T:["111","010","010","010","010"],
+    O:["111","101","101","101","111"], R:["110","101","110","101","101"],
+    E:["111","100","110","100","111"], " ":["000","000","000","000","000"],
+  };
   function drawText(str,cx,topY,px,color){ var cw=4*px,total=str.length*cw-px,sx=cx-total/2;
     for(var i=0;i<str.length;i++){ var g=FONT[str[i]]; if(!g) continue;
       for(var r=0;r<5;r++)for(var c=0;c<3;c++) if(g[r][c]==="1") R(sx+i*cw+c*px,topY+r*px,px,px,color); } }
@@ -363,11 +357,20 @@
 
   // ----- actors -----
   var player={x:ZECH_BED.x,y:ZECH_BED.y,facing:"down",doing:"sleep",walk:0};
-  var STORE_SPOTS=[spot(STORE.x+2,STORE.y+3,"store","up"),spot(STORE.x+3,STORE.y+4,"store","up"),spot(STORE.x+5,STORE.y+3.5,"store","up"),spot(STORE.x+7,STORE.y+4,"store","up"),spot(STORE.x+9,STORE.y+3,"store","up")];  // browsing, in the walkways
+  var STORE_SPOTS=[                                           // shoppers browsing, in the walkways
+    spot(STORE.x+2,STORE.y+3,  "store","up"), spot(STORE.x+3,STORE.y+4,"store","up"),
+    spot(STORE.x+5,STORE.y+3.5,"store","up"), spot(STORE.x+7,STORE.y+4,"store","up"),
+    spot(STORE.x+9,STORE.y+3,  "store","up"),
+  ];
   var CHECKOUTS=[spot(STORE.x+3.4,STORE.y+6,"store","down"),spot(STORE.x+8.6,STORE.y+6,"store","down")];
   var TOWN_SPOTS=TOWN.map(function(t){return spot(t.x,t.y,"out","idle");});
   // perimeter spots around the pond (on grass, not in the water)
-  var PONDSPOTS=[spot(POND.x-1.3,POND.y+1,"out","idle","right"),spot(POND.x+POND.w+1.3,POND.y+1.5,"out","idle","left"),spot(POND.x+1.5,POND.y+POND.h+1.3,"out","idle","up"),spot(POND.x+POND.w-1.5,POND.y-1.3,"out","idle","down")];
+  var PONDSPOTS=[                                             // standing spots around the pond's edges
+    spot(POND.x-1.3,        POND.y+1,         "out","idle","right"),
+    spot(POND.x+POND.w+1.3, POND.y+1.5,       "out","idle","left"),
+    spot(POND.x+1.5,        POND.y+POND.h+1.3,"out","idle","up"),
+    spot(POND.x+POND.w-1.5, POND.y-1.3,       "out","idle","down"),
+  ];
   function houseDoor(h){ return spot(h.x+h.w/2, h.y+h.h+0.9,"out","go"); }
   // a set number of townsfolk work a store stop into their route (re-rolled daily)
   var GROCERY_VISITORS=3;

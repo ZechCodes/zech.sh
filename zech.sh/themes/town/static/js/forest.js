@@ -14,8 +14,7 @@
     path:"#caa97c",path2:"#bd9b6b",pathEdge:"#a8895c",
     trunk:"#4a2e1d", canOut:"#143523",canBody:"#22512f",canTop:"#2f6b3f",canHi:"#57a468",
     bushA:"#2c5a38",bushB:"#3a7048",
-    skin:"#f0c79e",skinSh:"#d8a87e",hair:"#33231b",hood:"#ff6a2c",hoodS:"#cf4f18",pants:"#2b3450",shoe:"#1c2027",
-    bedR:"#b23a2e",bedRHi:"#c8493a",bedRSeam:"#9a2f25",pillow:"#eceff1",wood:"#7a4a2c",woodDk:"#5a3620" };
+    skin:"#f0c79e",skinSh:"#d8a87e",hair:"#33231b",hood:"#ff6a2c",hoodS:"#cf4f18",pants:"#2b3450",shoe:"#1c2027" };
   var FLOWER=["#e7b6cf","#ffd166","#cfe0ff","#e2693a"];
 
   var TILE=16, dpr=1, PX=4, camX=0, camY=0, vW=0, vH=0, camInit=false;
