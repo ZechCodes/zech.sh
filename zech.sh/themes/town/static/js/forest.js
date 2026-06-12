@@ -165,15 +165,17 @@
     if(walker.state==="walk"){
       // at dusk, pitch a shelter further up the path (just off the right edge) and keep walking toward it
       if(!camp.armed && hour>=18.4 && hour<20.4){
-        camp.stopX = walker.x + (vW/TILE)*0.65 + 5;
-        camp.x = camp.stopX-1.1; camp.y = trailRow(camp.stopX)-1.5;
+        camp.stopX = walker.x + (vW/TILE)*0.65 + 5;          // begin settling here (still off-screen)
+        var bedX = camp.stopX + 1.4;                          // bedroll sits a little further on, in front of the shelter
+        bed.x = bedX; bed.y = trailRow(bedX); bed.shown = true;
+        camp.x = bedX; camp.y = trailRow(bedX) - 1.8;         // shelter pitched just behind the bed
         camp.type = hash(Math.floor(simT/DAYSEC),7)<0.4?"tent":"house"; camp.shown=true; camp.armed=true;
       }
-      if(camp.armed && walker.x>=camp.stopX){               // reached camp — settle in for the night
-        walker.state="settle"; walker.t=0; bed.x=camp.stopX; bed.y=trailRow(camp.stopX); bed.shown=true; walker.facing="down";
-      } else { walker.x+=SPEED*dt; walker.y=trailRow(walker.x); walker.walk+=SPEED*dt; walker.facing="right"; }
+      if(camp.armed && walker.x>=camp.stopX){ walker.state="settle"; walker.t=0; walker.facing="right"; }   // arrived — walk the last steps to the bedroll
+      else { walker.x+=SPEED*dt; walker.y=trailRow(walker.x); walker.walk+=SPEED*dt; walker.facing="right"; }
     } else if(walker.state==="settle"){
-      walker.t+=dt; if(walker.t>1.0) walker.state="sleep";
+      if(walker.x < bed.x-0.05){ walker.x += Math.min(bed.x-walker.x, SPEED*dt); walker.y=trailRow(walker.x); walker.walk+=SPEED*dt; walker.facing="right"; }
+      else { walker.t+=dt; if(walker.t>0.4){ walker.x=bed.x; walker.y=bed.y; walker.state="sleep"; } }   // reached the bedroll — lie down
     } else if(walker.state==="sleep"){
       if(!sleepWindow){ walker.state="wake"; walker.t=0; walker.facing="down"; }
     } else if(walker.state==="wake"){
@@ -224,9 +226,7 @@
 
     // night + atmosphere
     if(night>0.04){ ctx.fillStyle="rgba(14,18,42,"+(night*0.6).toFixed(3)+")"; ctx.fillRect(0,0,canvas.width,canvas.height);
-      // moon
-      if(night>0.45){ var mo=Sp(camX/1+vW*0.82, camY/1+vH*0.16); var mr=7*PX;
-        ctx.fillStyle="rgba(225,232,245,"+((night-0.45)/0.55).toFixed(3)+")"; ctx.beginPath(); ctx.arc(canvas.width*0.82,canvas.height*0.16,mr,0,6.3); ctx.fill(); }
+      // (no moon — this is a top-down view, there's no sky)
       // warm lantern glow at the camp while resting
       if((walker.state==="sleep"||walker.state==="settle") && bed.shown){ light(bed.x*TILE+10, bed.y*TILE-6, 46, "rgba(255,170,90,0.6)", 0.5*Math.min(1,night/0.5)); }
       // fireflies deep in the night
