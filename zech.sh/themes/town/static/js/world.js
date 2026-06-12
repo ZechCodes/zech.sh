@@ -35,8 +35,8 @@
   var ZECH_BED=spot(BEDROOM.bx+1.35, BEDROOM.by+0.85,"home","sleep","up");
   var MARA_BED=spot(BEDROOM.bx+0.55, BEDROOM.by+0.85,"home","sleep","up");
   var MARA_HOME=spot(HOME.x+3.2, HOME.y+3.4,"home","idle","down");
-  var OFFICE=spot(HOME.x+4.9, HOME.y+2.4,"home","code","up");  // centered under the monitor, clear of the divider wall
-  var LAMP={ x:(HOME.x+HOME.w)*TILE-34, y:HOME.y*TILE+18 };   // desk lamp (light source while coding)
+  var OFFICE=spot(HOME.x+4.4, HOME.y+2.4,"home","code","up");  // interior tile (rounds to col 10, NOT the wall), under the monitor
+  var LAMP={ x:(HOME.x+HOME.w)*TILE-12, y:HOME.y*TILE+18 };   // desk lamp, right end of the desk (away from the divider)
   var WORK=[ spot(STORE.x+3,STORE.y+3,"store","work","right"), spot(STORE.x+7,STORE.y+4,"store","work","left"), spot(STORE.x+5,STORE.y+5,"store","work","up") ];  // in the aisle walkways
   var TOWN=[ {x:24,y:24},{x:33,y:24},{x:16,y:26},{x:43,y:23},{x:11,y:14} ];
 
@@ -85,6 +85,11 @@
   }
   function findPath(sx,sy,gx,gy,goalZone,curZone){
     var s={x:Math.round(sx),y:Math.round(sy)}, g={x:Math.round(gx),y:Math.round(gy)};
+    if(tileBlocked(s.x,s.y,goalZone,curZone)){   // rounding landed us on a wall — step toward our real position, never path THROUGH the wall
+      var nb=[]; if(sx<s.x)nb.push([-1,0]); else if(sx>s.x)nb.push([1,0]);
+      if(sy<s.y)nb.push([0,-1]); else if(sy>s.y)nb.push([0,1]);
+      nb.push([0,1],[0,-1],[1,0],[-1,0]);
+      for(var ni=0;ni<nb.length;ni++){ if(!tileBlocked(s.x+nb[ni][0],s.y+nb[ni][1],goalZone,curZone)){ s={x:s.x+nb[ni][0],y:s.y+nb[ni][1]}; break; } } }
     if(s.x===g.x&&s.y===g.y) return [{x:gx,y:gy}];
     var q=[s], seen={}, prev={}; seen[s.x+","+s.y]=1;
     var dirs=[[1,0],[-1,0],[0,1],[0,-1]], found=false, cnt=0;
@@ -200,8 +205,8 @@
     // office: desk + monitor + chair
     var ox=x+w-36;
     R(ox,y+26,32,9,C.deskW); R(ox,y+26,32,3,C.deskTop);
-    R(ox+10,y+15,16,12,"#2a2a30"); R(ox+12,y+17,12,9,coding?C.screenOn:C.screen); if(coding)R(ox+13,y+18,10,1,"#ffd9b0");
-    R(ox+14,y+35,8,6,"#3a3a44");
+    R(ox+2,y+15,16,12,"#2a2a30"); R(ox+4,y+17,12,9,coding?C.screenOn:C.screen); if(coding)R(ox+5,y+18,10,1,"#ffd9b0");
+    R(ox+6,y+35,8,6,"#3a3a44");
     // desk lamp — warm light source when coding
     R(LAMP.x-1,LAMP.y+9,6,3,"#23262d"); R(LAMP.x+1,LAMP.y+2,2,8,"#3a3e46");
     R(LAMP.x-2,LAMP.y-2,8,5,coding?"#e8a64a":"#474b54");
