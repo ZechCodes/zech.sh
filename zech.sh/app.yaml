@@ -13,6 +13,7 @@ controllers:
   - controllers.admin_api_keys:ApiKeysAdminController
   - skrift.admin.controller:AdminController
   - controllers.redirects:RedirectsController
+  - controllers.redirects:FaviconController
   - skrift.controllers.web:WebController
   - controllers.health:HealthController
 
@@ -31,6 +32,7 @@ sites:
     subdomain: dump
     controllers:
       - skrift.controllers.sitemap:SitemapController
+      - controllers.redirects:FaviconController
     theme: dump
   aichat:
     subdomain: aichat

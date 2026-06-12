@@ -15,3 +15,14 @@ class RedirectsController(Controller):
         if not url:
             raise NotFoundException("Discord invite not configured")
         return Redirect(path=url)
+
+
+class FaviconController(Controller):
+    """Serve the legacy root /favicon.ico that browsers and crawlers auto-request
+    (the HTML <link rel=icon> only covers clients that parse the page)."""
+
+    path = "/"
+
+    @get("/favicon.ico")
+    async def favicon(self) -> Redirect:
+        return Redirect(path="/static/town/favicon.ico", status_code=301)
