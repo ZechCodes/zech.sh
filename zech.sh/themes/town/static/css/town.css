@@ -112,3 +112,11 @@ body.page { overflow-x:hidden; }
 .site-footer { border-top:1px solid rgba(244,239,231,0.08); padding:2.4rem clamp(20px,5vw,40px); display:flex; flex-wrap:wrap; gap:14px 28px; align-items:center; justify-content:space-between; color:#8a857b; font-size:0.9rem; }
 .site-footer a { color:#b9b3a8; text-decoration:none; } .site-footer a:hover { color:var(--ember); }
 .site-footer .foot-brand { font-family:var(--pixel); color:var(--cream); } .site-footer .foot-brand b { color:var(--ember); }
+
+/* utility (CSP-safe; replaces inline styles — dump subdomain blocks inline style attrs) */
+.error-wrap { text-align:center; padding-top:14vh; min-height:55vh; }
+.error-wrap .page-content { display:inline-block; }
+.post-back { display:inline-block; text-decoration:none; }
+.post-intro { margin-bottom:2.5rem; }
+.post-h1 { margin-top:1rem; }
+.draft-tag { font-family:var(--pixel); font-size:0.7rem; color:#ffc107; margin-left:0.4rem; }

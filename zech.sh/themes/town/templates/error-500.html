@@ -2,15 +2,10 @@
 {% block title %}Server error — zech.sh{% endblock %}
 {% block body_class %}page{% endblock %}
 {% block body %}
-<header class="site-nav">
-  <a class="brand" href="/">zech<b>.</b>sh</a>
-  <nav><a href="/about">About</a><a href="/work">Work</a><a href="https://dump.zech.sh">Blog</a></nav>
-</header>
-<article class="page-wrap" style="text-align:center; padding-top:16vh; min-height:60vh;">
+<header class="site-nav"><a class="brand" href="/">zech<b>.</b>sh</a><nav><a href="/about">About</a><a href="/work">Work</a><a href="https://dump.zech.sh">Blog</a></nav></header>
+<article class="page-wrap error-wrap">
   <div class="page-eyebrow">Error 500</div>
   <h1 class="page-title">Something broke.</h1>
-  <div class="page-content" style="display:inline-block; text-align:center;">
-    <p>That's on me, not you. Try again in a moment. <a href="/">Head back home &rarr;</a></p>
-  </div>
+  <div class="page-content"><p>That's on me, not you. Try again in a moment. <a href="/">Head back home &rarr;</a></p></div>
 </article>
 {% endblock %}

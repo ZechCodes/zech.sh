@@ -8,7 +8,7 @@
 <section class="page-wrap">
     <div class="page-eyebrow">dump.zech.sh</div>
     <h1 class="page-title">The Dump.</h1>
-    <div class="page-content" style="margin-bottom:2.5rem;">
+    <div class="page-content post-intro">
         <p>Brain dumps and code dumps &mdash; deep dives on async, metaclasses, dependency injection, and whatever I'm building at the time.</p>
     </div>
 
@@ -16,7 +16,7 @@
     <div class="post-list">
         {% for page in pages %}
         <a href="/{{ page.slug }}" class="post-card">
-            <div class="pt">{{ page.title }}{% if not page.is_published %} <span style="font-family:var(--pixel);font-size:0.7rem;color:#ffc107;">DRAFT</span>{% endif %}</div>
+            <div class="pt">{{ page.title }}{% if not page.is_published %} <span class="draft-tag">DRAFT</span>{% endif %}</div>
             {% if page.published_at %}
             <div class="pm"><time datetime="{{ page.published_at.isoformat() }}">{{ page.published_at.strftime('%B %-d, %Y') }}</time></div>
             {% endif %}
