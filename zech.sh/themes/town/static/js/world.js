@@ -398,7 +398,7 @@
     var hour=((simClock%DAY)/DAY)*24, night=nightLevel(hour), townAsleep=hour>=21||hour<6;
 
     // update player
-    stepActor(player, playerGoal(hour), dt, SPEED);
+    stepActor(player, MODE==="banner"?OFFICE:playerGoal(hour), dt, SPEED);  // banner: always at the desk coding
     // re-roll everyone's route at the start of each new day so the town isn't on repeat
     var dN=Math.floor(simClock/DAY);
     if(dN!==lastDay){ lastDay=dN; var order=shuffle(npcs.map(function(_,i){return i;}));
@@ -437,7 +437,8 @@
     stepActor(mara, mg, dt, SPEED*0.8);
 
     // camera
-    if(MODE==="banner"){ camX=27*TILE - vW/2; camY=16*TILE - vH/2; }
+    if(MODE==="banner"){ camTX=player.x*TILE - vW*0.30; camTY=player.y*TILE - vH*0.5;
+      if(!camInit){camX=camTX;camY=camTY;camInit=true;} camX+=(camTX-camX)*0.05; camY+=(camTY-camY)*0.05; }
     else {
       var biasX=innerWidth>760?0.64:0.5;
       camTX=player.x*TILE - vW*biasX; camTY=player.y*TILE - vH*0.52;
@@ -543,8 +544,12 @@
   document.querySelectorAll(".sec").forEach(function(s){ io.observe(s); });
 
   document.addEventListener("visibilitychange",function(){ running=!document.hidden; if(running){lastT=performance.now(); requestAnimationFrame(render);} });
+  // banner: pause the loop while it's scrolled out of view (saves CPU on content pages)
+  if(MODE==="banner" && window.IntersectionObserver){
+    new IntersectionObserver(function(es){ es.forEach(function(e){ running=e.isIntersecting; if(running){ lastT=performance.now(); requestAnimationFrame(render); } }); },{threshold:0}).observe(canvas);
+  }
   resize();
-  if(MODE==="banner"){ running=false; simClock=12.5/24*DAY; render(); return; }   // one static midday frame
-  if(reduce){ render(); running=false; return; }
+  if(reduce){ render(); running=false; return; }          // static frame under reduced-motion
+  if(MODE==="banner"){ simClock=10/24*DAY; }               // banner starts mid-morning, then lives
   requestAnimationFrame(render);
 })();
