@@ -18,9 +18,8 @@
   .hud .clock { justify-self:end; display:flex; align-items:center; gap:12px; font-size:0.95rem; background:rgba(10,14,20,.5); border:2px solid rgba(244,239,231,.16); padding:6px 13px; border-radius:5px; text-shadow:1px 1px 0 rgba(0,0,0,.5); white-space:nowrap; }
   .hud .clock b { color:var(--ember); }
   .hud .clock svg { width:15px; height:15px; vertical-align:-2px; }
-  .wlabel { position:fixed; z-index:3; transform:translate(-50%,-100%); pointer-events:none; font-family:var(--pixel); font-size:0.7rem; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:var(--cream); background:rgba(12,16,24,.7); border:1px solid rgba(244,239,231,.22); padding:2px 7px; border-radius:4px; white-space:nowrap; text-shadow:1px 1px 0 rgba(0,0,0,.6); opacity:0; transition:opacity .4s; }
+  .wlabel { position:fixed; z-index:3; transform:translate(-50%,-100%); pointer-events:none; font-family:'Inter',system-ui,sans-serif; font-size:0.82rem; font-weight:700; letter-spacing:.2px; color:var(--cream); background:rgba(12,16,24,.7); border:1px solid rgba(244,239,231,.22); padding:3px 9px; border-radius:6px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.35); opacity:0; transition:opacity .4s; }
   .wlabel.player-tag { background:var(--ember); color:#1a0e06; border-color:#ffcaa6; }
-  .wlabel.mara-tag { background:rgba(229,124,160,.9); color:#2a0e18; border-color:#f4b9cf; }
   main { position:relative; z-index:4; }
   .sec { min-height:100vh; display:flex; align-items:center; padding:14vh 6vw; scroll-snap-align:center; scroll-snap-stop:always; }
   .panel { max-width:480px; }

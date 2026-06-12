@@ -543,13 +543,9 @@
     if(MODE==="home"){ placeLabels(); updateHUD(hour,night); }
   }
 
-  var lblHome=document.getElementById("lblHome"),lblStore=document.getElementById("lblStore"),lblYou=document.getElementById("lblYou"),lblMara=document.getElementById("lblMara");
+  var lblYou=document.getElementById("lblYou");
   function setLabel(el,wx,wy,show){ var s=Sp(wx,wy); el.style.left=(s.x/dpr)+"px"; el.style.top=(s.y/dpr)+"px"; el.style.opacity=show?"1":"0"; }
-  function placeLabels(){ var open=zoneOf(player.x,player.y);
-    setLabel(lblHome,(HOME.x+HOME.w/2)*TILE,(HOME.y-0.2)*TILE,open!=="home");
-    setLabel(lblStore,(STORE.x+STORE.w/2)*TILE,(STORE.y-0.2)*TILE, activeKey==="A"&&open!=="store");
-    setLabel(lblYou,player.x*TILE,player.y*TILE-22,true);
-    var mz=zoneOf(mara.x,mara.y); setLabel(lblMara,mara.x*TILE,mara.y*TILE-20, !mara.inside&&(mz==="out"||mz===open)); }
+  function placeLabels(){ if(lblYou) setLabel(lblYou,player.x*TILE,player.y*TILE-22,true); }   // only the player tag remains
 
   var dayNum=document.getElementById("dayNum"),todIcon=document.getElementById("todIcon"),todName=document.getElementById("todName");
   function updateHUD(hour,night){ dayNum.textContent=1+Math.floor(simClock/DAY);
