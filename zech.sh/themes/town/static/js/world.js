@@ -35,7 +35,7 @@
   var ZECH_BED=spot(BEDROOM.bx+1.35, BEDROOM.by+0.85,"home","sleep","up");
   var MARA_BED=spot(BEDROOM.bx+0.55, BEDROOM.by+0.85,"home","sleep","up");
   var MARA_HOME=spot(HOME.x+3.2, HOME.y+3.4,"home","idle","down");
-  var OFFICE=spot(HOME.x+4, HOME.y+2.4,"home","code","up");  // interior tile (10,14) — NOT the wall
+  var OFFICE=spot(HOME.x+4.4, HOME.y+2.4,"home","code","up");  // centered under the monitor (not between it and the lamp)
   var LAMP={ x:(HOME.x+HOME.w)*TILE-42, y:HOME.y*TILE+18 };   // desk lamp (light source while coding)
   var WORK=[ spot(STORE.x+3.5,STORE.y+5,"store","work","up"), spot(STORE.x+7.5,STORE.y+4,"store","work","up"), spot(STORE.x+5.5,STORE.y+6.5,"store","work","down") ];
   var TOWN=[ {x:24,y:24},{x:33,y:24},{x:16,y:26},{x:43,y:23},{x:11,y:14} ];
