@@ -1,6 +1,7 @@
 /* 404 / error background — an endless top-down forest. A traveller walks through it
-   by day with animals roaming, then at nightfall drops a bed, sleeps, and at dawn
-   picks it up and moves on. Same pixel-art language as the town (world.js). */
+   by day with animals roaming, then at nightfall builds a camp — lights a fire and
+   sleeps inside a cabin or tent — and at dawn moves on, leaving the cold camp behind.
+   Same pixel-art language as the town (world.js). */
 (function(){
   "use strict";
   var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -25,11 +26,11 @@
   function nightLevel(h){ return 0.5+0.5*Math.cos(h/24*Math.PI*2); }
   function trailRow(x){ return 1.4*Math.sin(x*0.09) + 0.6*Math.sin(x*0.031); }   // gently winding trail (tile units)
 
-  // ---- traveller + bed ----
+  // ---- traveller ----
   var walker={ x:0, y:trailRow(0), facing:"right", walk:0, state:"walk", t:0 };
   var SPEED=2.3;                                   // tiles / second
-  var bed={ x:0, y:0, shown:false };
-  var camp={ x:0, y:0, type:"house", shown:false, armed:false, stopX:0 };   // nightly shelter beside the path (house or tent)
+  // nightly camp: shelter (house/tent) + campfire, left behind to scroll off after the night
+  var camp={ x:0, y:0, fx:0, fy:0, dx:0, dy:0, type:"house", fireLit:false, shown:false, armed:false, stopX:0 };
 
   // ---- animals ----
   var ATYPE=["rabbit","fox","deer","squirrel","rabbit","fox","deer"];
@@ -96,16 +97,13 @@
     if(facing==="up"){ p(1,0,11,5,C.hair); } else { p(1,0,11,3,C.hair); p(1,0,2,5,C.hair); p(10,0,2,5,C.hair); }
     if(facing==="down"){ p(4,4,1,1,"#222"); p(8,4,1,1,"#222"); } else if(facing==="left"){ p(3,4,1,1,"#222"); } else if(facing==="right"){ p(9,4,1,1,"#222"); }
   }
-  function minecraftBed(wx,wy){ var x=Math.round(wx-7), y=Math.round(wy-15);
-    R(x+1,y+22,14,3,"rgba(0,0,0,0.22)");                       // ground shadow
-    R(x-1,y+1,2,2,C.woodDk); R(x+13,y+1,2,2,C.woodDk); R(x-1,y+19,2,2,C.woodDk); R(x+13,y+19,2,2,C.woodDk); // legs
-    R(x,y,14,22,C.wood);                                       // frame
-    R(x+1,y+1,12,6,C.pillow); R(x+1,y+1,12,1,"#ffffff");       // pillow (head)
-    R(x+1,y+8,12,13,C.bedR); R(x+1,y+8,12,2,C.bedRHi);         // red blanket + lit top edge
-    R(x+6,y+8,1,13,C.bedRSeam); }
-  function sleeper(wx,wy){ var x=Math.round(wx-7), y=Math.round(wy-15);
-    R(x+4,y+1,6,6,C.skin); R(x+4,y+1,6,2,C.hair); R(x+4,y+6,6,1,C.skinSh);   // head on pillow
-    R(x+2,y+11,10,2,C.bedRHi); }                                              // blanket bump over body
+  function campfire(wx,wy,lit){ var x=Math.round(wx-6), y=Math.round(wy-3);
+    R(x,y+5,12,3,"rgba(0,0,0,0.22)");                                         // ground shadow
+    R(x,y+3,2,2,"#7a7670"); R(x+10,y+3,2,2,"#7a7670"); R(x+2,y+6,2,1,"#6e6a64"); R(x+8,y+6,2,1,"#6e6a64"); // stone ring
+    R(x+2,y+2,8,2, lit?"#5a3a26":"#2f2a27"); R(x+4,y,4,5, lit?"#4a2e1d":"#262220");                        // crossed logs
+    if(lit){ var f=Math.floor(performance.now()/110)%3;
+      R(x+3,y-1,6,3,"#ff6a2c"); R(x+4,y-4-f,4,5,"#ff8a2c"); R(x+5,y-6-f,2,4,"#ffd24a"); R(x+5,y-7-f,1,2,"#fff0b0"); }
+    else { R(x+3,y+1,6,2,"#3a3632"); R(x+5,y,2,1,"#55504a"); } }                                            // cold ash
   function shelter(wx,wy,type,night){ var lit=night>0.24, bx=Math.round(wx), gy=Math.round(wy);
     if(type==="tent"){
       var top=gy-20;
@@ -160,26 +158,34 @@
     if(flap){ R(bx-7,by-3,6,1,c); R(bx+2,by-3,6,1,c); } else { R(bx-7,by+1,6,1,c); R(bx+2,by+1,6,1,c); } }
 
   // ---- updates ----
+  function moveToward(tx,ty,speed,dt){ var dx=tx-walker.x, dy=ty-walker.y, d=Math.hypot(dx,dy);
+    if(d<0.07){ walker.x=tx; walker.y=ty; return true; }
+    var st=Math.min(d,speed*dt); walker.x+=dx/d*st; walker.y+=dy/d*st; walker.walk+=st;
+    walker.facing = Math.abs(dx)>Math.abs(dy)?(dx>0?"right":"left"):(dy>0?"down":"up"); return false; }
   function updateWalker(dt,hour){
     var sleepWindow = hour>=20.4 || hour<6.3;
     if(walker.state==="walk"){
-      // at dusk, pitch a shelter further up the path (just off the right edge) and keep walking toward it
+      // at dusk, pitch a camp further up the path (just off the right edge) and keep walking toward it
       if(!camp.armed && hour>=18.4 && hour<20.4){
-        camp.stopX = walker.x + (vW/TILE)*0.65 + 5;          // begin settling here (still off-screen)
-        var bedX = camp.stopX + 1.4;                          // bedroll sits a little further on, in front of the shelter
-        bed.x = bedX; bed.y = trailRow(bedX); bed.shown = true;
-        camp.x = bedX; camp.y = trailRow(bedX) - 1.8;         // shelter pitched just behind the bed
-        camp.type = hash(Math.floor(simT/DAYSEC),7)<0.4?"tent":"house"; camp.shown=true; camp.armed=true;
+        camp.stopX = walker.x + (vW/TILE)*0.65 + 5; var r=trailRow(camp.stopX);
+        camp.x = camp.stopX-1.0; camp.y = r-2.4;             // shelter, up-left
+        camp.dx = camp.stopX-1.0; camp.dy = r-2.0;           // its doorway
+        camp.fx = camp.stopX+0.9; camp.fy = r-0.5;           // campfire, in front to the right
+        camp.type = hash(Math.floor(simT/DAYSEC),7)<0.4?"tent":"house"; camp.fireLit=false; camp.shown=true; camp.armed=true;
       }
-      if(camp.armed && walker.x>=camp.stopX){ walker.state="settle"; walker.t=0; walker.facing="right"; }   // arrived — walk the last steps to the bedroll
+      if(camp.armed && walker.x>=camp.stopX){ walker.x=camp.stopX; walker.y=trailRow(camp.stopX); walker.state="arrive"; walker.t=0; walker.facing="up"; camp.fireLit=true; }  // arrive + light the fire
       else { walker.x+=SPEED*dt; walker.y=trailRow(walker.x); walker.walk+=SPEED*dt; walker.facing="right"; }
-    } else if(walker.state==="settle"){
-      if(walker.x < bed.x-0.05){ walker.x += Math.min(bed.x-walker.x, SPEED*dt); walker.y=trailRow(walker.x); walker.walk+=SPEED*dt; walker.facing="right"; }
-      else { walker.t+=dt; if(walker.t>0.4){ walker.x=bed.x; walker.y=bed.y; walker.state="sleep"; } }   // reached the bedroll — lie down
+    } else if(walker.state==="arrive"){
+      walker.t+=dt; if(walker.t>0.9) walker.state="enter";                                   // tend the fire, then head in
+    } else if(walker.state==="enter"){
+      if(moveToward(camp.dx,camp.dy,SPEED*0.75,dt)) walker.state="sleep";                      // step into the shelter
     } else if(walker.state==="sleep"){
-      if(!sleepWindow){ walker.state="wake"; walker.t=0; walker.facing="down"; }
-    } else if(walker.state==="wake"){
-      walker.t+=dt; if(walker.t>1.0){ bed.shown=false; camp.shown=false; camp.armed=false; walker.state="walk"; }   // pack up camp, move on
+      if(!sleepWindow) walker.state="exit";                                                    // morning — come back out
+    } else if(walker.state==="exit"){
+      if(moveToward(camp.stopX,trailRow(camp.stopX),SPEED*0.75,dt)){ camp.fireLit=false; walker.state="leave"; }  // out, put the fire out
+    } else if(walker.state==="leave"){
+      walker.x+=SPEED*dt; walker.y=trailRow(walker.x); walker.walk+=SPEED*dt; walker.facing="right";
+      if(walker.x>camp.stopX+3){ camp.armed=false; walker.state="walk"; }                       // clear of camp; it stays put and scrolls off
     }
   }
   function updateAnimals(dt,hour,now){
@@ -209,16 +215,17 @@
     ctx.fillStyle=C.canBody; ctx.fillRect(0,0,canvas.width,canvas.height);    // base so no gaps
     ground();
     var dayActive = hour>=6 && hour<20;
-    // depth layer — trees, animals, shelter, bed and traveller drawn back-to-front by their
+    // depth layer — trees, animals, shelter, campfire and traveller drawn back-to-front by their
     // ground-contact Y, so an animal above a tree falls behind it and one below sits in front
     var ents=[];
     visibleTrees().forEach(function(t){ ents.push({y:t.baseY, d:function(){ tree(t); }}); });
     if(dayActive) animals.forEach(function(a){ if(a.init){ var fr=a.moving?(Math.floor(performance.now()/170)%2):0;
       ents.push({y:a.y*TILE+6, d:function(){ critter(a.x*TILE,a.y*TILE,a.type,fr,a.dir); }}); } });
-    if(camp.shown) ents.push({y:camp.y*TILE+1, d:function(){ shelter(camp.x*TILE,camp.y*TILE,camp.type,night); }});
-    if(bed.shown) ents.push({y:bed.y*TILE+3, d:function(){ minecraftBed(bed.x*TILE,bed.y*TILE); }});
-    if(walker.state==="sleep") ents.push({y:bed.y*TILE+4, d:function(){ sleeper(bed.x*TILE,bed.y*TILE); }});
-    else { var pf=walker.state==="walk"?(Math.floor(walker.walk*1.4)%2===0?1:2):0;
+    if(camp.shown && camp.x*TILE+90>camX && camp.x*TILE-40<camX+vW){          // cull once the left-behind camp is fully off-screen
+      ents.push({y:camp.y*TILE+1, d:function(){ shelter(camp.x*TILE,camp.y*TILE,camp.type,night); }});
+      ents.push({y:camp.fy*TILE+2, d:function(){ campfire(camp.fx*TILE,camp.fy*TILE,camp.fireLit); }}); }
+    if(walker.state!=="sleep"){                                                // traveller hidden while inside the shelter
+      var moving=walker.state!=="arrive", pf=moving?(Math.floor(walker.walk*1.4)%2===0?1:2):0;
       ents.push({y:walker.y*TILE+1, d:function(){ person(walker.x*TILE,walker.y*TILE,walker.facing,pf); }}); }
     ents.sort(function(a,b){ return a.y-b.y; });
     ents.forEach(function(e){ e.d(); });
@@ -227,8 +234,9 @@
     // night + atmosphere
     if(night>0.04){ ctx.fillStyle="rgba(14,18,42,"+(night*0.6).toFixed(3)+")"; ctx.fillRect(0,0,canvas.width,canvas.height);
       // (no moon — this is a top-down view, there's no sky)
-      // warm lantern glow at the camp while resting
-      if((walker.state==="sleep"||walker.state==="settle") && bed.shown){ light(bed.x*TILE+10, bed.y*TILE-6, 46, "rgba(255,170,90,0.6)", 0.5*Math.min(1,night/0.5)); }
+      // warm flickering glow from the campfire while it's lit
+      if(camp.fireLit){ var fl=0.5+0.5*Math.abs(Math.sin(performance.now()/170));
+        light(camp.fx*TILE, camp.fy*TILE-2, 50, "rgba(255,160,70,0.7)", (0.4+0.16*fl)*Math.min(1,night/0.4)); }
       // fireflies deep in the night
       if(night>0.6){ var tff=performance.now()/1000, fAmt=Math.min(1,(night-0.6)/0.3);
         for(var k=0;k<fireflies.length;k++){ var f=fireflies[k], camCx=camX+vW/2, camCy=camY+vH/2;
