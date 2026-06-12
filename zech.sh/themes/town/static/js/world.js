@@ -131,6 +131,7 @@
 
   // ----- canvas -----
   var PX=4,camX=0,camY=0,vW=0,vH=0,dpr=1,camTX=0,camTY=0,camInit=false;
+  function drawFrame(){ lastT=-1e7; render(); }   // force one repaint outside the loop (reduced-motion, or after a resize clears the canvas)
   function resize(){ dpr=Math.min(window.devicePixelRatio||1,2);
     // use the ACTUAL rendered box (getBoundingClientRect) so backing-store aspect always
     // matches the displayed box — prevents the canvas from stretching on mobile.
@@ -139,11 +140,12 @@
     canvas.width=Math.max(1,Math.floor(cw*dpr)); canvas.height=Math.max(1,Math.floor(ch*dpr));
     var tilesTall = MODE==="banner" ? 11 : (cw<560 ? 16 : 26);   // zoom in a bit on narrow screens
     PX=Math.max(2, Math.round(canvas.height/(tilesTall*TILE)));
-    vW=canvas.width/PX; vH=canvas.height/PX; ctx.imageSmoothingEnabled=false; }
+    vW=canvas.width/PX; vH=canvas.height/PX; ctx.imageSmoothingEnabled=false;
+    if(!running) drawFrame(); }   // resizing clears the canvas — repaint the static frame when the loop isn't running
   addEventListener("resize",resize);
   addEventListener("orientationchange",resize);
   // re-resize whenever the canvas box actually changes (handles mobile toolbar show/hide)
-  if(window.ResizeObserver){ try{ new ResizeObserver(function(){ resize(); if(MODE==="banner") render(); }).observe(canvas); }catch(e){} }
+  if(window.ResizeObserver){ try{ new ResizeObserver(function(){ resize(); }).observe(canvas); }catch(e){} }
   function R(wx,wy,w,h,col){ ctx.fillStyle=col; ctx.fillRect(Math.round((wx-camX)*PX),Math.round((wy-camY)*PX),Math.ceil(w*PX),Math.ceil(h*PX)); }
   function Sp(wx,wy){ return {x:(wx-camX)*PX,y:(wy-camY)*PX}; }
 
@@ -393,16 +395,22 @@
             route:maraRoute(), routeIdx:0, dwellUntil:0, wake:6.8, homeH:17.5, bedH:20};
 
   // ----- loop -----
-  var DAY=46, simClock=7/24*DAY, SPEED=6.6, running=true, lastT=performance.now();
+  var DAY=46, simClock=7/24*DAY, SPEED=6.6, running=true, lastT=-1e7;  // -1e7 => first render always clears the throttle
+  var FPS=30, FRAME_MS=1000/FPS;   // cap the sim to ~30fps — plenty for pixel art, roughly halves CPU
   // night = 1 at midnight (h=0/24), 0 at noon (h=12) — tracks the sim clock
   function nightLevel(h){ return 0.5 + 0.5*Math.cos(h/24*Math.PI*2); }
 
   function render(){
-    var dt=Math.min(0.05,(performance.now()-lastT)/1000); lastT=performance.now();
+    if(running) requestAnimationFrame(render);
+    var now=performance.now(), elapsed=now-lastT;
+    if(elapsed<FRAME_MS) return;            // throttle to ~30fps; skip the in-between RAF ticks
+    lastT=now-(elapsed%FRAME_MS);           // carry the remainder so the cadence stays even
+    var dt=Math.min(0.05, elapsed/1000);
     if(!reduce) simClock+=dt;
     var hour=((simClock%DAY)/DAY)*24, night=nightLevel(hour), townAsleep=hour>=21||hour<6;
 
-    // update player
+    // update player + town — skipped under reduced-motion (we draw one posed frame instead)
+    if(!reduce){
     stepActor(player, MODE==="banner"?OFFICE:playerGoal(hour), dt, SPEED);  // banner: always at the desk coding
     // re-roll everyone's route at the start of each new day so the town isn't on repeat
     var dN=Math.floor(simClock/DAY);
@@ -440,6 +448,7 @@
         if(mara.dwellUntil===0){ mara.dwellUntil=now0+ms.d*1000; }
         else if(now0>=mara.dwellUntil){ mara.routeIdx=(mara.routeIdx+1)%mara.route.length; mara.dwellUntil=0; } } }
     stepActor(mara, mg, dt, SPEED*0.8);
+    }
 
     // camera
     if(MODE==="banner"){ camTX=player.x*TILE - vW*0.30; camTY=player.y*TILE - vH*0.5;
@@ -474,7 +483,7 @@
     npcs.forEach(function(n){ drawActor(n,n.pal+1); });
     drawActor(mara, MARA_PAL, "#7a4a30");
     // wildlife — critters roam the grass by day only (asleep at night); never over water/buildings
-    if(hour>=6 && hour<20) critters.forEach(function(c){
+    if(!reduce && hour>=6 && hour<20) critters.forEach(function(c){
       if(c.paused){ c.moving=false;
         if(now0>=c.pauseUntil){ c.paused=false;
           if(c.type==="squirrel" && Math.random()<0.8){          // squirrels dart to a tree
@@ -497,7 +506,7 @@
 
     // birds flying over (world-anchored; respawn near the camera)
     var bcx=camX+vW/2, bcy=camY+vH/2;
-    if(hour>=6 && hour<20) birds.forEach(function(b){ b.x+=b.vx*dt; b.y+=b.vy*dt;
+    if(!reduce && hour>=6 && hour<20) birds.forEach(function(b){ b.x+=b.vx*dt; b.y+=b.vy*dt;
       if(Math.abs(b.x*TILE-bcx)>vW*0.75||Math.abs(b.y*TILE-bcy)>vH*0.75){ b.x=(camX+Math.random()*vW)/TILE; b.y=(camY+Math.random()*vH)/TILE; b.vx=(Math.random()<0.5?-1:1)*(2+Math.random()*1.6); b.vy=(Math.random()*2-1)*0.6; }
       bird(b.x*TILE,b.y*TILE,(Math.floor(performance.now()/240+b.ph)%2)===0); });
 
@@ -529,7 +538,6 @@
     vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(0,0,0,0.4)"); ctx.fillStyle=vg; ctx.fillRect(0,0,canvas.width,canvas.height);
 
     if(MODE==="home"){ placeLabels(); updateHUD(hour,night); }
-    if(running) requestAnimationFrame(render);
   }
 
   var lblHome=document.getElementById("lblHome"),lblStore=document.getElementById("lblStore"),lblYou=document.getElementById("lblYou"),lblMara=document.getElementById("lblMara");
@@ -548,13 +556,20 @@
   var io=new IntersectionObserver(function(e){ e.forEach(function(x){ if(x.isIntersecting){ x.target.classList.add("in"); var r=x.target.getAttribute("data-routine"); if(r)activeKey=r; } }); },{threshold:0.55});
   document.querySelectorAll(".sec").forEach(function(s){ io.observe(s); });
 
-  document.addEventListener("visibilitychange",function(){ running=!document.hidden; if(running){lastT=performance.now(); requestAnimationFrame(render);} });
+  document.addEventListener("visibilitychange",function(){ running=!document.hidden; if(running){lastT=0; requestAnimationFrame(render);} });
   // banner: pause the loop while it's scrolled out of view (saves CPU on content pages)
   if(MODE==="banner" && window.IntersectionObserver){
-    new IntersectionObserver(function(es){ es.forEach(function(e){ running=e.isIntersecting; if(running){ lastT=performance.now(); requestAnimationFrame(render); } }); },{threshold:0}).observe(canvas);
+    new IntersectionObserver(function(es){ es.forEach(function(e){ running=e.isIntersecting; if(running){ lastT=0; requestAnimationFrame(render); } }); },{threshold:0}).observe(canvas);
   }
   resize();
-  if(reduce){ render(); running=false; return; }          // static frame under reduced-motion
+  if(reduce){                                              // reduced-motion: one deliberately posed dusk frame
+    simClock=18.6/24*DAY;                                  // dusk — warm lit windows + lamplight, town still readable
+    player.x=OFFICE.x; player.y=OFFICE.y; player.doing="code"; player.facing="up"; player.walk=0;
+    mara.x=MARA_BED.x; mara.y=MARA_BED.y; mara.doing="sleep"; mara.facing="up"; mara.inside=false; mara.walk=0;
+    npcs.forEach(function(n){ n.inside=true; });           // clear the streets for a calm, composed still
+    running=false; render();
+    return;
+  }
   if(MODE==="banner"){ simClock=10/24*DAY; }               // banner starts mid-morning, then lives
   requestAnimationFrame(render);
 })();
