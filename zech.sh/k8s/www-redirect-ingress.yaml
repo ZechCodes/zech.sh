@@ -1,0 +1,36 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-www-to-apex
+spec:
+  redirectRegex:
+    regex: "^https?://www\\.zech\\.sh(.*)"
+    replacement: "https://zech.sh${1}"
+    permanent: true
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: www-zech-sh-redirect-ingress
+  labels:
+    app: zech-sh
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.middlewares: zechcodes-redirect-www-to-apex@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - www.zech.sh
+      secretName: www-zech-sh-tls
+  rules:
+    - host: www.zech.sh
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zech-sh
+                port:
+                  number: 8080
