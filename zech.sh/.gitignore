@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+k8s/secrets.yaml
+
+# Local dev database (SQLite, created at runtime)
+app.db
+
+# OS / editor noise
+.DS_Store
+*.swp
+
+# Backups / agent scratch
+*.backup.*
+.claude/
