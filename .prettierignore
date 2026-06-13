@@ -1,0 +1,6 @@
+# Pre-minified / vendored libraries
+**/*.min.js
+
+# Not formatted by Prettier here (Jinja syntax) or not source
+node_modules
+.venv

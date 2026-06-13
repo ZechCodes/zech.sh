@@ -33,3 +33,6 @@ tests/eval_outputs/
 
 # OS
 .DS_Store
+
+# Node tooling (Prettier)
+node_modules/

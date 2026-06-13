@@ -1,0 +1,12 @@
+{
+  "name": "zech-sh-frontend",
+  "private": true,
+  "description": "Front-end formatting tooling (Prettier) for the zech.sh themes.",
+  "scripts": {
+    "format": "prettier --write \"themes/**/static/**/*.{js,css}\"",
+    "format:check": "prettier --check \"themes/**/static/**/*.{js,css}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.8.4"
+  }
+}
