@@ -11,9 +11,16 @@ wheels/
 
 # Environment and secrets
 .env
+.env.*
+!.env.example
+k8s/secrets.yaml
 
 # Database
 *.db
+
+# Test/tooling caches
+.pytest_cache/
+*.swp
 
 # Claude Code
 .claude/
