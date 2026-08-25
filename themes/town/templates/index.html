@@ -1,11 +1,34 @@
 {% extends "base.html" %}
 
-{% block title %}Zech Zimmerman · I build software.{% endblock %}
+{% block title %}Zech Zimmerman · AI agent orchestration{% endblock %}
 {% block body_class %}home{% endblock %}
 
 {% block seo_meta %}
-<meta name="description" content="Zech Zimmerman builds software. Twenty years of it, most in the margins of an ordinary day. Creator of Bevy, Skrift, and the 13,000-member Smarter Dev community.">
+<meta name="description" content="Zech Zimmerman builds AI agent orchestration systems. Orchestration is a systems problem, most teams treat it like a prompting problem. A decade of Python, building in public, available for scoped consulting.">
 <link rel="canonical" href="https://zech.sh/">
+{% endblock %}
+
+{# The landing page states its own social meta; base.html's defaults still serve every other page. #}
+{% block og_meta %}
+<meta property="og:title" content="Zech Zimmerman · AI agent orchestration">
+<meta property="og:description" content="Zech Zimmerman builds AI agent orchestration systems. Orchestration is a systems problem, most teams treat it like a prompting problem. A decade of Python, building in public, available for scoped consulting.">
+<meta property="og:image" content="https://zech.sh/static/town/og-default.png?v=2">
+<meta property="og:image:secure_url" content="https://zech.sh/static/town/og-default.png?v=2">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A pixel-art map of Zech's town with his character walking through it">
+<meta property="og:url" content="https://zech.sh/">
+<meta property="og:site_name" content="{{ site_name() }}">
+<meta property="og:type" content="website">
+{% endblock %}
+
+{% block twitter_meta %}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Zech Zimmerman · AI agent orchestration">
+<meta name="twitter:description" content="Zech Zimmerman builds AI agent orchestration systems. Orchestration is a systems problem, most teams treat it like a prompting problem. A decade of Python, building in public, available for scoped consulting.">
+<meta name="twitter:image:alt" content="A pixel-art map of Zech's town with his character walking through it">
+<meta name="twitter:image" content="https://zech.sh/static/town/og-default.png?v=2">
 {% endblock %}
 
 {% block body %}
@@ -27,7 +50,7 @@
   <section class="sec" data-routine="A"><div class="panel">
     <div class="eyebrow scroll-rev">zech.sh · a working life</div>
     <h1 class="scroll-rev">I'm Zech.<br>I build <span class="em">software</span>.</h1>
-    <p class="lead scroll-rev">Twenty years of it. Most of it built in the margins of an ordinary day, the one playing out around you.</p>
+    <p class="lead scroll-rev">Twenty years of it, most built in the margins of an ordinary day. Now it's AI agent systems, and it's the whole day.</p>
   </div></section>
   <section class="sec" data-routine="A"><div class="panel">
     <div class="eyebrow scroll-rev">01 · The Long Way Here</div>
@@ -46,21 +69,29 @@
   </div></section>
   <section class="sec" data-routine="C"><div class="panel">
     <div class="eyebrow scroll-rev">04 · Smarter Dev</div>
-    <h2 class="scroll-rev">A community that runs on what I built.</h2>
-    <p class="scroll-rev"><a href="https://smarter.dev">Smarter Dev</a> is where I do it: I write the daily challenges, run the bots, keep the lights on. More than <strong>13,000 developers</strong> now, and growing. It isn't loud. It's people getting unstuck.</p>
+    <h2 class="scroll-rev">Proof I don't stop.</h2>
+    <p class="scroll-rev">Six years ago I started what became <a href="https://smarter.dev">Smarter Dev</a>, a community of <strong>more than 13,000 developers</strong>. I wrote over 800 daily coding challenges, built the bots, and still keep the lights on. Not because anyone paid me to. Because shipping every day is just how I work.</p>
   </div></section>
   <section class="sec" data-routine="D"><div class="panel">
     <div class="eyebrow scroll-rev">05 · The Work</div>
     <h2 class="scroll-rev">Judgment, not keystrokes.</h2>
-    <p class="scroll-rev">Frameworks like <a href="https://github.com/ZechCodes/Bevy">Bevy</a>, rebuilt a dozen times until they were right. And lately, AI tools that handle the dull, repetitive work the way I once ran a floor, so what's left for you is the judgment.</p>
+    <p class="scroll-rev">A decade of Python: frameworks, services, the infrastructure underneath, rebuilt until they were right. That's where my take on AI agents comes from. Orchestration is a systems problem, and most teams treat it like a prompting problem. I'm building on that thesis now: multi-agent systems that plan, execute, and review real work, the way I once ran a floor.</p>
   </div></section>
   <section class="sec" data-routine="E"><div class="panel">
     <div class="eyebrow scroll-rev">What I'm doing now</div>
-    <h2 class="scroll-rev">Come <span class="em">find me.</span></h2>
-    <p class="scroll-rev">It's the whole job now: building, and writing it down on the <strong>blog</strong> as I go. And I'm in <strong>Smarter Dev</strong> every day, with thirteen thousand other developers. If you want to talk shop, that's where I am.</p>
+    <h2 class="scroll-rev">Put it <span class="em">to work.</span></h2>
+    <p class="scroll-rev">I'm building agent orchestration products and writing it all down as I go. If you need agents doing dependable work in production, not demos, I take on scoped consulting engagements.</p>
     <div class="cta-block scroll-rev">
-      <a class="btn btn-primary" href="https://smarter.dev">Join Smarter Dev <span class="arr">&rarr;</span></a>
+      <a class="btn btn-primary" href="#book">Book a call <span class="arr">&rarr;</span></a>
       <a class="btn btn-ghost" href="https://dump.zech.sh">Read the blog <span class="arr">&rarr;</span></a>
+    </div>
+    <div class="booking" id="book">
+      <div class="booking-embed" id="cal-inline"></div>
+      <p class="booking-fallback" id="booking-fallback" hidden><a href="https://cal.com/zech-zimmerman/intro">Book a call on Cal.com <span class="arr">&rarr;</span></a></p>
+      <noscript>
+        <style>.booking-embed { display:none; }</style>
+        <p class="booking-fallback"><a href="https://cal.com/zech-zimmerman/intro">Book a call on Cal.com &rarr;</a></p>
+      </noscript>
     </div>
   </div></section>
 </main>
@@ -68,4 +99,5 @@
 
 {% block scripts %}
 <script src="{{ theme_url('js/world.js') }}" defer></script>
+<script src="{{ theme_url('js/booking.js') }}" defer></script>
 {% endblock %}
