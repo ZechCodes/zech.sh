@@ -14,6 +14,8 @@
   <a class="nav-book" href="/book">Book a call</a>
 </header>
 
+<div class="town-banner-wrap"><canvas id="town-banner" aria-hidden="true"></canvas></div>
+
 <article class="page-wrap">
   <div class="page-eyebrow">book</div>
   <h1 class="page-title">Book a call</h1>
@@ -45,5 +47,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ theme_url('js/world.js') }}" defer></script>
 <script src="{{ theme_url('js/booking.js') }}" defer></script>
 {% endblock %}

@@ -59,7 +59,7 @@ def test_book_page_has_call_framing_sections():
     assert "Thirty minutes. You bring the problem" in html
     assert "This call is for you if</h3>" in html
     assert 'href="mailto:hi@zech.sh"' in html
-    assert "town-banner" not in html
+    assert 'id="town-banner"' in html
 
 
 class FakePage:
