@@ -12,6 +12,7 @@ controllers:
   - controllers.admin_usage:UsageAdminController
   - controllers.admin_api_keys:ApiKeysAdminController
   - skrift.admin.controller:AdminController
+  - controllers.book:BookController
   - controllers.redirects:RedirectsController
   - controllers.redirects:FaviconController
   - skrift.controllers.web:WebController
