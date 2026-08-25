@@ -102,6 +102,7 @@ def test_dump_nav_matches_main_site():
     )
     html = env.get_template("base.html").render()
     assert 'href="/" class="active">Blog</a>' in html
+    assert html.index(">About</a>") < html.index(">Blog</a>") < html.index(">Community</a>")
     assert 'href="/work"' not in html and "zech.sh/work" not in html
     assert 'class="nav-book" href="https://zech.sh/book">Book a call' in html
     assert 'class="brand" href="https://zech.sh">zech<b>.</b>sh</a>' in html
