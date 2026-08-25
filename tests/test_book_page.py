@@ -104,4 +104,7 @@ def test_dump_nav_matches_main_site():
     assert 'href="/" class="active">Blog</a>' in html
     assert 'href="/work"' not in html and "zech.sh/work" not in html
     assert 'class="nav-book" href="https://zech.sh/book">Book a call' in html
-    assert "&larr;" not in html.split("<nav>")[1].split("</nav>")[0]
+    assert 'class="brand" href="https://zech.sh">zech<b>.</b>sh</a>' in html
+    nav_block = html.split("<nav>")[1].split("</nav>")[0]
+    assert "&larr;" not in nav_block
+    assert ">zech.sh</a>" not in nav_block
