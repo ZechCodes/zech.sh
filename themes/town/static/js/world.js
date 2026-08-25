@@ -1482,6 +1482,8 @@
     todIcon = document.getElementById("todIcon"),
     todName = document.getElementById("todName");
   function updateHUD(hour, night) {
+    // the day/night nav widget was removed; the sim's own theming doesn't go through here
+    if (!dayNum || !todIcon || !todName) return;
     dayNum.textContent = 1 + Math.floor(simClock / DAY);
     todName.textContent =
       hour < 6

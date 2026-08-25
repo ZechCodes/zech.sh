@@ -17,6 +17,16 @@ class RedirectsController(Controller):
         return Redirect(path=url)
 
 
+class WorkRedirectController(Controller):
+    """The /work page was removed; send old links home instead of a 404."""
+
+    path = "/work"
+
+    @get("/")
+    async def work(self) -> Redirect:
+        return Redirect(path="/", status_code=301)
+
+
 class FaviconController(Controller):
     """Serve the legacy root /favicon.ico that browsers and crawlers auto-request
     (the HTML <link rel=icon> only covers clients that parse the page)."""

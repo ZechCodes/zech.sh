@@ -1,23 +1,21 @@
-I'm Zech Zimmerman, a Python developer, open-source creator, and community builder who's been shipping code for over twenty years.
+I'm Zech. I build software.
 
-I started writing software as a kid and never stopped. Along the way, I built [Bevy](https://github.com/ZechCodes/Bevy), a dependency injection framework for Python, and [Skrift](https://github.com/ZechCodes/Skrift), the async CMS that powers this very site. I'm also building [Schism](https://github.com/ZechCodes/Schism) (monolith-to-microservice framework) and [Ommi](https://github.com/ZechCodes/Ommi) (cross-ORM object mapping), both approaching their first stable releases.
+For nine years, the days belonged to something else. I led a team at a grocery store in upstate New York: scheduling, logistics, keeping a floor running when three things break at the same time. It taught me more about systems than any classroom did, and I've got the CS degree to compare it against.
 
-I also built [Smarter.Dev](/discord), a 13,000+ member Discord community where developers learn, ship, and level up together. It started as Beginner.Codes, a place for new developers to get real help from real developers. It grew into something bigger.
+I made everything below in the margins of that job. Not anymore.
 
-## What I'm Building Now
+For six years I've built what a developer community runs on: the Discord bots, the infrastructure, the daily challenges I write for them. That's [Smarter Dev](https://smarter.dev): more than 13,000 developers now, and growing. It isn't loud. It's people getting unstuck, which is the part I care about.
 
-The next chapter is AI. Not the buzzword kind, but the kind that actually changes how you work. I'm building tools that anticipate what you need before you ask for it:
+I build frameworks for the same reason other people do crosswords. I can write a dependency-injection library in a day; Bevy still took a dozen tries, because "it works" and "it's right" are different problems and only one of them is interesting. Most of these are experiments more than products: they're how I think a thing all the way through.
 
-- **A budget app** that warns you before you overspend, kept open source so your data stays yours
-- **A workflow tool** that handles daily busywork (agendas, follow-ups, research) before you think to ask
-- **A writing tool** that pulls in context as you type, informed by everything you've been working on
+Lately I build the layer underneath AI tools: the orchestration that turns model calls into dependable work. The one I live in reads my email and runs my calendar so I don't have to. I'm building it the way I run a floor: handle the mechanical, recursive, vigilant work, so the person is free to do the part only a person can.
 
-Same obsession with elegant systems. New frontier.
+That's the thesis, honestly. Orchestration is a systems problem, and most teams treat it like a prompting problem. The interesting work in software right now isn't typing faster: the machines do that now. It's deciding what to build, specifying it precisely, and verifying it's right. Judgment, not keystrokes. I write about that at [dump.zech.sh](https://dump.zech.sh).
 
-## The .sh
+I don't have a viral post or a logo you'd recognize. What I have is six years of showing up, more than 800 challenges, written one weekday at a time, and a community that runs on what I built. Most of it before anyone was watching, in the hours when everyone else was asleep.
 
-The domain is deliberate. Shell scripts execute. They get things done. The shift from `.codes` to `.sh` signals a move from "I write code" to "I build products that ship."
+Those hours just became the whole day.
 
-## Get in Touch
+If you need agents doing dependable work in production, not demos, I take on scoped consulting engagements. [Book a call →](/book)
 
-The best way to reach me is through the [Smarter.Dev Discord](/discord). I'm there every day.
+Dreaming while others sleep.

@@ -18,6 +18,7 @@ def render_theme_template(name: str, **context) -> str:
         now=datetime.now,
         csp_nonce=lambda: "test-nonce",
     )
+    env.filters["markdown"] = lambda text: text
     return env.get_template(name).render(**context)
 
 
@@ -50,3 +51,57 @@ def test_landing_cta_links_to_book_page():
     html = render_theme_template("index.html")
     assert 'href="/book">Book a call' in html
     assert 'href="#book"' not in html
+
+
+def test_book_page_has_call_framing_sections():
+    html = render_theme_template("book.html")
+    assert "On the call</h3>" in html
+    assert "Thirty minutes. You bring the problem" in html
+    assert "This call is for you if</h3>" in html
+    assert 'href="mailto:hi@zech.sh"' in html
+    assert "town-banner" not in html
+
+
+class FakePage:
+    slug = "about"
+    title = "About"
+    content = "body"
+    is_published = True
+
+
+def nav_assertions(html: str, book_href: str):
+    assert 'href="/work"' not in html
+    assert f'class="nav-book" href="{book_href}">Book a call' in html
+    assert html.index(">About</a>") < html.index(">Blog</a>") < html.index(">Community</a>")
+
+
+def test_town_nav_everywhere():
+    env_pages = {
+        "index.html": {},
+        "book.html": {},
+        "page.html": {"page": FakePage()},
+        "error-404.html": {},
+        "error-500.html": {},
+    }
+    for name, ctx in env_pages.items():
+        html = render_theme_template(name, **ctx)
+        nav_assertions(html, "/book")
+        assert 'id="dayNum"' not in html
+
+
+def test_dump_nav_matches_main_site():
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(THEME_TEMPLATES.parent.parent / "dump" / "templates")
+    )
+    env.globals.update(
+        site_name=lambda: "dump.zech.sh",
+        theme_url=lambda path: f"/static/dump/{path}",
+        static_url=lambda path: f"/static/{path}",
+        now=datetime.now,
+        csp_nonce=lambda: "test-nonce",
+    )
+    html = env.get_template("base.html").render()
+    assert 'href="/" class="active">Blog</a>' in html
+    assert 'href="/work"' not in html and "zech.sh/work" not in html
+    assert 'class="nav-book" href="https://zech.sh/book">Book a call' in html
+    assert "&larr;" not in html.split("<nav>")[1].split("</nav>")[0]
