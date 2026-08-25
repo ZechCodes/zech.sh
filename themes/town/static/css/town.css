@@ -169,7 +169,7 @@ body.errpage { margin:0; background:#22512f; }
    ============================================================ */
 .booking { margin-top:2.1rem; }
 .booking-embed { width:88vw; margin-left:calc(50% - 44vw); min-height:520px; border-radius:14px; overflow:hidden;
-  background:rgba(12,16,24,.72); border:1px solid rgba(244,239,231,.12); }
+  background:rgba(12,16,24,.72); }
 .booking-embed[hidden] { display:none; }
 .booking-fallback { margin-top:.4rem; }
 .booking-after { margin-top:2.6rem; }
