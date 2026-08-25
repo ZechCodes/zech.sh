@@ -27,6 +27,45 @@
     if (fallback) fallback.hidden = false;
   }
 
+  /* The CSP's per-request style nonce blocks the <style> tags Cal injects into the
+     page and into cal-inline's shadow DOM, leaving its loader/error chrome unstyled
+     and visible ("Something went wrong." above a working booker). Constructed
+     stylesheets are CSSOM, which style-src does not govern, so re-apply each
+     blocked style tag that way. */
+  var adoptedStyleTags = [];
+  var shadowObserved = false;
+
+  function adoptStyles(container, root) {
+    container.querySelectorAll("style").forEach(function (tag) {
+      if (adoptedStyleTags.indexOf(tag) !== -1) return;
+      adoptedStyleTags.push(tag);
+      var sheet = new CSSStyleSheet();
+      // A malformed vendor sheet should degrade to unstyled chrome, not kill the embed.
+      try {
+        sheet.replaceSync(tag.textContent);
+      } catch (parseError) {
+        return;
+      }
+      root.adoptedStyleSheets = root.adoptedStyleSheets.concat(sheet);
+    });
+  }
+
+  function syncVendorStyles() {
+    if (typeof CSSStyleSheet !== "function" || !("adoptedStyleSheets" in document)) return;
+    adoptStyles(target, document);
+    var inlineEl = target.querySelector("cal-inline");
+    if (inlineEl && inlineEl.shadowRoot) {
+      adoptStyles(inlineEl.shadowRoot, inlineEl.shadowRoot);
+      if (!shadowObserved) {
+        shadowObserved = true;
+        new MutationObserver(syncVendorStyles).observe(inlineEl.shadowRoot, {
+          childList: true,
+          subtree: true,
+        });
+      }
+    }
+  }
+
   // A blocked/failed vendor script fires an error event that only capture-phase listeners see.
   addEventListener(
     "error",
@@ -106,6 +145,8 @@
         },
       },
     });
+    new MutationObserver(syncVendorStyles).observe(target, { childList: true, subtree: true });
+    syncVendorStyles();
     setTimeout(function () {
       if (embedRendered()) settled = true;
       else showFallback();
