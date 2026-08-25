@@ -166,7 +166,7 @@ body.errpage { margin:0; background:#22512f; }
    BOOKING EMBED (landing page, closing section)
    ============================================================ */
 .booking { margin-top:2.1rem; scroll-margin-top:96px; }
-.booking-embed { min-height:520px; border-radius:14px; overflow:hidden;
+.booking-embed { width:88vw; min-height:520px; border-radius:14px; overflow:hidden;
   background:rgba(12,16,24,.72); border:1px solid rgba(244,239,231,.12); }
 .booking-embed[hidden] { display:none; }
 .booking-fallback { margin-top:.4rem; }
