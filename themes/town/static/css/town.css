@@ -15,7 +15,7 @@
   .hud-nav { justify-self:center; display:flex; gap:clamp(14px,2vw,28px); pointer-events:auto; }
   .hud-nav a { font-family:var(--pixel); font-size:0.98rem; letter-spacing:0.5px; color:var(--cream); text-decoration:none; text-shadow:1px 1px 0 rgba(0,0,0,.6); transition:color .25s; }
   .hud-nav a:hover { color:var(--ember); }
-  .nav-book { font-family:var(--pixel); font-size:0.92rem; letter-spacing:0.5px; color:var(--ember); border:2px solid var(--ember); padding:6px 15px; border-radius:100px; text-decoration:none; white-space:nowrap; transition:background .25s, color .25s; }
+  .nav-book { font-family:'Inter',sans-serif; font-weight:600; font-size:0.88rem; color:var(--ember); border:2px solid var(--ember); padding:6px 16px; border-radius:100px; text-decoration:none; white-space:nowrap; transition:background .25s, color .25s; }
   .nav-book:hover { background:var(--ember); color:#1a0e06; }
   .hud .nav-book { justify-self:end; pointer-events:auto; }
   .wlabel { position:fixed; z-index:3; transform:translate(-50%,-100%); pointer-events:none; font-family:'Inter',system-ui,sans-serif; font-size:0.82rem; font-weight:700; letter-spacing:.2px; color:var(--cream); background:rgba(12,16,24,.7); border:1px solid rgba(244,239,231,.22); padding:3px 9px; border-radius:6px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.35); opacity:0; transition:opacity .4s; }
