@@ -39,12 +39,13 @@
   var FLOWER = ["#e7b6cf", "#ffd166", "#cfe0ff", "#e2693a"];
 
   var TILE = 16,
-    dpr = 1,
+    dpr = 0, // 0 until the first resize(), so that first call always applies
     PX = 4,
     camX = 0,
     camY = 0,
     vW = 0,
     vH = 0,
+    narrow = false,
     camInit = false;
   function hash(x, y) {
     var n = Math.imul(x | 0, 73856093) ^ Math.imul(y | 0, 19349663);
@@ -114,19 +115,26 @@
     });
 
   function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var nextDpr = Math.min(window.devicePixelRatio || 1, 2);
     var rect = canvas.getBoundingClientRect();
     var cw = Math.round(rect.width) || window.innerWidth,
       ch = Math.round(rect.height) || window.innerHeight;
-    canvas.width = Math.max(1, Math.floor(cw * dpr));
-    canvas.height = Math.max(1, Math.floor(ch * dpr));
+    var nextW = Math.max(1, Math.floor(cw * nextDpr)),
+      nextH = Math.max(1, Math.floor(ch * nextDpr));
+    // mobile browser chrome showing/hiding fires resize with an unchanged box; assigning
+    // canvas.width/height clears the bitmap even when the value is identical, so bail out first
+    if (nextW === canvas.width && nextH === canvas.height && nextDpr === dpr) return;
+    dpr = nextDpr;
+    canvas.width = nextW;
+    canvas.height = nextH;
+    narrow = cw <= 760; // matches the error-page CSS breakpoint
     var tilesTall = ch > 720 ? 17 : cw < 560 ? 13 : 15;
     PX = Math.max(2, Math.round(canvas.height / (tilesTall * TILE)));
     vW = canvas.width / PX;
     vH = canvas.height / PX;
     ctx.imageSmoothingEnabled = false;
-    if (!running) drawFrame();
-  }
+    drawFrame();
+  } // the resize cleared the canvas, repaint in this same tick rather than waiting on a rAF the browser throttles while scrolling
   addEventListener("resize", resize);
   addEventListener("orientationchange", resize);
   if (window.ResizeObserver) {
@@ -567,7 +575,9 @@
       updateAnimals(dt, hour);
     }
     var camTX = walker.x * TILE - vW * 0.35,
-      camTY = walker.y * TILE - vH * 0.72; // walker low-left, clear of the headline
+      // walker low-left, clear of the copy; narrow screens push him lower still because the
+      // centered text block takes a much taller share of the viewport there
+      camTY = walker.y * TILE - vH * (narrow ? 0.8 : 0.72);
     if (!camInit) {
       camX = camTX;
       camY = camTY;
@@ -717,10 +727,15 @@
 
   function drawFrame() {
     lastT = -1e7;
-    render();
-  }
+    paintFrame();
+  } // force one repaint without touching the loop (reduced-motion, or after a resize clears the canvas)
   function render() {
     if (running) requestAnimationFrame(render);
+    paintFrame();
+  }
+  // one frame of sim + draw, with no rAF scheduling, so a resize can repaint immediately
+  // without starting a second loop
+  function paintFrame() {
     var now = performance.now(),
       elapsed = now - lastT;
     if (elapsed < FRAME_MS) return;
@@ -770,7 +785,7 @@
     birds[0].x = cx;
     birds[0].y = cyT - 5;
     running = false;
-    render();
+    drawFrame(); // resize() above already painted and reset the throttle, so render() would skip this posed frame
     return;
   }
   requestAnimationFrame(render);

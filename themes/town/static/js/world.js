@@ -319,30 +319,36 @@
     camY = 0,
     vW = 0,
     vH = 0,
-    dpr = 1,
+    dpr = 0, // 0 until the first resize(), so that first call always applies
     camTX = 0,
     camTY = 0,
     camInit = false;
   function drawFrame() {
     lastT = -1e7;
-    render();
-  } // force one repaint outside the loop (reduced-motion, or after a resize clears the canvas)
+    paintFrame();
+  } // force one repaint without touching the loop (reduced-motion, or after a resize clears the canvas)
   function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var nextDpr = Math.min(window.devicePixelRatio || 1, 2);
     // use the ACTUAL rendered box (getBoundingClientRect) so backing-store aspect always
     // matches the displayed box, prevents the canvas from stretching on mobile.
     var rect = canvas.getBoundingClientRect();
     var cw = Math.round(rect.width) || window.innerWidth,
       ch = Math.round(rect.height) || window.innerHeight;
-    canvas.width = Math.max(1, Math.floor(cw * dpr));
-    canvas.height = Math.max(1, Math.floor(ch * dpr));
+    var nextW = Math.max(1, Math.floor(cw * nextDpr)),
+      nextH = Math.max(1, Math.floor(ch * nextDpr));
+    // mobile browser chrome showing/hiding fires resize with an unchanged box; assigning
+    // canvas.width/height clears the bitmap even when the value is identical, so bail out first
+    if (nextW === canvas.width && nextH === canvas.height && nextDpr === dpr) return;
+    dpr = nextDpr;
+    canvas.width = nextW;
+    canvas.height = nextH;
     var tilesTall = MODE === "banner" ? 11 : cw < 560 ? 16 : 26; // zoom in a bit on narrow screens
     PX = Math.max(2, Math.round(canvas.height / (tilesTall * TILE)));
     vW = canvas.width / PX;
     vH = canvas.height / PX;
     ctx.imageSmoothingEnabled = false;
-    if (!running) drawFrame();
-  } // resizing clears the canvas, repaint the static frame when the loop isn't running
+    drawFrame();
+  } // the resize cleared the canvas, repaint in this same tick rather than waiting on a rAF the browser throttles while scrolling
   addEventListener("resize", resize);
   addEventListener("orientationchange", resize);
   // re-resize whenever the canvas box actually changes (handles mobile toolbar show/hide)
@@ -1094,6 +1100,11 @@
 
   function render() {
     if (running) requestAnimationFrame(render);
+    paintFrame();
+  }
+  // one frame of sim + draw, with no rAF scheduling, so a resize can repaint immediately
+  // without starting a second loop
+  function paintFrame() {
     var now = performance.now(),
       elapsed = now - lastT;
     if (elapsed < FRAME_MS) return; // throttle to ~30fps; skip the in-between RAF ticks
@@ -1560,7 +1571,7 @@
       n.inside = true;
     }); // clear the streets for a calm, composed still
     running = false;
-    render();
+    drawFrame(); // resize() above already painted and reset the throttle, so render() would skip this posed frame
     return;
   }
   if (MODE === "banner") {
