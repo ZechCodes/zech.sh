@@ -5,6 +5,12 @@ security_contact: security@zech.sh
 models:
   - models
 
+# Turns on the OAuth2/OIDC authorization server (/oauth/*, /.well-known/
+# openid-configuration, /oauth/jwks). zech.sh acts as the identity provider
+# for the LiteLLM proxy at llmproxy.zech.sh, which gates sign-in on the
+# `llm-users` role via the OIDC `groups` claim.
+oauth2_enabled: true
+
 controllers:
   - skrift.controllers.auth:AuthController
   - controllers.admin_import_posts:ImportPostsAdminController

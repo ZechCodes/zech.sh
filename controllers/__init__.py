@@ -84,3 +84,22 @@ post_slug_index = PostSlugIndex(_load_post_slugs)
 
 add_action(APP_STARTUP, _capture_session_factory)
 add_filter(SITEMAP_PAGE, SitemapHostFilter(post_slug_index))
+
+
+# ---- proxy access role --------------------------------------------------------
+#
+# Registered here rather than in a site-specific controller because roles only
+# reach the database if their module is imported before startup, and this
+# package is imported whenever any controller is. The role exists to be read
+# back out through the OIDC `groups` claim: the LiteLLM proxy at
+# llmproxy.zech.sh matches its ui_access_mode.restricted_sso_group against
+# these names, so `llm-users` is a public identifier — renaming it locks
+# everyone out of the proxy until the proxy's config is renamed to match.
+
+from skrift.auth.roles import register_role
+
+register_role(
+    "llm-users", "use-llm-proxy",
+    display_name="LLM Users",
+    description="Access to the LiteLLM proxy at llmproxy.zech.sh",
+)
