@@ -22,7 +22,7 @@ from skrift.auth.services import get_user_permissions
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
-from skrift.lib.notifications import NotificationMode, notify_user
+from skrift.notifications import NotificationMode, notify_user
 
 from controllers.brave_search import brave_search
 from controllers.chat_agent import (

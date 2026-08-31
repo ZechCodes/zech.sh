@@ -5,6 +5,12 @@ security_contact: security@zech.sh
 models:
   - models
 
+# Turns on the OAuth2/OIDC authorization server (/oauth/*, /.well-known/
+# openid-configuration, /oauth/jwks). zech.sh acts as the identity provider
+# for the LiteLLM proxy at llmproxy.zech.sh, which gates sign-in on the
+# `llm-users` role via the OIDC `groups` claim.
+oauth2_enabled: true
+
 controllers:
   - skrift.controllers.auth:AuthController
   - controllers.admin_import_posts:ImportPostsAdminController
@@ -66,6 +72,13 @@ db:
   pool_timeout: 30
   pool_pre_ping: true
   echo: false
+
+# zech.sh runs its own API-key system (models/api_key.py, controllers/api_auth.py,
+# controllers/admin_api_keys.py). Skrift 0.2.0 ships its own, enabled by default,
+# whose admin screen claims the same /admin/api-keys path and crashes the app at
+# startup. Keep ours; turn the framework's off.
+api_keys:
+  enabled: false
 
 notifications:
   backend: "skrift.lib.notification_backends:RedisBackend"

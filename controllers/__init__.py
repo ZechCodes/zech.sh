@@ -27,20 +27,79 @@ skrift.app_factory.render_markdown = _render_markdown_clean
 # page on the host that actually serves it: posts live on dump.*, regular pages on
 # the main domain. Without this, each sitemap advertises the other site's URLs,
 # which 404.
-from skrift.lib.hooks import add_filter, SITEMAP_PAGE
+#
+# Skrift 0.2.0 projects the sitemap query down to (slug, updated_at, created_at),
+# so the row no longer carries `type` and the post/page split has to be looked up.
+# The decision logic lives in controllers.sitemap_hygiene; what stays here is the
+# database loader behind it and the hook wiring.
+import logging
+
+from sqlalchemy import select
+
+from skrift.db.models.page import Page
+from skrift.hooks import add_action, add_filter, APP_STARTUP, SITEMAP_PAGE
+
+from controllers.sitemap_hygiene import POST_TYPE, PostSlugIndex, SitemapHostFilter
+
+logger = logging.getLogger(__name__)
+
+_session_factory = None
 
 
-def _sitemap_entry_filter(entry, page):
-    loc = entry.loc
-    if loc.startswith("http://"):
-        loc = "https://" + loc[len("http://"):]
-        entry.loc = loc
-    host = loc.split("://", 1)[-1].split("/", 1)[0].lower()
-    is_dump = host.startswith("dump.")
-    is_post = getattr(page, "type", "page") == "post"
-    if is_dump != is_post:
-        return None  # this page is not served on this host; leave it out
-    return entry
+def _capture_session_factory(app) -> None:
+    """Grab the app's session maker so the sitemap can query outside a request.
+
+    The sitemap_page filter is handed an entry and a row, never a session, so
+    the post-slug index has to source its own. Skrift builds exactly one
+    SQLAlchemy plugin per app; its config owns the session maker.
+    """
+    global _session_factory
+    from advanced_alchemy.extensions.litestar.plugins import SQLAlchemyPlugin
+
+    for plugin in app.plugins:
+        if isinstance(plugin, SQLAlchemyPlugin):
+            config = plugin.config
+            if isinstance(config, (list, tuple)):
+                config = config[0]
+            _session_factory = config.get_session
+            return
+    logger.warning("sitemap: no SQLAlchemy plugin on the app; post/page split will not apply")
 
 
-add_filter(SITEMAP_PAGE, _sitemap_entry_filter)
+async def _load_post_slugs() -> set[str]:
+    """Every slug belonging to the `post` page type.
+
+    Deliberately unfiltered by publication state: the index is only ever asked
+    about slugs the sitemap already emitted, so restricting it further would buy
+    nothing and risk disagreeing with skrift's own published-page query.
+    """
+    if _session_factory is None:
+        raise RuntimeError("sitemap post-slug index queried before app startup")
+    async with _session_factory() as db_session:
+        rows = await db_session.execute(select(Page.slug).where(Page.type == POST_TYPE))
+        return {slug.strip("/") for (slug,) in rows}
+
+
+post_slug_index = PostSlugIndex(_load_post_slugs)
+
+add_action(APP_STARTUP, _capture_session_factory)
+add_filter(SITEMAP_PAGE, SitemapHostFilter(post_slug_index))
+
+
+# ---- proxy access role --------------------------------------------------------
+#
+# Registered here rather than in a site-specific controller because roles only
+# reach the database if their module is imported before startup, and this
+# package is imported whenever any controller is. The role exists to be read
+# back out through the OIDC `groups` claim: the LiteLLM proxy at
+# llmproxy.zech.sh matches its ui_access_mode.restricted_sso_group against
+# these names, so `llm-users` is a public identifier — renaming it locks
+# everyone out of the proxy until the proxy's config is renamed to match.
+
+from skrift.auth.roles import register_role
+
+register_role(
+    "llm-users", "use-llm-proxy",
+    display_name="LLM Users",
+    description="Access to the LiteLLM proxy at llmproxy.zech.sh",
+)

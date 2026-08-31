@@ -1,7 +1,7 @@
 """Add api_key table for programmatic API access.
 
 Revision ID: e5f6a7b8c9d0
-Revises: d4e5f6a7b8c9
+Revises: dd4dfa230c07
 Create Date: 2026-02-25
 """
 
@@ -13,7 +13,7 @@ from advanced_alchemy.types import GUID, DateTimeUTC
 
 
 revision: str = "e5f6a7b8c9d0"
-down_revision: Union[str, None] = "d4e5f6a7b8c9"
+down_revision: Union[str, None] = "dd4dfa230c07"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

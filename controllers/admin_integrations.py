@@ -14,7 +14,7 @@ from skrift.auth.guards import auth_guard, Permission
 from skrift.admin.helpers import get_admin_context
 from skrift.admin.navigation import ADMIN_NAV_TAG
 from skrift.db.services import setting_service
-from skrift.lib.flash import flash_success, get_flash_messages
+from skrift.flash import flash_success, get_flash_messages
 
 
 class IntegrationsAdminController(Controller):

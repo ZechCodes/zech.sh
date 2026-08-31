@@ -17,7 +17,7 @@ from skrift.auth.guards import auth_guard, Permission
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.admin.helpers import get_admin_context
 from skrift.admin.navigation import ADMIN_NAV_TAG
-from skrift.lib.flash import flash_success, flash_error, get_flash_messages
+from skrift.flash import flash_success, flash_error, get_flash_messages
 
 from controllers.api_auth import generate_api_key
 from models.api_key import ApiKey

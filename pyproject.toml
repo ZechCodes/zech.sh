@@ -12,7 +12,7 @@ dependencies = [
     "pypdf>=5.0.0",
     "pywebpush>=2.3.0",
     "redis>=5.0.0",
-    "skrift[s3]>=0.1.0a81",
+    "skrift[s3]>=0.2.0a19",
 ]
 
 [dependency-groups]
@@ -20,4 +20,12 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pydantic-ai-slim[openai]>=1.62.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"
+addopts = "-m 'not integration'"
+markers = [
+    "integration: hits live third-party APIs; requires credentials in .env",
 ]

@@ -10,7 +10,7 @@ from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.db.models.user import User
 from skrift.db.services import page_service
 from skrift.db.services.setting_service import get_cached_site_name_for
-from skrift.lib.seo import (
+from skrift.seo import (
     OpenGraphMeta,
     SEOMeta,
     get_page_og_meta,
