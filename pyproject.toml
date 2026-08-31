@@ -21,3 +21,11 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "pydantic-ai-slim[openai]>=1.62.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"
+addopts = "-m 'not integration'"
+markers = [
+    "integration: hits live third-party APIs; requires credentials in .env",
+]
