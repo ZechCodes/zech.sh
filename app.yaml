@@ -10,6 +10,10 @@ models:
 # for the LiteLLM proxy at llmproxy.zech.sh, which gates sign-in on the
 # `llm-users` role via the OIDC `groups` claim.
 oauth2_enabled: true
+# The app sits behind the cluster ingress and does not trust its
+# X-Forwarded-Proto, so request.base_url resolves to http:// and every
+# advertised OIDC endpoint would be http. Pin the issuer explicitly.
+oauth2_issuer: https://zech.sh
 
 controllers:
   - skrift.controllers.auth:AuthController
