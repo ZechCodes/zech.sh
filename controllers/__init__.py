@@ -27,7 +27,7 @@ skrift.app_factory.render_markdown = _render_markdown_clean
 # page on the host that actually serves it: posts live on dump.*, regular pages on
 # the main domain. Without this, each sitemap advertises the other site's URLs,
 # which 404.
-from skrift.lib.hooks import add_filter, SITEMAP_PAGE
+from skrift.hooks import add_filter, SITEMAP_PAGE
 
 
 def _sitemap_entry_filter(entry, page):

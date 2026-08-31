@@ -15,7 +15,7 @@ from skrift.admin.navigation import ADMIN_NAV_TAG
 from skrift.auth.guards import Permission, auth_guard
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.db.services import page_service
-from skrift.lib.flash import (
+from skrift.flash import (
     flash_error,
     flash_success,
     flash_warning,

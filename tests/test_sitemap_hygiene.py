@@ -17,7 +17,7 @@ import pytest
 
 import controllers  # noqa: F401  (importing registers the filter)
 from skrift.controllers.sitemap import SitemapEntry
-from skrift.lib.hooks import hooks, SITEMAP_PAGE
+from skrift.hooks import hooks, SITEMAP_PAGE
 
 
 @dataclass

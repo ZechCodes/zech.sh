@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from skrift.controllers.helpers import get_user_context
 from skrift.db.services.setting_service import get_cached_site_name
-from skrift.lib.seo import OpenGraphMeta, SEOMeta
+from skrift.seo import OpenGraphMeta, SEOMeta
 
 BOOK_PAGE_TITLE = "Book a call · Zech Zimmerman"
 BOOK_PAGE_DESCRIPTION = (

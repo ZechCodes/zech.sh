@@ -31,8 +31,8 @@ from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
 from skrift.db.services.asset_service import get_asset_url, upload_asset
-from skrift.lib.notifications import NotificationMode, dismiss_user_group, notifications, notify_user
-from skrift.lib.push import send_push
+from skrift.notifications import NotificationMode, dismiss_user_group, notifications, notify_user
+from skrift.push import send_push
 
 from models.ai_chat import AiChatMessage
 from models.ai_chat_channel import AiChatChannel

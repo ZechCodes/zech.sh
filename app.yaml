@@ -67,6 +67,13 @@ db:
   pool_pre_ping: true
   echo: false
 
+# zech.sh runs its own API-key system (models/api_key.py, controllers/api_auth.py,
+# controllers/admin_api_keys.py). Skrift 0.2.0 ships its own, enabled by default,
+# whose admin screen claims the same /admin/api-keys path and crashes the app at
+# startup. Keep ours; turn the framework's off.
+api_keys:
+  enabled: false
+
 notifications:
   backend: "skrift.lib.notification_backends:RedisBackend"
 

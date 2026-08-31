@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from skrift.auth.session_keys import SESSION_USER_ID
 from skrift.config import get_settings
 from skrift.db.models.user import User
-from skrift.lib.notifications import NotificationMode, notify_user
+from skrift.notifications import NotificationMode, notify_user
 
 from controllers.chat_agent import (
     CompactEvent,
