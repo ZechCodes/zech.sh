@@ -3,7 +3,8 @@ import json
 import pathlib
 import subprocess
 import tempfile
-import http.client
+import urllib.request
+import urllib.error
 import sys
 import ssl
 
@@ -23,15 +24,15 @@ for bundle in (site / 'certifi/cacert.pem', pathlib.Path('/etc/ssl/certs/ca-cert
             assert result.returncode != 0, f'Compromised CA accepted by {bundle}: {item["name"]} / {item["issued_by"]}'
     context = ssl.create_default_context(cafile=str(bundle))
     assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
-    hosts = ('api.openai.com',) if '--runtime' in sys.argv else ('pypi.org', 'api.openai.com')
-    for host in hosts:
-        # Python 3.13 with explicit hostname checking and CERT_REQUIRED above.
-        connection = http.client.HTTPSConnection(host, context=context, timeout=20)  # nosemgrep: python.lang.security.audit.httpsconnection-detected.httpsconnection-detected
+    urls = ('https://api.openai.com/',) if '--runtime' in sys.argv else ('https://pypi.org/', 'https://api.openai.com/')
+    for url in urls:
+        assert url in ('https://pypi.org/', 'https://api.openai.com/')
         try:
-            connection.request('GET', '/')
-            with connection.getresponse() as response:
+            # Fixed HTTPS allowlist plus an explicitly validating TLS context;
+            # urllib intentionally preserves production's HTTPS_PROXY/Squid routing.
+            with urllib.request.urlopen(url, context=context, timeout=20) as response:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
                 assert response.status < 500
-        finally:
-            connection.close()
+        except urllib.error.HTTPError as error:
+            assert error.code < 500
     print(f'PASS: {bundle}: rejects all {len(fixtures)} compromised certificates; normal HTTPS succeeds')
 print('PASS: LiteLLM 1.98.0 preserved; certifi patched; no incident startup files')

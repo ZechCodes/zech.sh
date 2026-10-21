@@ -20,8 +20,9 @@ Keep credentials and compose backups only on the server; never add them here.
 `verify_api.py` runs on the host, reads credentials from Docker metadata without
 printing them, checks health, unauthorized rejection and authorized model listing.
 Its optional `--stream` makes one short provider request.
-The maintained copies use stdlib HTTP connections and a subprocess-based
-`-S` runtime verifier; no source rewriting or `exec` is needed.
+The maintained copies use a fixed HTTPS allowlist, preserving production
+HTTPS_PROXY/Squid routing, and a subprocess-based `-S` runtime verifier;
+no source rewriting or `exec` is needed.
 The explicit TLS context requires certificate validation and hostname checking.
 
 Rollback: restore the server-only pre-remediation compose backup, replace its
