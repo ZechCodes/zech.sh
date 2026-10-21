@@ -30,3 +30,6 @@ addopts = "-m 'not integration'"
 markers = [
     "integration: hits live third-party APIs; requires credentials in .env",
 ]
+
+[tool.uv]
+required-version = ">=0.13.4"
