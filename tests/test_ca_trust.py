@@ -14,6 +14,9 @@ class CaTrustTests(unittest.TestCase):
         version = tuple(int(part) for part in package.group(1).split("."))
         self.assertGreaterEqual(version, (2026, 10, 19))
 
+    def test_container_rebuilds_system_trust(self):
+        self.assertIn(".venv/bin/python scripts/verify_ca_trust.py", (ROOT / "Dockerfile").read_text())
+
     def test_container_uses_remediated_uv(self):
         self.assertIn("ghcr.io/astral-sh/uv:0.13.4", (ROOT / "Dockerfile").read_text())
 
